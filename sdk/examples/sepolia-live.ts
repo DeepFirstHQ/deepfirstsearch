@@ -127,6 +127,7 @@ async function pay() {
     const payload = decodePaymentSignatureHeader(sig);
     const verified = await facilitator.verify(payload as never, requirement as never);
     if (!verified.isValid) {
+      console.error(`facilitator rejected the payment: ${verified.invalidReason} ${verified.invalidMessage ?? ""}`);
       res.writeHead(402).end(`verify failed: ${verified.invalidReason}`);
       return;
     }

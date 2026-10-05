@@ -20,6 +20,7 @@ Testnet setup:
 |---|---|
 | BudgetVault | [`0x2f64603173A5f6016D6f1b5CE443Cf1c5BC10B27`](https://base-sepolia.blockscout.com/address/0x2f64603173A5f6016D6f1b5CE443Cf1c5BC10B27) |
 | Owner-signed intent | [tx](https://sepolia.basescan.org/tx/0x94907b3f9ebdc15ed462b3823a63757692e7654c8d18e9ae8fe779c5c92b00b0) |
+| First x402 payment (0.01 USDC, settled by the public facilitator) | [tx](https://sepolia.basescan.org/tx/0x28c60778fcc40110440ec7fb7c944ad28fa90d5a5c26f639a5001c2736d85e5b) |
 
 Intent limits:
 - per payment: 0.05 USDC

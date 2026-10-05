@@ -11,7 +11,7 @@ AI agents now pay for things over x402. Every one of those payments is public, a
 | **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · TGE only after revenue |
 | **Website** (`web/`) | Apple-style scroll site, whitepaper, tokenomics, legal pages; strict CSP, zero third parties | ✅ |
 
-> Status: pre-launch. **Live on Base Sepolia** (see [deployments](docs/DEPLOYMENTS.md)); mainnet waits for an independent security review. No token exists.
+> Status: pre-launch. **Live on Base Sepolia**, with a [real x402 payment settled](https://sepolia.basescan.org/tx/0x28c60778fcc40110440ec7fb7c944ad28fa90d5a5c26f639a5001c2736d85e5b) (see [deployments](docs/DEPLOYMENTS.md)); mainnet waits for an independent security review. No token exists.
 
 ## Quick start
 
