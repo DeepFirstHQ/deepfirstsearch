@@ -11,7 +11,7 @@ AI agents now pay for things over x402. Every one of those payments is public, a
 | **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · TGE only after revenue |
 | **Website** (`web/`) | Apple-style scroll site, whitepaper, tokenomics, legal pages; strict CSP, zero third parties | ✅ |
 
-> Status: pre-launch. Runs on a local chain today; Base Sepolia deployment is next (see the launch plan). No token exists.
+> Status: pre-launch. **Live on Base Sepolia** (see [deployments](docs/DEPLOYMENTS.md)); mainnet waits for an independent security review. No token exists.
 
 ## Quick start
 
@@ -34,6 +34,7 @@ cd ../web && npm ci && npm run dev
 | [Whitepaper](docs/WHITEPAPER.md) | Formal design, privacy model, risks (EN; structured for MiCA Annex I) |
 | [Tokenomics](docs/TOKENOMICS.md) | Supply, allocation, Firepit burn, vesting (EN) |
 | [Decisions](docs/DECISIONS.md) | ADRs: ticker, chain, burn, vesting, stand… (ES) |
+| [Deployments](docs/DEPLOYMENTS.md) | Base Sepolia contract addresses and the live demo vault |
 | [Security assessment](docs/assessments/SECURITY.md) | Pentest findings, threat model, evidence (ES) |
 | [Research](docs/research/) | Market pain, successes, failures, token models, launch mechanics (ES) |
 

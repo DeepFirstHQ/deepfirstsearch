@@ -188,7 +188,7 @@ Each is a multi-signature Safe with hardware keys, and its address will be publi
 | Phase | Milestone | Status |
 |---|---|---|
 | 0 | Research, legal and security assessments, contracts and SDK with tests | Done |
-| 1 | Base Sepolia deployment; SDK on npm; Agent Safe web app; first users | Q4 2026 |
+| 1 | Base Sepolia deployment (live, see DEPLOYMENTS.md); SDK on npm; Agent Safe web app; first users | Q4 2026 |
 | 2 | External audit contest and bug bounty; Base mainnet; real USDC fees | Q1 2027 |
 | 3 | Entity, legal and tax opinions; auction contract; airdrop snapshot | Q2 2027 |
 | 4 | Token generation event: genesis, auction, claim, liquidity burn | Q3 2027, conditional on Phases 1–3 |

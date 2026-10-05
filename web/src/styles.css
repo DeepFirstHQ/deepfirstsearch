@@ -1098,3 +1098,7 @@ canvas {
 .tx__public.is-on {
   opacity: 1;
 }
+
+.step p a {
+  color: var(--accent);
+}
