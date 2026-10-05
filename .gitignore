@@ -1,0 +1,14 @@
+node_modules
+dist
+.DS_Store
+
+# Foundry
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/.env
+.env
+*.key
+
+# Personal notes (pitch prep, weaknesses): never published
+private/

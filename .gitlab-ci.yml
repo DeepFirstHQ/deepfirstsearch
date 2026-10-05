@@ -1,0 +1,49 @@
+# Free GitLab CI: contracts, SDK and website checks on every push.
+# The website is hosted on Cloudflare Pages (connected to this repo), which serves web/public/_headers (ADR-010).
+
+variables:
+  GIT_SUBMODULE_STRATEGY: normal
+
+stages: [test, build]
+
+contracts:
+  stage: test
+  image: ghcr.io/foundry-rs/foundry:stable
+  script:
+    - cd contracts
+    - forge --version
+    - forge fmt --check
+    - forge build --sizes
+    - forge test -vv
+  artifacts:
+    paths: [contracts/out]
+    expire_in: 1 day
+
+sdk:
+  stage: test
+  image: node:22
+  needs: [contracts]
+  before_script:
+    # anvil enables the on-chain and official-x402 conformance tests; without it they are skipped.
+    - curl -sSL https://foundry.paradigm.xyz | bash
+    - export PATH="$HOME/.foundry/bin:$PATH" && foundryup
+  script:
+    - export PATH="$HOME/.foundry/bin:$PATH"
+    - cd sdk
+    - npm ci
+    - npm run typecheck
+    - npm test
+    - npm audit --omit=dev --audit-level=high
+
+web:
+  stage: build
+  image: node:22
+  script:
+    - cd web
+    - npm ci
+    - npm run build
+    - npm audit --omit=dev --audit-level=high
+  artifacts:
+    paths: [web/dist]
+    expire_in: 1 week
+

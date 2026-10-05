@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Deep First Search — Safe rails for the agent economy</title>
+    <meta
+      name="description"
+      content="Deep First Search keeps AI-agent payments inside limits their owners signed, and exposes less of their business. Fixed supply. Zero VC. Protocol fees burn $DEPTH — no token is ever minted again."
+    />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <!-- Defense in depth: the same policy is also sent as an HTTP header (public/_headers), which adds frame-ancestors. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+  </head>
+  <body>
+    <a class="skip" href="#problem">Skip to content</a>
+
+    <header class="nav" id="nav">
+      <a class="nav__brand" href="#top" aria-label="Deep First Search home">
+        <span class="nav__mark" aria-hidden="true"></span>
+        Deep First Search
+      </a>
+      <nav class="nav__links" aria-label="Sections">
+        <a href="#problem">Problem</a>
+        <a href="#product">Product</a>
+        <a href="#token">Token</a>
+        <a href="#roadmap">Roadmap</a>
+      </nav>
+      <a class="nav__cta" href="./whitepaper.html">Whitepaper</a>
+    </header>
+
+    <main id="top">
+      <!-- 1 · HERO -->
+      <section class="hero" id="hero">
+        <div class="hero__sticky">
+          <canvas class="hero__canvas" id="core" aria-hidden="true"></canvas>
+          <div class="hero__copy">
+            <p class="eyebrow hero__eyebrow">Deep First Search · <span data-ticker></span></p>
+            <h1 class="hero__title">
+              <span>Safe rails</span>
+              <span>for the agent economy.</span>
+            </h1>
+            <p class="hero__sub">
+              AI agents are starting to pay for things, and anyone can talk them into paying the wrong
+              party. We keep every payment inside limits you signed, and expose less of your business.
+            </p>
+          </div>
+          <div class="hero__after" aria-hidden="true">
+            <p class="hero__after-line">Search deep.</p>
+            <p class="hero__after-line hero__after-line--dim">Reveal only what you choose.</p>
+          </div>
+          <div class="scroll-cue" aria-hidden="true"><span></span></div>
+        </div>
+      </section>
+
+      <!-- 2 · PROBLEM -->
+      <section class="problem" id="problem">
+        <div class="wrap">
+          <p class="eyebrow" data-reveal>The problem</p>
+          <p class="words" data-words>
+            Your agent reads untrusted content all day, and it can move money. One poisoned page is
+            enough to make it pay the wrong party. And every payment it makes is public: who, how much,
+            when. Attackers read your balance. Competitors read your suppliers.
+          </p>
+          <div class="stats">
+            <article class="stat" data-reveal>
+              <p class="stat__num">18M+</p>
+              <p class="stat__label">x402 payments audited on-chain. Payer, payee, amount and timing are public for every one.</p>
+            </article>
+            <article class="stat" data-reveal>
+              <p class="stat__num">$150K+</p>
+              <p class="stat__label">drained from one AI agent's wallet by a single prompt injection. The same trick worked again a year later.</p>
+            </article>
+            <article class="stat" data-reveal>
+              <p class="stat__num">77%</p>
+              <p class="stat__label">of employees paste company data into AI tools that keep logs.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · ENCRYPTION DEMO -->
+      <section class="cipher" id="exposure">
+        <div class="cipher__sticky">
+          <div class="wrap cipher__grid">
+            <div class="cipher__copy">
+              <p class="eyebrow">Exposure control</p>
+              <h2 class="h2">
+                <span class="cipher__state" data-state-before>What third parties can link to you today.</span>
+                <span class="cipher__state" data-state-after>Same payment.<br />Less to link.</span>
+              </h2>
+              <p class="lede">
+                Each merchant sees a fresh payer with no history, and what your agent bought is shared
+                with that merchant only, never with facilitators or the chain. Amounts and payees remain on-chain. Funding payers through a regulated
+                exchange breaks the public link to you, while you can still prove any payment to an auditor.
+              </p>
+            </div>
+            <figure class="tx" aria-label="What an outside observer can link to an x402 payment, before and after">
+              <div class="tx__head">
+                <span class="tx__dot"></span><span class="tx__dot"></span><span class="tx__dot"></span>
+                <span class="tx__title">x402 · payment</span>
+                <span class="tx__badge" data-badge>LINKABLE</span>
+              </div>
+              <dl class="tx__body" data-tx></dl>
+              <div class="tx__bar"><span data-tx-progress></span></div>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4 · PILLARS (horizontal) -->
+      <section class="pillars" id="product">
+        <div class="pillars__sticky">
+          <div class="pillars__intro wrap">
+            <p class="eyebrow">The product</p>
+            <h2 class="h2">Three layers. One SDK.</h2>
+          </div>
+          <div class="pillars__track" data-track>
+            <article class="pillar">
+              <p class="pillar__n">01</p>
+              <h3 class="pillar__title">Agent&nbsp;Safe</h3>
+              <p class="pillar__text">
+                An on-chain vault that assumes your agent will be tricked. You sign a budget per merchant;
+                the agent's key can spend inside it and never widen it. Revoke or pause instantly.
+              </p>
+              <ul class="pillar__list">
+                <li>Per-merchant budgets enforced on-chain</li>
+                <li>Increases need your signature and a timelock</li>
+                <li>You can always withdraw, even while paused</li>
+              </ul>
+              <div class="pillar__art pillar__art--safe" aria-hidden="true"><i></i><i></i></div>
+            </article>
+            <article class="pillar">
+              <p class="pillar__n">02</p>
+              <h3 class="pillar__title">Policy&nbsp;gate</h3>
+              <p class="pillar__text">
+                An x402 client that treats every payment request as hostile. Payee, asset, network and price
+                must match what you approved before anything is signed. The model proposes; code decides.
+              </p>
+              <ul class="pillar__list">
+                <li>Pinned USDC, networks and prices</li>
+                <li>Plans sealed before reading untrusted content</li>
+                <li>Sanctions screening that fails closed</li>
+              </ul>
+              <div class="pillar__art pillar__art--shield" aria-hidden="true"><i></i><i></i><i></i></div>
+            </article>
+            <article class="pillar">
+              <p class="pillar__n">03</p>
+              <h3 class="pillar__title">Exposure&nbsp;control</h3>
+              <p class="pillar__text">
+                Expose less of your business. Each merchant sees its own payer, nothing extra leaves your
+                machine, and payers can be funded through a regulated exchange so the public can't trace them back to you.
+              </p>
+              <ul class="pillar__list">
+                <li>A fresh payer address per merchant</li>
+                <li>Exchange-funded payers via an owner-side service</li>
+                <li>A tamper-evident log to prove any payment</li>
+              </ul>
+              <div class="pillar__art pillar__art--chip" aria-hidden="true"><i></i></div>
+            </article>
+          <div class="pillars__progress" aria-hidden="true"><span data-track-progress></span></div>
+        </div>
+      </section>
+
+      <!-- 5 · PRINCIPLES (compliance) -->
+      <section class="principles">
+        <div class="wrap">
+          <p class="eyebrow eyebrow--center" data-reveal>Built to survive</p>
+          <h2 class="h2 h2--center" data-reveal>Discreet. Never hidden from the law.</h2>
+          <div class="cards">
+            <article class="card" data-reveal>
+              <h3>Non-custodial</h3>
+              <p>We never hold funds or run relayers. Immutable contracts with no admin keys, open source.</p>
+            </article>
+            <article class="card" data-reveal>
+              <h3>Records you control</h3>
+              <p>A tamper-evident payment log lets owners prove any payment to an auditor or tax authority, on their terms. Sanctioned addresses are screened before any payment.</p>
+            </article>
+            <article class="card" data-reveal>
+              <h3>A transparent token</h3>
+              <p>Privacy lives in the app, not in the token. <span data-ticker></span> stays exchange-listable after EU AMLR 2027.</p>
+            </article>
+            <article class="card" data-reveal>
+              <h3>No single secret</h3>
+              <p>No master key, no admin, no upgrade path. Enclaves are defense in depth, never the only lock.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 · TOKENOMICS -->
+      <section class="token" id="token">
+        <div class="token__sticky">
+          <div class="wrap token__grid">
+            <div class="token__chart">
+              <svg viewBox="0 0 200 200" class="donut" role="img" aria-labelledby="donut-title">
+                <title id="donut-title">Token allocation</title>
+                <circle class="donut__track" cx="100" cy="100" r="80" />
+                <g data-donut></g>
+              </svg>
+              <div class="donut__center">
+                <p class="donut__value" data-supply>1,000,000,000</p>
+                <p class="donut__label" data-supply-label>total supply, minted once</p>
+              </div>
+              <div class="donut__tip" data-tip hidden></div>
+            </div>
+            <div class="token__copy">
+              <p class="eyebrow">Tokenomics</p>
+              <h2 class="h2">A supply that only goes down.</h2>
+              <p class="lede">
+                One billion <span data-ticker></span>, minted once at genesis. The contract has no mint
+                function at all, so the number can only shrink.
+              </p>
+              <ul class="legend" data-legend></ul>
+              <details class="table-view">
+                <summary>View as table</summary>
+                <table data-alloc-table>
+                  <thead><tr><th>Allocation</th><th>Share</th><th>Terms</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 · BURN FLOW -->
+      <section class="burn">
+        <div class="wrap">
+          <p class="eyebrow eyebrow--center" data-reveal>Usage burns supply</p>
+          <h2 class="h2 h2--center" data-reveal>Fees fill the jar. Burning empties it.</h2>
+          <div class="flow" data-flow>
+            <div class="flow__node"><p class="flow__k">Agent Safe</p><p class="flow__v">0.1% fee in USDC</p></div>
+            <div class="flow__line"><span></span></div>
+            <div class="flow__node"><p class="flow__k">Fee jar</p><p class="flow__v">50% of fees, immutable</p></div>
+            <div class="flow__line"><span></span></div>
+            <div class="flow__node"><p class="flow__k">Anyone</p><p class="flow__v">burns <span data-ticker></span> to claim the jar</p></div>
+            <div class="flow__line"><span></span></div>
+            <div class="flow__node flow__node--burn"><p class="flow__k">Burned</p><p class="flow__v">supply goes down</p></div>
+          </div>
+          <p class="fine" data-reveal>
+            No swaps, no oracle, no admin, nothing to front-run. The price to claim the jar doubles after
+            every claim and halves every three days. Only Agent Safe, SDK and inference fees feed the jar.
+            No transfer taxes, no reflections, no hidden market-maker deals.
+          </p>
+        </div>
+      </section>
+
+      <!-- 8 · BIG NUMBERS -->
+      <section class="numbers">
+        <div class="wrap numbers__grid">
+          <div class="number" data-reveal>
+            <p class="number__big"><span data-count="0">0</span>%</p>
+            <p class="number__label">to venture capital</p>
+          </div>
+          <div class="number" data-reveal>
+            <p class="number__big"><span data-count="0">0</span></p>
+            <p class="number__label">new tokens, ever</p>
+          </div>
+          <div class="number" data-reveal>
+            <p class="number__big"><span data-count="50">0</span>%</p>
+            <p class="number__label">of fees to the burn jar</p>
+          </div>
+          <div class="number" data-reveal>
+            <p class="number__big"><span data-count="4">0</span>y</p>
+            <p class="number__label">founder lock, on-chain</p>
+          </div>
+        </div>
+        <p class="numbers__quote wrap" data-reveal>
+          No token until there is revenue to burn.
+        </p>
+      </section>
+
+      <!-- 9 · ROADMAP -->
+      <section class="roadmap" id="roadmap">
+        <div class="wrap">
+          <p class="eyebrow" data-reveal>Roadmap</p>
+          <h2 class="h2" data-reveal>Product first. Token last.</h2>
+          <ol class="timeline" data-timeline>
+            <li class="step is-done">
+              <p class="step__phase">Phase 0 · Done</p>
+              <h3>Research</h3>
+              <p>Market pain, 30+ launches and failures studied, legal and security assessments, tokenomics.</p>
+            </li>
+            <li class="step">
+              <p class="step__phase">Phase 1</p>
+              <h3>Open-source SDK on Base Sepolia</h3>
+              <p>x402 client with a policy engine outside the model, Agent Safe vaults, per-merchant payers.</p>
+            </li>
+            <li class="step">
+              <p class="step__phase">Phase 2</p>
+              <h3>Mainnet on Base, audited</h3>
+              <p>Capped beta, independent review, bug bounty, real USDC fees. Exchange-funded payers.</p>
+            </li>
+            <li class="step">
+              <p class="step__phase">Phase 3</p>
+              <h3>Fair launch</h3>
+              <p>Wallet-only airdrop to real users, one-price public auction, liquidity burned, no mint function at all.</p>
+            </li>
+            <li class="step">
+              <p class="step__phase">Phase 4</p>
+              <h3>Deeper privacy</h3>
+              <p>Integration with a compliant, third-party privacy pool. Later: private inference paid through the same rails.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- 10 · CTA -->
+      <section class="cta" id="join">
+        <div class="wrap">
+          <h2 class="cta__title" data-reveal>
+            Your agent will be tricked.<br />Make sure it can't spend.
+          </h2>
+          <div class="cta__actions" data-reveal>
+            <a class="btn btn--primary" href="./whitepaper.html">Read the whitepaper</a>
+            <a class="btn" href="./tokenomics.html">Tokenomics</a>
+            <a class="btn" href="https://gitlab.com/ntursi/deepfirstsearch" rel="noopener">View the code</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer__inner">
+        <p>Deep First Search</p>
+        <nav class="footer__links" aria-label="Legal">
+          <a href="./legal/terms.html">Terms</a>
+          <a href="./legal/privacy.html">Privacy</a>
+          <a href="./legal/risks.html">Risks</a>
+          <a href="https://gitlab.com/ntursi/deepfirstsearch" rel="noopener">Code</a>
+        </nav>
+        <p class="footer__legal">
+          Pre-launch. No token exists yet and nothing on this page is an offer to sell or a solicitation to
+          buy any asset. Figures marked as illustrative are simulations, not projections. This site sets no
+          cookies and loads nothing from third parties.
+        </p>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

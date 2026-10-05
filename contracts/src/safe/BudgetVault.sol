@@ -1,0 +1,311 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.30;
+
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
+import {IEIP3009} from "../interfaces/IEIP3009.sol";
+
+/// @title Agent Safe budget vault
+/// @notice Holds an owner's USDC and lets an AI agent spend it only inside budgets the owner signed.
+///
+///         Security model, in one paragraph: the agent's key can spend, never authorize. Every budget ("intent") is
+///         an EIP-712 message signed by the owner, bound to one agent key and one counterparty, and it only becomes
+///         active after a timelock, so a compromised owner session cannot instantly open a large budget either.
+///         Shrinking, revoking and pausing are instant. Whatever the model is tricked into, the most it can move is
+///         `maxPerTx` per call and `maxPerPeriod` per window, and only through `pay` (to the counterparty) or
+///         `fundBurner` (to a payer address holding at most `trancheCap`).
+///
+/// @dev Burner tranches exist so agents can pay through any x402 facilitator: a burner EOA signs a normal EIP-3009
+///      authorization. A burner can pay anyone, so the merchant binding for burner funds is enforced by the SDK
+///      policy, while this contract bounds the loss to `trancheCap` per burner and `maxPerPeriod` per window.
+///      Windows are fixed (not rolling), so up to 2x `maxPerPeriod` can move around a window boundary.
+contract BudgetVault is EIP712, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+    using BitMaps for BitMaps.BitMap;
+
+    struct Intent {
+        address agent;
+        address counterparty;
+        address token;
+        uint128 maxPerTx;
+        uint128 maxPerPeriod;
+        uint128 trancheCap;
+        uint32 period;
+        uint64 validAfter;
+        uint64 expiry;
+        uint256 nonce;
+    }
+
+    struct IntentState {
+        Intent intent;
+        uint64 activeAt;
+        bool revoked;
+        uint64 windowIdx;
+        uint128 spentInWindow;
+    }
+
+    bytes32 public constant INTENT_TYPEHASH = keccak256(
+        "Intent(address agent,address counterparty,address token,uint128 maxPerTx,uint128 maxPerPeriod,uint128 trancheCap,uint32 period,uint64 validAfter,uint64 expiry,uint256 nonce)"
+    );
+
+    uint32 public constant MIN_DELAY = 1 hours;
+    uint32 public constant MAX_DELAY = 7 days;
+    uint16 public constant FEE_BPS = 10; // 0.1%, charged on top of each payment or tranche
+    uint16 public constant BPS = 10_000;
+
+    address public immutable OWNER;
+    IERC20 public immutable USDC;
+    address public immutable FEE_JAR;
+    address public immutable OPS;
+    uint16 public immutable JAR_SHARE_BPS;
+
+    uint32 public activationDelay;
+    uint32 public pendingDelay;
+    uint64 public pendingDelayEta;
+    bool public paused;
+
+    mapping(bytes32 id => IntentState) private _intents;
+    mapping(address burner => bytes32 id) public burnerIntent;
+    BitMaps.BitMap private _usedNonces;
+
+    event IntentProposed(bytes32 indexed id, address indexed agent, address indexed counterparty, uint64 activeAt);
+    event IntentReduced(bytes32 indexed id, uint128 maxPerTx, uint128 maxPerPeriod, uint128 trancheCap, uint64 expiry);
+    event IntentRevoked(bytes32 indexed id);
+    event Paid(bytes32 indexed id, address indexed to, uint256 amount, uint256 fee);
+    event BurnerFunded(bytes32 indexed id, address indexed burner, uint256 amount, uint256 fee);
+    event BurnerSwept(address indexed burner, uint256 amount);
+    event Paused(bool paused);
+    event Withdrawn(address indexed to, uint256 amount);
+    event DelayChangeQueued(uint32 delay, uint64 eta);
+    event DelayChanged(uint32 delay);
+
+    error NotOwner();
+    error NotAgent();
+    error IsPaused();
+    error BadIntent();
+    error NonceUsed();
+    error BadSignature();
+    error UnknownIntent();
+    error IntentInactive();
+    error NotAReduction();
+    error WrongCounterparty();
+    error OverPerTx();
+    error OverPeriod();
+    error OverTranche();
+    error BurnerBoundElsewhere();
+    error BadDelay();
+    error NoPendingDelay();
+    error TooEarly();
+
+    modifier onlyOwner() {
+        if (msg.sender != OWNER) revert NotOwner();
+        _;
+    }
+
+    constructor(address owner_, IERC20 usdc, address feeJar, address ops, uint16 jarShareBps, uint32 initialDelay)
+        EIP712("Deep First Search Agent Safe", "1")
+    {
+        if (owner_ == address(0) || address(usdc) == address(0) || feeJar == address(0)) revert BadIntent();
+        if (jarShareBps > BPS || (jarShareBps < BPS && ops == address(0))) revert BadIntent();
+        if (initialDelay < MIN_DELAY || initialDelay > MAX_DELAY) revert BadDelay();
+        OWNER = owner_;
+        USDC = usdc;
+        FEE_JAR = feeJar;
+        OPS = ops;
+        JAR_SHARE_BPS = jarShareBps;
+        activationDelay = initialDelay;
+    }
+
+    // ---------------------------------------------------------------- views
+
+    function intentId(Intent calldata intent) public view returns (bytes32) {
+        return _hashTypedDataV4(_structHash(intent));
+    }
+
+    function getIntent(bytes32 id) external view returns (IntentState memory) {
+        return _intents[id];
+    }
+
+    function nonceUsed(uint256 nonce) external view returns (bool) {
+        return _usedNonces.get(nonce);
+    }
+
+    function feeFor(uint256 amount) public pure returns (uint256) {
+        return (amount * FEE_BPS) / BPS;
+    }
+
+    // ---------------------------------------------------------------- owner: authorize (timelocked)
+
+    /// @notice Registers an owner-signed intent. Anyone may relay it; it activates after `activationDelay`.
+    function proposeIntent(Intent calldata intent, bytes calldata ownerSignature) external returns (bytes32 id) {
+        if (
+            intent.agent == address(0) || intent.counterparty == address(0) || intent.token != address(USDC)
+                || intent.period == 0 || intent.maxPerTx == 0 || intent.maxPerTx > intent.maxPerPeriod
+                || intent.expiry <= block.timestamp
+        ) revert BadIntent();
+        if (_usedNonces.get(intent.nonce)) revert NonceUsed();
+
+        id = _hashTypedDataV4(_structHash(intent));
+        if (!SignatureChecker.isValidSignatureNow(OWNER, id, ownerSignature)) revert BadSignature();
+        _usedNonces.set(intent.nonce);
+
+        uint64 activeAt = uint64(block.timestamp) + activationDelay;
+        if (intent.validAfter > activeAt) activeAt = intent.validAfter;
+
+        IntentState storage st = _intents[id];
+        st.intent = intent;
+        st.activeAt = activeAt;
+        emit IntentProposed(id, intent.agent, intent.counterparty, activeAt);
+    }
+
+    // ---------------------------------------------------------------- owner: restrict (instant)
+
+    function reduceIntent(bytes32 id, uint128 maxPerTx, uint128 maxPerPeriod, uint128 trancheCap, uint64 expiry)
+        external
+        onlyOwner
+    {
+        IntentState storage st = _intents[id];
+        if (st.activeAt == 0) revert UnknownIntent();
+        Intent storage i = st.intent;
+        if (
+            maxPerTx > i.maxPerTx || maxPerPeriod > i.maxPerPeriod || trancheCap > i.trancheCap || expiry > i.expiry
+                || maxPerTx > maxPerPeriod
+        ) revert NotAReduction();
+        i.maxPerTx = maxPerTx;
+        i.maxPerPeriod = maxPerPeriod;
+        i.trancheCap = trancheCap;
+        i.expiry = expiry;
+        emit IntentReduced(id, maxPerTx, maxPerPeriod, trancheCap, expiry);
+    }
+
+    function revokeIntent(bytes32 id) external onlyOwner {
+        if (_intents[id].activeAt == 0) revert UnknownIntent();
+        _intents[id].revoked = true;
+        emit IntentRevoked(id);
+    }
+
+    function setPaused(bool value) external onlyOwner {
+        paused = value;
+        emit Paused(value);
+    }
+
+    /// @notice Longer delays apply immediately; shorter ones wait out the current delay.
+    function setActivationDelay(uint32 delay) external onlyOwner {
+        if (delay < MIN_DELAY || delay > MAX_DELAY) revert BadDelay();
+        if (delay >= activationDelay) {
+            activationDelay = delay;
+            pendingDelayEta = 0;
+            emit DelayChanged(delay);
+        } else {
+            pendingDelay = delay;
+            pendingDelayEta = uint64(block.timestamp) + activationDelay;
+            emit DelayChangeQueued(delay, pendingDelayEta);
+        }
+    }
+
+    function applyActivationDelay() external {
+        if (pendingDelayEta == 0) revert NoPendingDelay();
+        if (block.timestamp < pendingDelayEta) revert TooEarly();
+        activationDelay = pendingDelay;
+        pendingDelayEta = 0;
+        emit DelayChanged(pendingDelay);
+    }
+
+    /// @notice The owner can always take funds out, even while paused.
+    function withdraw(address to, uint256 amount) external nonReentrant onlyOwner {
+        emit Withdrawn(to, amount);
+        USDC.safeTransfer(to, amount);
+    }
+
+    // ---------------------------------------------------------------- agent: spend
+
+    /// @notice Pays the intent's counterparty directly.
+    function pay(bytes32 id, address to, uint256 amount) external nonReentrant {
+        IntentState storage st = _spend(id, amount);
+        if (to != st.intent.counterparty) revert WrongCounterparty();
+        uint256 fee = _chargeFee(amount);
+        emit Paid(id, to, amount, fee);
+        USDC.safeTransfer(to, amount);
+    }
+
+    /// @notice Tops up a burner payer address bound to this intent. The burner never holds more than `trancheCap`.
+    function fundBurner(bytes32 id, address burner, uint256 amount) external nonReentrant {
+        IntentState storage st = _spend(id, amount);
+        if (burner == address(0)) revert BadIntent();
+        bytes32 bound = burnerIntent[burner];
+        if (bound == bytes32(0)) burnerIntent[burner] = id;
+        else if (bound != id) revert BurnerBoundElsewhere();
+        if (USDC.balanceOf(burner) + amount > st.intent.trancheCap) revert OverTranche();
+        uint256 fee = _chargeFee(amount);
+        emit BurnerFunded(id, burner, amount, fee);
+        USDC.safeTransfer(burner, amount);
+    }
+
+    /// @notice Pulls a burner's leftover USDC back with the burner's EIP-3009 receive authorization.
+    ///         `receiveWithAuthorization` requires the caller to be the receiver, so this cannot be front-run.
+    function sweepBurner(
+        address burner,
+        uint256 value,
+        uint256 validAfter,
+        uint256 validBefore,
+        bytes32 nonce,
+        bytes calldata signature
+    ) external nonReentrant {
+        if (burnerIntent[burner] == bytes32(0)) revert UnknownIntent();
+        IEIP3009(address(USDC))
+            .receiveWithAuthorization(burner, address(this), value, validAfter, validBefore, nonce, signature);
+        emit BurnerSwept(burner, value);
+    }
+
+    // ---------------------------------------------------------------- internals
+
+    function _spend(bytes32 id, uint256 amount) private returns (IntentState storage st) {
+        if (paused) revert IsPaused();
+        st = _intents[id];
+        Intent storage i = st.intent;
+        if (st.activeAt == 0) revert UnknownIntent();
+        if (msg.sender != i.agent) revert NotAgent();
+        if (st.revoked || block.timestamp < st.activeAt || block.timestamp >= i.expiry) revert IntentInactive();
+        if (amount == 0 || amount > i.maxPerTx) revert OverPerTx();
+
+        uint64 window = uint64((block.timestamp - st.activeAt) / i.period);
+        if (window != st.windowIdx) {
+            st.windowIdx = window;
+            st.spentInWindow = 0;
+        }
+        uint256 spent = uint256(st.spentInWindow) + amount;
+        if (spent > i.maxPerPeriod) revert OverPeriod();
+        // forge-lint: disable-next-line(unsafe-typecast) spent <= maxPerPeriod, which is a uint128
+        st.spentInWindow = uint128(spent);
+    }
+
+    function _chargeFee(uint256 amount) private returns (uint256 fee) {
+        fee = feeFor(amount);
+        if (fee == 0) return 0;
+        uint256 toJar = (fee * JAR_SHARE_BPS) / BPS;
+        if (toJar != 0) USDC.safeTransfer(FEE_JAR, toJar);
+        if (fee != toJar) USDC.safeTransfer(OPS, fee - toJar);
+    }
+
+    function _structHash(Intent calldata i) private pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                INTENT_TYPEHASH,
+                i.agent,
+                i.counterparty,
+                i.token,
+                i.maxPerTx,
+                i.maxPerPeriod,
+                i.trancheCap,
+                i.period,
+                i.validAfter,
+                i.expiry,
+                i.nonce
+            )
+        );
+    }
+}
