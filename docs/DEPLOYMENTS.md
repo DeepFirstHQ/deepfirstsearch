@@ -2,7 +2,17 @@
 
 ## Base Sepolia (testnet, chain id 84532)
 
-Deployed 2026-10-05 with `contracts/script/DeployAgentSafe.s.sol`. Source verified on Blockscout.
+### Current: v0.2 (2026-10-05)
+Includes the C-08 fix: EIP-7702 owners can sign with their own key. Source verified on Blockscout.
+
+| Contract | Address |
+|---|---|
+| FeeJar | [`0x537fB40b39033d34175C6165859a4ec5Eb600548`](https://base-sepolia.blockscout.com/address/0x537fB40b39033d34175C6165859a4ec5Eb600548) |
+| BudgetVaultFactory | [`0x6B56b9667414421be7bAB88D8800f3b551A89B39`](https://base-sepolia.blockscout.com/address/0x6B56b9667414421be7bAB88D8800f3b551A89B39) |
+| USDC (Circle, testnet) | [`0x036CbD53842c5426634e7929541eC2318f3dCF7e`](https://base-sepolia.blockscout.com/address/0x036CbD53842c5426634e7929541eC2318f3dCF7e) |
+
+### v0.1 (2026-10-05): first deployment, which made the first live payment
+Deployed with `contracts/script/DeployAgentSafe.s.sol`. Source verified on Blockscout.
 
 | Contract | Address |
 |---|---|
@@ -14,7 +24,7 @@ Testnet setup:
 - On testnet, the FeeJar initializer and the operations wallet are the deployer EOA, and no Firepit is connected (there is no token yet).
 - On mainnet both roles will be multisig Safes.
 
-### Live demo vault
+#### Live demo vault (v0.1)
 
 | | |
 |---|---|

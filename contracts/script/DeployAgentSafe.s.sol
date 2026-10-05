@@ -25,6 +25,13 @@ contract DeployAgentSafe is Script {
         bytes32 firepitCodehash = keccak256(type(Firepit).runtimeCode);
 
         vm.startBroadcast();
+        (, address deployer,) = vm.readCallers();
+        if (block.chainid == 8453) {
+            // Mainnet: both roles must be multisig Safes, never the deployer's key (docs/MAINNET.md).
+            require(initializer.code.length > 0 && ops.code.length > 0, "INITIALIZER and OPS must be Safes");
+            require(initializer != deployer && ops != deployer, "roles must not be the deployer");
+            require(IERC20(usdc).totalSupply() > 0, "USDC not found");
+        }
         jar = new FeeJar(initializer, firepitCodehash);
         factory = new BudgetVaultFactory(IERC20(usdc), address(jar), ops);
         vm.stopBroadcast();

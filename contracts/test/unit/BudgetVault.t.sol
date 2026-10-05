@@ -237,3 +237,160 @@ contract BudgetVaultTest is VaultFixture {
         assertEq(usdc.balanceOf(merchant), total);
     }
 }
+
+contract Mock1271Wallet {
+    address public immutable SIGNER;
+
+    constructor(address signer) {
+        SIGNER = signer;
+    }
+
+    function isValidSignature(bytes32 hash, bytes calldata sig) external view returns (bytes4) {
+        (uint8 v, bytes32 r, bytes32 s) = (uint8(sig[64]), bytes32(sig[0:32]), bytes32(sig[32:64]));
+        return ecrecover(hash, v, r, s) == SIGNER ? bytes4(0x1626ba7e) : bytes4(0xffffffff);
+    }
+}
+
+contract OwnerSignatureKindsTest is VaultFixture {
+    /// An EIP-7702-delegated owner has code; its own key must still authorize intents even if the delegate
+    /// does not implement ERC-1271 (found by the Base mainnet fork test).
+    function test_DelegatedEoaOwnerCanStillSignWithItsKey() public {
+        vm.etch(owner, abi.encodePacked(hex"ef0100", address(0xdead)));
+        assertGt(owner.code.length, 0);
+        BudgetVault.Intent memory i = _intent(1);
+        bytes32 id = vault.proposeIntent(i, _sign(i, ownerKey));
+        assertEq(id, vault.intentId(i));
+    }
+
+    function test_DelegatedEoaOwnerStillRejectsOtherKeys() public {
+        vm.etch(owner, abi.encodePacked(hex"ef0100", address(0xdead)));
+        (, uint256 attackerKey) = makeAddrAndKey("attacker");
+        BudgetVault.Intent memory i = _intent(1);
+        bytes memory forged = _sign(i, attackerKey);
+        vm.expectRevert(BudgetVault.BadSignature.selector);
+        vault.proposeIntent(i, forged);
+    }
+
+    function test_ContractOwnerSignsWithErc1271() public {
+        (address signer, uint256 signerKey) = makeAddrAndKey("safeSigner");
+        Mock1271Wallet wallet = new Mock1271Wallet(signer);
+        BudgetVault v = factory.create(address(wallet), bytes32("1271"), DELAY);
+        BudgetVault.Intent memory i = _intent(1);
+        (uint8 sv, bytes32 r, bytes32 s) = vm.sign(signerKey, v.intentId(i));
+        v.proposeIntent(i, abi.encodePacked(r, s, sv));
+
+        (, uint256 attackerKey) = makeAddrAndKey("attacker");
+        i.nonce = 2;
+        (sv, r, s) = vm.sign(attackerKey, v.intentId(i));
+        vm.expectRevert(BudgetVault.BadSignature.selector);
+        v.proposeIntent(i, abi.encodePacked(r, s, sv));
+    }
+}
+
+/// Edge cases and input validation, one per branch (pre-audit coverage).
+contract BudgetVaultEdgeCasesTest is VaultFixture {
+    function test_ConstructorRejectsBadConfig() public {
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        new BudgetVault(address(0), usdc, jar, ops, 5_000, DELAY);
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        new BudgetVault(owner, usdc, address(0), ops, 5_000, DELAY);
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        new BudgetVault(owner, usdc, jar, ops, 10_001, DELAY);
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        new BudgetVault(owner, usdc, jar, address(0), 5_000, DELAY);
+        vm.expectRevert(BudgetVault.BadDelay.selector);
+        new BudgetVault(owner, usdc, jar, ops, 5_000, 1 minutes);
+        vm.expectRevert(BudgetVault.BadDelay.selector);
+        new BudgetVault(owner, usdc, jar, ops, 5_000, 8 days);
+        // All fees to the jar needs no operations wallet.
+        new BudgetVault(owner, usdc, jar, address(0), 10_000, DELAY);
+    }
+
+    function test_ProposeRejectsMalformedIntents() public {
+        BudgetVault.Intent[] memory bad = new BudgetVault.Intent[](7);
+        for (uint256 k; k < bad.length; ++k) {
+            bad[k] = _intent(100 + k);
+        }
+        bad[0].agent = address(0);
+        bad[1].counterparty = address(0);
+        bad[2].token = address(0xBEEF);
+        bad[3].period = 0;
+        bad[4].maxPerTx = 0;
+        bad[5].maxPerTx = bad[5].maxPerPeriod + 1;
+        bad[6].expiry = uint64(block.timestamp);
+        for (uint256 k; k < bad.length; ++k) {
+            bytes memory sig = _sign(bad[k], ownerKey);
+            vm.expectRevert(BudgetVault.BadIntent.selector);
+            vault.proposeIntent(bad[k], sig);
+        }
+    }
+
+    function test_ValidAfterLaterThanDelayWins() public {
+        BudgetVault.Intent memory i = _intent(1);
+        i.validAfter = uint64(block.timestamp + 2 days);
+        bytes32 id = vault.proposeIntent(i, _sign(i, ownerKey));
+        assertEq(vault.getIntent(id).activeAt, i.validAfter);
+        assertTrue(vault.nonceUsed(1));
+        assertFalse(vault.nonceUsed(2));
+    }
+
+    function test_FeeIsOneTenthOfAPercent() public view {
+        assertEq(vault.feeFor(1_000e6), 1e6);
+        assertEq(vault.feeFor(999), 0);
+    }
+
+    function test_UnknownIntentReverts() public {
+        bytes32 nope = keccak256("nope");
+        vm.startPrank(owner);
+        vm.expectRevert(BudgetVault.UnknownIntent.selector);
+        vault.reduceIntent(nope, 1, 1, 1, 1);
+        vm.expectRevert(BudgetVault.UnknownIntent.selector);
+        vault.revokeIntent(nope);
+        vm.stopPrank();
+        vm.prank(agent);
+        vm.expectRevert(BudgetVault.UnknownIntent.selector);
+        vault.pay(nope, merchant, 1e6);
+        vm.expectRevert(BudgetVault.UnknownIntent.selector);
+        vault.sweepBurner(makeAddr("stranger"), 1, 0, 1, bytes32(0), "");
+    }
+
+    function test_DelayBoundsAndNoPendingChange() public {
+        vm.startPrank(owner);
+        vm.expectRevert(BudgetVault.BadDelay.selector);
+        vault.setActivationDelay(1 minutes);
+        vm.expectRevert(BudgetVault.BadDelay.selector);
+        vault.setActivationDelay(8 days);
+        vm.stopPrank();
+        vm.expectRevert(BudgetVault.NoPendingDelay.selector);
+        vault.applyActivationDelay();
+    }
+
+    function test_BurnerRules() public {
+        bytes32 id1 = _activeIntent();
+        BudgetVault.Intent memory i2 = _intent(2);
+        bytes32 id2 = vault.proposeIntent(i2, _sign(i2, ownerKey));
+        skip(DELAY);
+        address burner = makeAddr("burner");
+        vm.startPrank(agent);
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        vault.fundBurner(id1, address(0), 1e6);
+        vault.fundBurner(id1, burner, 1e6);
+        vm.expectRevert(BudgetVault.BurnerBoundElsewhere.selector);
+        vault.fundBurner(id2, burner, 1e6);
+        vm.stopPrank();
+    }
+
+    function test_PeriodWindowResets() public {
+        bytes32 id = _activeIntent();
+        vm.startPrank(agent);
+        for (uint256 k; k < 4; ++k) {
+            vault.pay(id, merchant, 5e6);
+        }
+        vm.expectRevert(BudgetVault.OverPeriod.selector);
+        vault.pay(id, merchant, 1e6);
+        skip(1 days);
+        vault.pay(id, merchant, 5e6);
+        vm.stopPrank();
+        assertEq(usdc.balanceOf(merchant), 25e6);
+    }
+}

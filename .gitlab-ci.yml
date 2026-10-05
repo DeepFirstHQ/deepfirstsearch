@@ -4,7 +4,7 @@
 variables:
   GIT_SUBMODULE_STRATEGY: normal
 
-stages: [test, build]
+stages: [test, build, release]
 
 contracts:
   stage: test
@@ -47,3 +47,26 @@ web:
     paths: [web/dist]
     expire_in: 1 week
 
+
+# Publishes the SDK to npm when a tag like `sdk-v0.1.0` is pushed. The tag must match sdk/package.json.
+# Auth: npm trusted publishing (OIDC, no stored secret) once it is configured for this project on npmjs.com;
+# until then, a masked, protected NPM_TOKEN CI variable. Provenance is signed through Sigstore.
+publish-sdk:
+  stage: release
+  image: node:22
+  needs: [sdk]
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^sdk-v\d+\.\d+\.\d+$/
+  id_tokens:
+    SIGSTORE_ID_TOKEN:
+      aud: sigstore
+    NPM_ID_TOKEN:
+      aud: "npm:registry.npmjs.org"
+  script:
+    - cd sdk
+    - test "sdk-v$(node -p "require('./package.json').version")" = "$CI_COMMIT_TAG"
+    - npm ci
+    - npm run typecheck
+    - npm run build
+    - if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc; fi
+    - npm publish --provenance --access public --ignore-scripts

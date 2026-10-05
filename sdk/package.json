@@ -1,8 +1,28 @@
 {
   "name": "@deepfirstsearch/agent-pay",
   "version": "0.1.0",
-  "description": "Private, policy-gated x402 payments for AI agents: deterministic spend policy outside the model, prompt-injection guards, per-merchant payers.",
+  "description": "Policy-gated x402 payments for AI agents: deterministic spend policy outside the model, prompt-injection guards, per-merchant payers and on-chain Agent Safe budgets on Base.",
   "license": "MIT",
+  "author": "Nicolas Tursi <nicolas@deepfirstsearch.com>",
+  "homepage": "https://deepfirstsearch.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/ntursi/deepfirstsearch.git",
+    "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://gitlab.com/ntursi/deepfirstsearch/-/issues"
+  },
+  "keywords": [
+    "x402",
+    "ai-agents",
+    "agent-payments",
+    "prompt-injection",
+    "usdc",
+    "base",
+    "eip-3009",
+    "eip-712"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +33,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -22,7 +44,8 @@
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "demo": "tsx examples/agent-demo.ts"
+    "demo": "tsx examples/agent-demo.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@noble/curves": "2.4.0",
@@ -38,5 +61,10 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.0.3"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

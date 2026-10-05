@@ -10,7 +10,7 @@ Fecha: 2026-10-05.
 
 **Método:** revisión manual con mentalidad de atacante, análisis estático (Slither 0.11 y `forge lint`), fuzzing y tests de invariantes (Foundry), un test end-to-end en una cadena local (anvil) y verificación en un navegador real (Chromium headless) de la CSP y de las requests salientes.
 
-> Esto no reemplaza una auditoría externa. Antes de mainnet hacen falta un concurso público (Code4rena, Cantina o Sherlock) y un bug bounty.
+> Esto no reemplaza una auditoría externa. Antes de mainnet hacen falta una revisión independiente (firma o revisor senior) y un bug bounty. El paquete para auditores está en [docs/audit/SCOPE.md](../audit/SCOPE.md).
 
 ## Resumen
 
@@ -29,6 +29,7 @@ Fecha: 2026-10-05.
 | C-05 | Genesis | El 25% de "launch reserve" (subasta + liquidez) queda en un Safe hasta que existan los contratos de subasta y LP | Media (confianza) | Pendiente: reemplazarlo por un contrato de subasta antes de mainnet |
 | C-06 | BudgetVault | Las ventanas son fijas, así que alrededor del cambio de ventana se puede mover hasta 2× `maxPerPeriod` | Baja | Documentado; una ventana deslizante queda para la v1.1 |
 | C-07 | BudgetVault | Los fondos de un burner pueden pagarle a cualquiera; el vínculo con el comerciante lo hace cumplir el SDK, no el contrato | Media (por diseño) | Pérdida acotada a `trancheCap` por burner y a `maxPerPeriod` por ventana. Documentado (ADR-006) |
+| C-08 | BudgetVault | Un dueño EOA con delegación EIP-7702 tiene código, así que `SignatureChecker` de OpenZeppelin solo probaba ERC-1271 y rechazaba la firma de su propia llave si el delegado no implementa `isValidSignature`. Lo detectó el test contra un fork de Base mainnet | Media (disponibilidad) | ✅ Corregido: ECDSA primero y ERC-1271 después; tests unitarios y de fork |
 | S-01 | SDK | `fetch` sigue redirects: un 402 que llega desde otro origen se evaluaba contra el comerciante original | Baja | ✅ Corregido + test |
 | S-02 | SDK | El facilitador y el servidor ven la IP del agente y el timing de los pagos | Media (privacidad) | Documentado: usar proxy o Tor en el tramo HTTP; jitter en el fondeo |
 | S-03 | SDK | El seed del owner vive en memoria del proceso del agente | Media | Recomendación: firmar con KMS/HSM o en un proceso separado (interfaz `Signer`, v1.1) |
@@ -60,7 +61,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 ## 2. Contratos (`contracts/`)
 
 **Herramientas y resultados:**
-- 46 tests: unitarios, de fuzzing (1.000 corridas), 5 propiedades universales y 4 invariantes (256 corridas × 64 llamadas, ~16 mil llamadas sin reverts).
+- 57 tests: unitarios, de fuzzing (1.000 corridas), 5 propiedades universales y 4 invariantes (256 corridas × 64 llamadas, ~16 mil llamadas sin reverts).
 - Slither: **0 hallazgos high o medium**. Los restantes son falsos positivos o decisiones de diseño:
 
 | Detector | Dónde | Justificación |
@@ -144,7 +145,7 @@ Halmos 0.3.3 no puede correr todavía con Foundry 1.8 / forge-std 1.17 (falla en
 - El recibo `PAYMENT-RESPONSE` se parsea de forma tolerante, para que un campo nuevo del facilitador no haga parecer fallido un pago ya hecho.
 
 **Cifras actuales:**
-- Contratos: 46 tests.
+- Contratos: 57 tests, más 5 contra un fork de Base mainnet (USDC real).
 - SDK: 45 tests, incluidos el end-to-end on-chain y el de conformidad oficial.
 
 ## 3. SDK y agente (`sdk/`): modelo de prompt injection
@@ -215,7 +216,8 @@ Halmos 0.3.3 no puede correr todavía con Foundry 1.8 / forge-std 1.17 (falla en
 ## 5. Reproducir
 
 ```bash
-cd contracts && forge test                                  # 46 tests, fuzz + invariantes + propiedades
+cd contracts && forge test                                  # 57 tests, fuzz + invariantes + propiedades
+BASE_FORK_RPC=https://mainnet.base.org forge test --mc BaseMainnetForkTest   # 5 tests contra Base mainnet
 uvx --from slither-analyzer slither . --config-file slither.config.json
 cd ../sdk && npm test                                       # 50 tests (incluye anvil end-to-end y conformidad x402)
 npm run demo                                                # pago honesto, 402 malicioso, inyección

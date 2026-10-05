@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
@@ -150,7 +151,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         if (_usedNonces.get(intent.nonce)) revert NonceUsed();
 
         id = _hashTypedDataV4(_structHash(intent));
-        if (!SignatureChecker.isValidSignatureNow(OWNER, id, ownerSignature)) revert BadSignature();
+        if (!_isOwnerSignature(id, ownerSignature)) revert BadSignature();
         _usedNonces.set(intent.nonce);
 
         uint64 activeAt = uint64(block.timestamp) + activationDelay;
@@ -281,6 +282,15 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         if (spent > i.maxPerPeriod) revert OverPeriod();
         // forge-lint: disable-next-line(unsafe-typecast) spent <= maxPerPeriod, which is a uint128
         st.spentInWindow = uint128(spent);
+    }
+
+    /// @dev ECDSA first, then ERC-1271. An EIP-7702-delegated EOA has code, so OpenZeppelin's `isValidSignatureNow`
+    ///      would only try ERC-1271 and reject the owner's own key whenever the delegate lacks `isValidSignature`.
+    ///      Trying ECDSA first is safe: `ecrecover` cannot return a contract (e.g. Safe) address without its key.
+    function _isOwnerSignature(bytes32 id, bytes calldata signature) private view returns (bool) {
+        (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(id, signature);
+        if (err == ECDSA.RecoverError.NoError && recovered == OWNER) return true;
+        return OWNER.code.length != 0 && SignatureChecker.isValidERC1271SignatureNowCalldata(OWNER, id, signature);
     }
 
     function _chargeFee(uint256 amount) private returns (uint256 fee) {
