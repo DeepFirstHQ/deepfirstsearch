@@ -49,8 +49,8 @@ web:
 
 
 # Publishes the SDK to npm when a tag like `sdk-v0.1.0` is pushed. The tag must match sdk/package.json.
-# Auth: npm trusted publishing (OIDC, no stored secret) once it is configured for this project on npmjs.com;
-# until then, a masked, protected NPM_TOKEN CI variable. Provenance is signed through Sigstore.
+# Auth: npm trusted publishing (OIDC, no stored secret), configured on npmjs.com for ntursi/deepfirstsearch and
+# this file. Needs npm >= 11.5.1. Provenance is signed through Sigstore.
 publish-sdk:
   stage: release
   image: node:22
@@ -65,8 +65,8 @@ publish-sdk:
   script:
     - cd sdk
     - test "sdk-v$(node -p "require('./package.json').version")" = "$CI_COMMIT_TAG"
+    - npm install -g npm@11.6.2
     - npm ci
     - npm run typecheck
     - npm run build
-    - if [ -n "$NPM_TOKEN" ]; then echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc; fi
     - npm publish --provenance --access public --ignore-scripts
