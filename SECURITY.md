@@ -4,7 +4,7 @@
 
 Please **do not** open a public issue for security problems.
 
-Until the project publishes a dedicated security address, report privately through a confidential issue in the repository (GitLab → New issue → "This issue is confidential"), with:
+Report privately to security@deepfirstsearch.com or through a confidential issue in the repository (GitLab → New issue → "This issue is confidential"), with:
 
 - the affected component (`contracts/`, `sdk/`, `web/`) and commit;
 - a description and, if possible, a proof of concept (a Foundry test or a script);

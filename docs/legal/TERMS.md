@@ -32,4 +32,4 @@ To the maximum extent permitted by law, the contributors are not liable for any 
 We may update these terms. The date at the top shows the current version.
 
 ## 8. Contact
-Security reports: see the responsible-disclosure section of the repository. General contact: to be published with the project's entity.
+Security reports: see the responsible-disclosure section of the repository. General contact: hello@deepfirstsearch.com.

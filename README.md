@@ -49,5 +49,9 @@ cd ../web && npm ci && npm run dev
 ## Security
 See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
+## Contact
+
+Built by Nicolas Tursi. General contact: hello@deepfirstsearch.com. Security reports: see [SECURITY.md](SECURITY.md) or write to security@deepfirstsearch.com.
+
 ## License
 MIT (contracts and SDK).
