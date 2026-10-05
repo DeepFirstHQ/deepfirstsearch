@@ -2,6 +2,12 @@
 
 x402 v2 payments for AI agents where **the model proposes and the owner's policy decides**.
 
+```bash
+npm install @deepfirstsearch/agent-pay
+```
+
+> Beta. Agent Safe contracts are live on Base Sepolia; Base mainnet waits for an independent review.
+
 ```ts
 import { createAgentPay, MerchantRegistry, burnerPayers } from "@deepfirstsearch/agent-pay";
 

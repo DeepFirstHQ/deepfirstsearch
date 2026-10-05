@@ -974,8 +974,24 @@ canvas {
   letter-spacing: -0.045em;
   font-weight: 800;
 }
+.cta__install {
+  margin: 40px 0 0;
+}
+.cta__install code {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: clamp(13px, 1.6vw, 16px);
+  color: var(--accent);
+  white-space: nowrap;
+}
 .cta__actions {
-  margin-top: 48px;
+  margin-top: 32px;
   display: flex;
   flex-wrap: wrap;
   gap: 14px;

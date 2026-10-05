@@ -16,6 +16,9 @@ AI agents now pay for things over x402. Every one of those payments is public, a
 ## Quick start
 
 ```bash
+# Use the SDK in your agent
+npm install @deepfirstsearch/agent-pay
+
 # Contracts (needs Foundry: curl -L https://foundry.paradigm.xyz | bash && foundryup)
 git submodule update --init --recursive
 cd contracts && forge test
