@@ -8,7 +8,10 @@ stages: [test, build, release]
 
 contracts:
   stage: test
-  image: ghcr.io/foundry-rs/foundry:stable
+  image:
+    name: ghcr.io/foundry-rs/foundry:stable
+    # The image's ENTRYPOINT is `/bin/sh -c`, which breaks GitLab's job script; clear it.
+    entrypoint: [""]
   script:
     - cd contracts
     - forge --version
