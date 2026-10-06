@@ -84,6 +84,19 @@ Checked on-chain after deployment:
 - Founder vesting: `start()` is 2027-10-06 (TGE + 1 year) and `duration()` is 3 years. `releasable()` is **0**, and `transferOwnership()` **reverts**, so the vesting contract cannot be transferred. The beneficiary will be a public multisig Safe whose signers are published.
 - The airdrop proof built with `tools/airdrop` claimed on-chain ([tx](https://sepolia.basescan.org/tx/0x80664e2eb75fcf272b882899318717a8ca40741e362f815e0b2b576547428953)).
 
-## Base mainnet
+## Base mainnet (chain id 8453)
 
-Not deployed yet. Next step: a capped beta, labeled unaudited, with the founder's own funds first, then invited design partners. The public launch and any limit increase wait for the independent audit and its fix review.
+### Beta: v0.4 (2026-10-06). Unaudited.
+Same code as the v0.4 testnet deployment. Two internal reviews, no independent audit yet. Use small amounts: the beta starts with the founder's own funds, then invited design partners. The public launch and any limit increase wait for the independent audit and its fix review (see `docs/MAINNET.md`).
+
+| Contract | Address |
+|---|---|
+| FeeJar | [`0xa375245D25bdB557801Ad07A50c19b3442cA3Ae4`](https://base.blockscout.com/address/0xa375245D25bdB557801Ad07A50c19b3442cA3Ae4) ([tx](https://basescan.org/tx/0x49f822aed7d406532829a34e3c6e49a4a3643052e4aed178f2c50ebc984626e1)) |
+| BudgetVaultFactory | [`0xDe17e1B889efa4671852e0b268e100967A7a257E`](https://base.blockscout.com/address/0xDe17e1B889efa4671852e0b268e100967A7a257E) ([tx](https://basescan.org/tx/0x7ee0b71299037569b06a3017898ef348832efb64576e09250c648fbda3385bc3)) |
+| INITIALIZER and OPS (Safe v1.4.1, 1 of 1, founder's wallet) | [`0xcAE428c91f02Cca313DB1f83874543e41Cf33c60`](https://base.blockscout.com/address/0xcAE428c91f02Cca313DB1f83874543e41Cf33c60) |
+| USDC (Circle) | [`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`](https://base.blockscout.com/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
+
+- Source verified on [Sourcify](https://sourcify.dev) (bytecode match), built from commit `732ef44`.
+- Post-deploy checks passed: the factory's `USDC()`, `FEE_JAR()` and `OPS()`, the jar's `INITIALIZER()`, and `releaser()` = `0x0`.
+- The deployer EOA `0xe81d982fD80ADCb5Bae5A105E2EE94Dd683d8C19` holds no role.
+- Before the token launch or any public opening, the Safe moves to 2 of 3 signers with a hardware wallet.

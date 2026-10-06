@@ -1,5 +1,5 @@
 # Watches the mainnet Agent Safe deployment every 6 hours. A failing run (an alert) emails the maintainers.
-# Configure the repository variables MAINNET_FACTORY, MAINNET_FEE_JAR and MAINNET_FROM_BLOCK to enable it.
+# Defaults to the v0.4 beta deployment (docs/DEPLOYMENTS.md); repository variables of the same names override it.
 name: Monitor
 
 on:
@@ -12,7 +12,6 @@ permissions:
 
 jobs:
   monitor:
-    if: ${{ vars.MAINNET_FACTORY != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +25,9 @@ jobs:
       - working-directory: sdk
         env:
           RPC_URL: https://mainnet.base.org
-          FACTORY: ${{ vars.MAINNET_FACTORY }}
-          FEE_JAR: ${{ vars.MAINNET_FEE_JAR }}
-          FROM_BLOCK: ${{ vars.MAINNET_FROM_BLOCK }}
+          FACTORY: ${{ vars.MAINNET_FACTORY || '0xDe17e1B889efa4671852e0b268e100967A7a257E' }}
+          FEE_JAR: ${{ vars.MAINNET_FEE_JAR || '0xa375245D25bdB557801Ad07A50c19b3442cA3Ae4' }}
+          FROM_BLOCK: ${{ vars.MAINNET_FROM_BLOCK || '52261631' }}
           LOOKBACK_BLOCKS: "12000"
           LARGE_USDC: "100000000"
         run: npx tsx scripts/monitor.ts

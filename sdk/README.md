@@ -6,7 +6,7 @@ x402 v2 payments for AI agents where **the model proposes and the owner's policy
 npm install @deepfirstsearch/agent-pay
 ```
 
-> **Beta, unaudited.** Agent Safe is live on Base Sepolia and in a capped mainnet beta; an independent audit is in progress. Use small amounts and at your own risk.
+> **Beta, unaudited.** Agent Safe is live on Base Sepolia and in a capped mainnet beta; an independent audit is being arranged. Use small amounts and at your own risk.
 
 ```ts
 import { createAgentPay, MerchantRegistry, burnerPayers } from "@deepfirstsearch/agent-pay";

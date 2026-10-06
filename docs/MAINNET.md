@@ -50,6 +50,7 @@ INITIALIZER=<safe> OPS=<safe> forge script script/DeployAgentSafe.s.sol \
 - Bug bounty live before opening it publicly (see SECURITY.md).
 
 ## 7. Monitoring
+`.github/workflows/monitor.yml` checks the deployment every 6 hours (`sdk/scripts/monitor.ts`); a failing run is the alert.
 - Watch factory `VaultCreated`, vault `Paid`, `BurnerFunded`, `Withdrawn` and FeeJar `ReleaserSet` events.
 - Alert on any `ReleaserSet` (it happens once, ever) and on unusual volume.
 - Incident playbook: owners can `setPaused(true)` and `withdraw` instantly. Publish an advisory. Contact SEAL 911 if funds are at risk.
