@@ -6,10 +6,30 @@ AI agents now pay for things over x402. Every one of those payments is public, a
 
 | Component | What it does | Status |
 |---|---|---|
-| **Agent Safe** (`contracts/`) | On-chain vault: owner-signed, timelocked, per-merchant budgets; the agent key can spend but never widen | ✅ 66 tests (fuzzing, invariants, universal properties, regressions) + 5 against a Base mainnet fork with real USDC, 99% line coverage, internal pre-audit fixed, Slither + Aderyn triaged |
-| **agent-pay SDK** (`sdk/`) | x402 v2 client with a policy engine outside the model, prompt-injection guards, per-merchant payers, ERC-5564 | ✅ 50 tests incl. a full on-chain loop (vault → payer → **official x402 facilitator** settles) and exchange-funded payers · `npm run demo` |
-| **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · TGE only after revenue |
-| **Website** (`web/`) | Apple-style scroll site, whitepaper, tokenomics, legal pages; strict CSP, zero third parties | ✅ |
+| **MCP server** (`integrations/mcp/`) | Model Context Protocol server: Claude Desktop, Claude Code, Cursor and any MCP client get `paid_fetch`, `list_merchants` and `budget_status` tools that pay x402 APIs inside the owner's budget | ✅ `npx @deepfirstsearch/agent-pay-mcp` · tested with a real Claude session on Base Sepolia |
+| **Agent Safe** (`contracts/`) | On-chain vault: owner-signed, timelocked, per-merchant budgets; the agent key can spend but never widen | ✅ 98 tests (fuzzing, invariants, properties, regressions, Base mainnet fork with real USDC), two internal reviews · live on Base mainnet (beta) |
+| **agent-pay SDK** (`sdk/`) | x402 v2 client with a policy engine outside the model, prompt-injection guards, per-merchant payers, owner CLI | ✅ 162 tests incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
+| **Framework tools** (`integrations/`) | Vercel AI SDK `paidFetchTool`, LangChain/LangGraph `createPaidFetchTool` | ✅ on npm |
+| **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · not launched |
+| **Website** (`web/`) | Site, whitepaper, tokenomics, partner kit, legal pages; strict CSP, zero third parties | ✅ |
+
+## MCP server: let Claude or Cursor pay x402 APIs safely
+
+`@deepfirstsearch/agent-pay-mcp` is a stdio MCP server. The model gets three tools and nothing that can move money on its own terms:
+
+| MCP tool | What it does |
+|---|---|
+| `paid_fetch(url, method?, body?, contentType?)` | Fetches a URL; if it answers `402 Payment Required`, pays in USDC on Base only when the merchant, price and budget match your config |
+| `list_merchants()` | Merchants the agent may pay, their prices and the remaining budget |
+| `budget_status()` | Remaining budget per merchant, plan window, vault balance |
+
+```json
+{ "mcpServers": { "agent-pay": {
+    "command": "npx", "args": ["-y", "@deepfirstsearch/agent-pay-mcp", "/path/config.json"],
+    "env": { "AGENT_PAY_AGENT_KEY": "0x…", "AGENT_PAY_BURNER_SEED": "0x…" } } } }
+```
+
+Payees, prices and limits come from the config file and the owner-signed on-chain budget, never from the model or a 402 response, so a prompt-injected agent can't overspend or pay an attacker. Setup, config reference and a 5-minute Base Sepolia demo: [integrations/mcp](integrations/mcp/README.md).
 
 > Status: pre-launch. **Live on Base Sepolia**, with a [real x402 payment settled](https://sepolia.basescan.org/tx/0x28c60778fcc40110440ec7fb7c944ad28fa90d5a5c26f639a5001c2736d85e5b) (see [deployments](docs/DEPLOYMENTS.md)); **unaudited beta on Base mainnet** since 2026-10-06 (small amounts, our own funds first, then invited design partners) while we arrange an independent audit; the public launch comes after the audit. No token exists.
 
