@@ -4,7 +4,7 @@ import { marked } from "marked";
 import { defineConfig, type Plugin } from "vite";
 
 const DOCS = resolve(__dirname, "../docs");
-const REPO = "https://gitlab.com/ntursi/deepfirstsearch/-/blob/main/docs/";
+const REPO = "https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/";
 
 // Markdown documents published as static pages next to the landing.
 const PAGES: Record<string, { src: string; title: string }> = {

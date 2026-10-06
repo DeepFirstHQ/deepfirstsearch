@@ -7,11 +7,11 @@
   "homepage": "https://deepfirstsearch.com",
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/ntursi/deepfirstsearch.git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
     "directory": "sdk"
   },
   "bugs": {
-    "url": "https://gitlab.com/ntursi/deepfirstsearch/-/issues"
+    "url": "https://github.com/DeepFirstHQ/deepfirstsearch/issues"
   },
   "keywords": [
     "x402",

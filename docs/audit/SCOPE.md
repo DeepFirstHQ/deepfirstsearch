@@ -39,7 +39,7 @@ Solidity 0.8.30 · Foundry · OpenZeppelin v5.6.1 · target chain Base (8453) ·
 
 ## Build and test
 ```bash
-git clone --recurse-submodules https://gitlab.com/ntursi/deepfirstsearch && cd deepfirstsearch/contracts
+git clone --recurse-submodules https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/contracts
 forge build && forge test                                   # 66 tests: unit, fuzz (1,000 runs), properties, invariants, regressions
 BASE_FORK_RPC=https://mainnet.base.org forge test --mc BaseMainnetForkTest   # 5 tests against real USDC on Base
 forge coverage --no-match-coverage "(test|script|lib)"      # 100% lines and functions; BudgetVault branches 94%

@@ -1,0 +1,32 @@
+# Publishes the SDK to npm when a tag like `sdk-v0.1.1` is pushed. The tag must match sdk/package.json.
+# Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
+name: Publish SDK
+
+on:
+  push:
+    tags: ["sdk-v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm trusted publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Tag matches package version
+        working-directory: sdk
+        run: test "sdk-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm install -g npm@11.6.2
+      - working-directory: sdk
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          npm publish --provenance --access public --ignore-scripts
