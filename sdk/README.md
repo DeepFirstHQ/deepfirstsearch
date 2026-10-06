@@ -6,7 +6,7 @@ x402 v2 payments for AI agents where **the model proposes and the owner's policy
 npm install @deepfirstsearch/agent-pay
 ```
 
-> Beta. Agent Safe contracts are live on Base Sepolia; Base mainnet waits for an independent review.
+> **Beta, unaudited.** Agent Safe is live on Base Sepolia and in a capped mainnet beta; an independent audit is in progress. Use small amounts and at your own risk.
 
 ```ts
 import { createAgentPay, MerchantRegistry, burnerPayers } from "@deepfirstsearch/agent-pay";
@@ -46,6 +46,32 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - `requiresHumanForEveryPayment` (Rule of Two)
 - `RateLimiter`, `KillSwitch`
 - `AuditLog` / `verifyChain`
+
+## Signing a budget (owner side)
+
+The owner, never the agent, signs one budget per merchant. The budget names the agent key, the merchant and the only payer address the vault may top up:
+
+```ts
+import { burnerAddress, signIntent } from "@deepfirstsearch/agent-pay";
+
+const intent = {
+  agent: agentAddress,
+  counterparty: merchant.payTo,
+  burner: burnerAddress({ ownerSeed, vault, chainId: 8453, counterparty: merchant.payTo }),
+  token: USDC,
+  maxPerTx: 50_000n,          // 0.05 USDC
+  maxPerPeriod: 500_000n,     // 0.50 USDC per day
+  trancheCap: 100_000n,       // the payer never holds more than 0.10 USDC
+  period: 86_400,
+  validAfter: 0n,
+  expiry: BigInt(Math.floor(Date.now() / 1000) + 30 * 86_400),
+  nonce: BigInt(Date.now()),
+};
+const signature = await signIntent(owner, vault, 8453, intent);
+// Anyone can relay it: vault.proposeIntent(intent, signature). It activates after the vault's timelock.
+```
+
+Keep the owner key (and the burner seed) out of the agent process. A compromised agent key can then only pay the merchant or top up the signed payer, within the caps.
 
 ## Funding payers from Agent Safe
 

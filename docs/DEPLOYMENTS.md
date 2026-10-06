@@ -2,7 +2,16 @@
 
 ## Base Sepolia (testnet, chain id 84532)
 
-### Current: v0.2 (2026-10-05)
+### Current: v0.3 (2026-10-06)
+Includes every fix from the internal pre-audit: intents sign the payer address, fees never block payments, the FeeJar releaser goes through a public timelock, and more (see `docs/assessments/SECURITY.md`). Source verified on Blockscout.
+
+| Contract | Address |
+|---|---|
+| FeeJar | [`0xc8B733b06e89c8BbC1bA9D79C701608fdA125485`](https://base-sepolia.blockscout.com/address/0xc8B733b06e89c8BbC1bA9D79C701608fdA125485) |
+| BudgetVaultFactory | [`0xe0A23185976DF496AF0467aC47043d0e7B464930`](https://base-sepolia.blockscout.com/address/0xe0A23185976DF496AF0467aC47043d0e7B464930) |
+| Demo vault | [`0x876f3B7cDFdfcbf263AA6876DB1FCc2979f44ec6`](https://base-sepolia.blockscout.com/address/0x876f3B7cDFdfcbf263AA6876DB1FCc2979f44ec6) |
+
+### v0.2 (2026-10-05)
 Includes the C-08 fix: EIP-7702 owners can sign with their own key. Source verified on Blockscout.
 
 | Contract | Address |
@@ -66,4 +75,4 @@ Checked on-chain after deployment:
 
 ## Base mainnet
 
-Not deployed. Requires an independent security review first.
+Not deployed yet. Next step: a capped beta, labeled unaudited, with the founder's own funds first, then invited design partners. The public launch and any limit increase wait for the independent audit and its fix review.

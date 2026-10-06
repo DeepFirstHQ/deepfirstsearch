@@ -3,7 +3,7 @@
 > **Draft v0.1, October 2026. Not yet reviewed by counsel.** No token exists. This page describes the risks of the software and of any future token so that nobody relies on anything we did not say.
 
 ## Software risks
-- **Smart-contract risk.** Contracts can contain bugs that lead to the loss of all funds they hold. Audits reduce this risk; they do not remove it. Our contracts are immutable, so a bug cannot be patched in place.
+- **Smart-contract risk.** Contracts can contain bugs that lead to the loss of all funds they hold. Audits reduce this risk; they do not remove it. **The mainnet beta runs before the independent audit is finished:** use only amounts you can afford to lose. Our contracts are immutable, so a bug cannot be patched in place.
 - **Agent risk.** AI agents can be manipulated (for example by prompt injection) or simply make mistakes. Agent Safe limits how much an agent can lose; it cannot make a bad purchase a good one. You choose and are responsible for the limits you set.
 - **Key risk.** Whoever controls your keys controls your funds. Lost keys cannot be recovered by anyone.
 - **Privacy limits.** In the current version, each merchant sees a different payer address, but the funding of those addresses is visible on-chain and can be traced by a determined analyst. Full unlinkability requires the planned shielded pool, which does not exist yet. Network-level metadata (IP addresses, timing) can also reveal information unless you take your own precautions.

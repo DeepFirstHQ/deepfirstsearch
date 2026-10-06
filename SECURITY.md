@@ -10,7 +10,7 @@ Report privately to security@deepfirstsearch.com or through GitHub private vulne
 - a description and, if possible, a proof of concept (a Foundry test or a script);
 - your preferred contact for follow-up.
 
-We aim to acknowledge reports within 24 hours and to agree on a disclosure date with you. A paid bug bounty will be announced before mainnet.
+We aim to acknowledge reports within 24 hours and to agree on a disclosure date with you. A paid bug bounty will be announced before the public mainnet launch. During the unaudited mainnet beta, please report anything you find here; good-faith research is welcome.
 
 ## Scope
 
