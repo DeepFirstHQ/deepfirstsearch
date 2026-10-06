@@ -96,6 +96,7 @@ Same code as the v0.4 testnet deployment. Two internal reviews, no independent a
 | INITIALIZER and OPS (Safe v1.4.1, 1 of 1, founder's wallet) | [`0xcAE428c91f02Cca313DB1f83874543e41Cf33c60`](https://base.blockscout.com/address/0xcAE428c91f02Cca313DB1f83874543e41Cf33c60) |
 | USDC (Circle) | [`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`](https://base.blockscout.com/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) |
 
+- **First real x402 payments on mainnet (2026-10-06):** a vault funded with 1 USDC by the founder, 3 payments of 0.01 USDC settled to the merchant ([1](https://basescan.org/tx/0xf38e3a73b733ab7c44ec5bc542d4baeb60679cb79c305a10fa2f0b705ac06526) · [2](https://basescan.org/tx/0x2a26014ce442639e3d03b064272355d175a8135d7024fbf32bf801df9173f385) · [3](https://basescan.org/tx/0xeb38b7eec3cda9a5e3055e4cea89385aeb16bc54b92e9aa31ee339c7116b151f)). Reconciled on-chain: the merchant received exactly 0.03 USDC, the vault funded one 0.05 tranche plus a 0.00005 fee split 50/50 between the FeeJar and OPS, no double payment.
 - Source verified on [Sourcify](https://sourcify.dev) (bytecode match), built from commit `732ef44`.
 - Post-deploy checks passed: the factory's `USDC()`, `FEE_JAR()` and `OPS()`, the jar's `INITIALIZER()`, and `releaser()` = `0x0`.
 - The deployer EOA `0xe81d982fD80ADCb5Bae5A105E2EE94Dd683d8C19` holds no role.
