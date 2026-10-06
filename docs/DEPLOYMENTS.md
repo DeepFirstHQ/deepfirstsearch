@@ -2,8 +2,18 @@
 
 ## Base Sepolia (testnet, chain id 84532)
 
-### Current: v0.3 (2026-10-06)
-Includes every fix from the internal pre-audit: intents sign the payer address, fees never block payments, the FeeJar releaser goes through a public timelock, and more (see `docs/assessments/SECURITY.md`). Source verified on Blockscout.
+### Current: v0.4 (2026-10-06)
+Includes the fixes from the second internal review: fees owed to each recipient are flushed independently, the agent cannot spend fees the vault still owes, `invalidateNonce` is idempotent, intents cannot name a protocol address as payee or payer, intents that would expire before they activate are rejected, and the Firepit only arms once it is connected and its start time has passed. Source verified on Blockscout.
+
+| Contract | Address |
+|---|---|
+| FeeJar | [`0x4ae59cf9462d1601de4fc5aa4538d376e93a79f2`](https://base-sepolia.blockscout.com/address/0x4ae59cf9462d1601de4fc5aa4538d376e93a79f2) |
+| BudgetVaultFactory | [`0xf245d3cb8700a804432ea50b253a923b4b32c0c7`](https://base-sepolia.blockscout.com/address/0xf245d3cb8700a804432ea50b253a923b4b32c0c7) |
+| Demo vault | [`0x80214aF99261820a930f7F93148B37bBF5C30b3c`](https://base-sepolia.blockscout.com/address/0x80214aF99261820a930f7F93148B37bBF5C30b3c) |
+| x402 payments through v0.4 (6 of 6 settled; merchant received exactly 6 × 0.01 USDC) | [first](https://sepolia.basescan.org/tx/0x92464e274c6e8b972d79215c8043c06fc4b79b312979678330d975306b4d0b54) · [last](https://sepolia.basescan.org/tx/0xc38524c7e6646f939ec1d590e62d27560080b51db08f82d56424c0b2b74fd23d) |
+
+### v0.3 (2026-10-06)
+Includes every fix from the first internal pre-audit: intents sign the payer address, fees never block payments, the FeeJar releaser goes through a public timelock, and more (see `docs/assessments/SECURITY.md`). Source verified on Blockscout.
 
 | Contract | Address |
 |---|---|

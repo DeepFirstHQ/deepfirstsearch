@@ -6,6 +6,8 @@ The order is fixed; every step lists who does it.
 - [ ] Independent review done. Every finding fixed or documented. Report published in `docs/audit/`.
 - [ ] Tag `audit-v1` matches the deployed bytecode (the explorer verification proves it).
 
+**Beta exception.** The capped beta (section 6) is deployed before this gate, labeled unaudited, after two internal reviews and a full rehearsal on a mainnet fork. For the beta, one Safe holds both roles with the founder's wallet as its only signer. Before the token launch or any public opening, its signers move to 2 of 3 with a hardware wallet (a change made from the Safe itself; no contract changes). The public launch and any limit increase still wait for this gate.
+
 ## 1. Safes (founder)
 Create two Safes on Base at app.safe.global:
 
@@ -21,6 +23,8 @@ Write down both addresses. Send one test transaction from each Safe before using
 - It ends with no role. The script refuses to run if either role is the deployer or not a contract.
 
 ## 3. Rehearsal (anyone, free)
+Our own run wraps these steps in one script: it creates the Safe (Safe v1.4.1 factory), deploys and runs the section 5 checks on a local fork of Base, and then repeats the identical steps live.
+
 ```bash
 cd contracts
 BASE_FORK_RPC=https://mainnet.base.org forge test --mc BaseMainnetForkTest
