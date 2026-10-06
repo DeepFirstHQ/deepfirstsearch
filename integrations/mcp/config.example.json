@@ -1,0 +1,22 @@
+{
+  "network": "eip155:84532",
+  "rpcUrl": "https://sepolia.base.org",
+  "vault": "0xYourBudgetVault",
+  "tranche": "0.05",
+  "planWindowHours": 24,
+  "periodBudget": { "amount": "1.00", "hours": 24 },
+  "approvalAbove": "0.10",
+  "auditLog": "~/.agent-pay-mcp-audit.jsonl",
+  "merchants": [
+    {
+      "origin": "https://api.example.com",
+      "label": "Example data API",
+      "payTo": "0xMerchantPayTo",
+      "intentId": "0xOwnerSignedIntentIdForThisMerchant",
+      "price": "0.01",
+      "tolerancePct": 0,
+      "maxPerTx": "0.05",
+      "maxSpend": "0.50"
+    }
+  ]
+}
