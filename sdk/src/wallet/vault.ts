@@ -35,7 +35,7 @@ export type VaultFunderOptions = {
   usdc: Address;
   /** Owner-signed intent id for each merchant payee. A merchant without an intent cannot be funded. */
   intents: Record<Address, Hex>;
-  /** Top up to this many atomic units at a time (must be <= the intent's trancheCap). */
+  /** Top up to this many atomic units at a time. Must be <= both the intent's trancheCap and its maxPerTx (the vault checks each top-up against maxPerTx). */
   tranche: bigint;
   /** Optional ERC-8021 attribution suffix (your Base Builder Code), appended to the agent's transactions. */
   dataSuffix?: Hex;

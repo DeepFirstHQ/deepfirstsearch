@@ -103,7 +103,7 @@ Keep the owner key (and the burner seed) out of the agent process. A compromised
 
 ## Funding payers from Agent Safe
 
-`vaultFunder({ agent, publicClient, vault, usdc, intents, tranche, dataSuffix })` returns an `ensureFunded` hook that tops up each merchant's payer from the BudgetVault right before a payment. The vault enforces every limit on-chain. `dataSuffix` appends your Base Builder Code (ERC-8021 attribution) to those transactions.
+`vaultFunder({ agent, publicClient, vault, usdc, intents, tranche, dataSuffix })` returns an `ensureFunded` hook that tops up each merchant's payer from the BudgetVault right before a payment. The vault enforces every limit on-chain, and each top-up counts as one transaction: keep `tranche` at or below both the intent's `trancheCap` and its `maxPerTx`, or `fundBurner` reverts with `OverPerTx`/`OverTranche`. `dataSuffix` appends your Base Builder Code (ERC-8021 attribution) to those transactions.
 
 ## Privacy level 1: exchange-funded payers
 
