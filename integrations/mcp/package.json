@@ -23,7 +23,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
     "@deepfirstsearch/agent-pay": "0.3.0",
@@ -37,5 +38,15 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
-  }
+  },
+  "keywords": [
+    "mcp",
+    "x402",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base",
+    "spending-limits"
+  ],
+  "homepage": "https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp#readme"
 }

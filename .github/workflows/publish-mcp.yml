@@ -1,0 +1,35 @@
+# Publishes the MCP server to npm when a tag like `mcp-v0.1.1` is pushed. The tag must match integrations/mcp/package.json.
+# Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
+name: Publish MCP server
+
+on:
+  push:
+    tags: ["mcp-v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm trusted publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Tag matches package version
+        working-directory: integrations/mcp
+        run: test "mcp-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm install -g npm@11.6.2
+      - working-directory: sdk
+        run: npm ci # the tests reuse the SDK's mock merchant
+      - working-directory: integrations/mcp
+        run: |
+          npm ci
+          npm test
+          npm run typecheck
+          npm run build
+          npm publish --provenance --access public --ignore-scripts
