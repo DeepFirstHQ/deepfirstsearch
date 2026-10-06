@@ -1118,3 +1118,46 @@ canvas {
 .step p a {
   color: var(--accent);
 }
+
+/* ---------------- LIVE STATUS, SHIPPED, STACK ---------------- */
+.hero__live {
+  margin: 22px auto 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 15px;
+  color: var(--ink-2);
+  pointer-events: auto;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 32px);
+}
+.hero__live a { color: var(--ink); text-decoration: none; }
+.hero__live code { font-size: 14px; }
+.hero__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5ee08a;
+  box-shadow: 0 0 10px #5ee08a;
+}
+.card__stat {
+  margin: 0 0 14px;
+  font-size: clamp(34px, 4vw, 46px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+.card p a { color: var(--accent); }
+.card code { font-size: 0.9em; color: var(--ink); }
+.stack__links {
+  margin-top: 40px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
