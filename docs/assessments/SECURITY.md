@@ -56,6 +56,32 @@ Hicimos dos revisiones adversariales independientes, una del Agent Safe y otra d
 | S-I | BudgetVaultFactory | Cualquiera podía crear el vault ajeno primero y el `create` del dueño revertía | Info | ✅ `create` idempotente |
 | Info | Docs | Afirmaciones sobre el timelock y la sesión del dueño, el fee cobrado encima, la transferibilidad del vesting y el MEV en los reclamos | Info | ✅ Corregidas |
 
+## Segunda revisión interna (2026-10-06): contratos y SDK pensando como atacante
+
+Contratos desplegados como v0.4 en Base Sepolia. SDK publicado como 0.3.0. Cada hallazgo tiene un test de regresión (`contracts/test/unit/AuditFixes.t.sol`, `contracts/test/properties/`, `sdk/test/audit/`).
+
+| ID | Componente | Hallazgo | Severidad | Estado |
+|---|---|---|---|---|
+| A2-M-1 | BudgetVault | `flushFees` pagaba los dos fees juntos: si un destinatario estaba bloqueado por el emisor de USDC, el otro tampoco cobraba | Media | ✅ Cada fee se paga por separado |
+| A2-L-1 | BudgetVault | El agente podía gastar USDC que el vault le debía al FeeJar o a ops | Baja | ✅ `fundBurner` y `pay` exigen saldo libre por encima de lo adeudado |
+| A2-I-1 | BudgetVault | `invalidateNonce` revertía si el nonce ya estaba usado, y eso trababa scripts de revocación en lote | Info | ✅ Idempotente |
+| A2-I-2 | BudgetVault | Un intent podía nombrar al propio vault, al FeeJar o a ops como comerciante o payer | Info | ✅ Revierte |
+| A2-I-3 | BudgetVault | Se aceptaban intents que vencían antes de activarse | Info | ✅ Revierte |
+| A2-I-4 | Firepit / FeeJar | La subasta podía armarse antes de estar conectada al FeeJar, y una propuesta de releaser no se podía retirar | Info | ✅ Se arma solo conectada y después de `START`; `cancelReleaser`; codehash fijado durante la ventana de revisión |
+| SDK-H-1 | SDK | Pagos concurrentes pasaban todos los chequeos de plan, período y rate limit antes de que se registrara alguno, y juntos gastaban más que el límite | Alta | ✅ Reserva sincrónica del presupuesto antes de cualquier `await`; se libera solo si no se envió nada |
+| SDK-L-1 | SDK | El kill switch y el vencimiento del plan no se volvían a chequear después de la aprobación humana y del fondeo | Baja | ✅ Se chequean justo antes de firmar |
+| SDK-L-2 | SDK | El request pagado seguía redirects: la firma del pago podía terminar en otro origen | Baja | ✅ `redirect: "manual"`; un 3xx se rechaza |
+| SDK-L-3 | SDK | Texto del servidor (motivo del settlement, esquema, red) llegaba tal cual a los mensajes de error que lee el agente | Baja (prompt injection) | ✅ Se reduce a tokens cortos sin espacios |
+| SDK-L-4 | SDK | Si el settlement quedaba sin confirmar y el agente reintentaba, se firmaba un segundo pago | Baja | ✅ Se reenvía la misma autorización (su nonce EIP-3009 se ejecuta una sola vez) |
+| SDK-I-1 | SDK | El plan sellado era inmutable solo por convención | Info | ✅ Campos privados reales y `Object.freeze` |
+| SDK-I-2 | SDK | Los bloqueos por rate limit no quedaban en el log de auditoría | Info | ✅ Auditados |
+| SDK-I-3 | SDK | Un `fetch` que no informa la URL final salteaba el chequeo de redirect | Info | ✅ Se rechaza |
+| SDK-I-6 | SDK | `vaultFunder` en paralelo podía fondear dos veces el mismo payer | Info | ✅ Lock por payer; montos no positivos rechazados |
+| SDK-I-7 | SDK | El recibo de settlement no se comparaba con lo firmado | Info | ✅ Se exige la misma red y el mismo payer |
+| SDK-I-10 | SDK | Opciones de reintento inválidas fallaban recién después de firmar | Info | ✅ Se validan al crear el cliente |
+
+Flujo verificado de punta a punta: 9 pasos contra un fork de Base mainnet con el USDC real y el facilitador oficial (ataques incluidos), y pagos reales en Base Sepolia sobre v0.4.
+
 ## 1. Web (`web/`)
 
 **Verificación real en Chromium headless (script en el scratchpad, reproducible):**

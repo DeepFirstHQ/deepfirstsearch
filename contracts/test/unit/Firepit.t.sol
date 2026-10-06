@@ -123,17 +123,55 @@ contract FirepitTest is Test {
     }
 
     /// T-M-1: nothing can be claimed before START, and the auction starts from the initial threshold, not the floor.
-    function test_AuctionStartsAtStartFromTheCeiling() public {
-        uint64 start = uint64(block.timestamp + 30 days);
-        Firepit late = new Firepit(IBurnableToken(address(depth)), address(jar), 10_000_000e18, start);
+    /// T-M-1 / A2-M-1: the auction stays at its ceiling until the Firepit is connected AND START passed; only then
+    /// does it start descending. Time spent in the FeeJar's releaser timelock never cheapens the first claim.
+    function test_AuctionArmsOnlyWhenConnectedAndStarted() public {
+        FeeJar fresh = new FeeJar(initializer);
+        uint64 start = uint64(block.timestamp + 7 days);
+        Firepit late = new Firepit(IBurnableToken(address(depth)), address(fresh), 10_000_000e18, start);
+        vm.prank(initializer);
+        fresh.proposeReleaser(address(late));
+        skip(30 days); // well past START, but not yet connected
         assertEq(late.threshold(), 10_000_000e18);
-        skip(29 days);
+        vm.expectRevert(Firepit.NotConnected.selector);
+        late.arm();
+        fresh.acceptReleaser();
         assertEq(late.threshold(), 10_000_000e18);
+        late.arm();
+        assertTrue(late.armed());
+        skip(late.HALF_LIFE());
+        assertEq(late.threshold(), 5_000_000e18);
+    }
+
+    function test_CannotArmBeforeStart() public {
+        FeeJar fresh = new FeeJar(initializer);
+        Firepit early = new Firepit(
+            IBurnableToken(address(depth)), address(fresh), 10_000_000e18, uint64(block.timestamp + 30 days)
+        );
+        vm.prank(initializer);
+        fresh.proposeReleaser(address(early));
+        skip(fresh.RELEASER_DELAY());
+        fresh.acceptReleaser();
+        vm.expectRevert(Firepit.NotStarted.selector);
+        early.arm();
         vm.prank(searcher);
         vm.expectRevert(Firepit.NotStarted.selector);
-        late.release(_assets(), searcher, type(uint256).max);
-        skip(1 days + late.HALF_LIFE());
-        assertEq(late.threshold(), 5_000_000e18);
+        early.release(_assets(), searcher, type(uint256).max);
+    }
+
+    function test_InitializerCanCancelAPendingProposal() public {
+        FeeJar fresh = new FeeJar(initializer);
+        Firepit p1 = new Firepit(IBurnableToken(address(depth)), address(fresh), 100_000e18, uint64(block.timestamp));
+        vm.prank(initializer);
+        fresh.proposeReleaser(address(p1));
+        assertEq(fresh.pendingCodehash(), address(p1).codehash);
+        vm.expectRevert(FeeJar.NotInitializer.selector);
+        fresh.cancelReleaser();
+        vm.prank(initializer);
+        fresh.cancelReleaser();
+        skip(fresh.RELEASER_DELAY());
+        vm.expectRevert(FeeJar.NoPendingReleaser.selector);
+        fresh.acceptReleaser();
     }
 
     function test_ReleaseWithPermitSurvivesFrontRunPermit() public {

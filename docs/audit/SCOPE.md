@@ -16,11 +16,11 @@ Solidity 0.8.30 · Foundry · OpenZeppelin v5.6.1 · target chain Base (8453) ·
 
 | Contract | nSLOC | Notes |
 |---|---|---|
-| `src/safe/BudgetVault.sol` | 290 | Intents, timelock, spend windows, signed payer tranches, EIP-3009 sweep, non-blocking fees |
+| `src/safe/BudgetVault.sol` | 302 | Intents, timelock, spend windows, signed payer tranches, EIP-3009 sweep, non-blocking fees |
 | `src/safe/BudgetVaultFactory.sol` | 33 | CREATE2, owner bound into the salt, idempotent `create`, no admin |
-| `src/fees/FeeJar.sol` | 58 | No owner, no withdraw. One-time releaser behind a public 14-day timelock |
+| `src/fees/FeeJar.sol` | 74 | No owner, no withdraw. One-time releaser behind a public 14-day timelock; the proposal can be cancelled, and its codehash is pinned during the review window |
 | `src/interfaces/IEIP3009.sol` | 13 | |
-| **Total** | **394** | |
+| **Total** | **422** | |
 
 **Priority 2: token generation (later, can be a separate engagement):**
 
@@ -30,10 +30,10 @@ Solidity 0.8.30 · Foundry · OpenZeppelin v5.6.1 · target chain Base (8453) ·
 | `src/token/DepthVesting.sol` | 14 | OZ `VestingWallet`, with ownership transfer and renounce disabled |
 | `src/distribution/MerkleAirdrop.sol` | 46 | Rejects a zero root or past deadline |
 | `src/distribution/RewardsPool.sol` | 58 | Halving epochs |
-| `src/fees/Firepit.sol` | 67 | Burn $DEPTH to claim the FeeJar; descending auction that opens at `START` from the ceiling |
+| `src/fees/Firepit.sol` | 78 | Burn $DEPTH to claim the FeeJar; descending auction that arms only once connected to the FeeJar and after `START`, opening from the ceiling |
 | `src/interfaces/IBurnableToken.sol` | 6 | |
 | `script/DeployGenesis.s.sol` | — | Allocation and address prediction |
-| **Total** | **216** | |
+| **Total** | **227** | |
 
 **Out of scope:** `web/`, `lib/`. The TypeScript SDK (`sdk/`) is optional; see "Trust boundary".
 

@@ -48,13 +48,45 @@ describe("x402 client", () => {
     expect(server!.received).toHaveLength(0);
   });
 
-  it("does not retry a failed settlement", async () => {
-    const { pay, plan, url } = await client({
-      // The server under-quotes, then the facilitator rejects the payment as insufficient.
-      "/data": { price: 10_000n, payTo: MERCHANT_PAYTO, tamper: (r) => ({ ...r, amount: "9000" }) },
-    });
+  it("retries a failed settlement only with the same signed authorization, then gives up", async () => {
+    const { pay, plan, url } = await client(
+      {
+        // The server under-quotes, then the facilitator rejects the payment as insufficient, every time.
+        "/data": { price: 10_000n, payTo: MERCHANT_PAYTO, tamper: (r) => ({ ...r, amount: "9000" }) },
+      },
+      { settleRetryDelayMs: 1 },
+    );
     await expect(pay.fetch(`${url}/data`, {}, { plan })).rejects.toBeInstanceOf(PaymentBlockedError);
+    // One authorization, sent four times (initial + 3 retries): its EIP-3009 nonce can execute at most once.
+    expect(server!.received).toHaveLength(4);
+    const nonces = new Set(server!.received.map((r) => r.payload.authorization.nonce));
+    const sigs = new Set(server!.received.map((r) => r.payload.signature));
+    expect(nonces.size).toBe(1);
+    expect(sigs.size).toBe(1);
+    expect(plan.remaining(url)).toBe(91_000n); // the 9,000 under-quote, counted once
+    expect(pay.audit.entries.filter((e) => e.event.type === "payment.signed")).toHaveLength(1);
+    expect(pay.audit.entries.filter((e) => e.event.type === "payment.retry")).toHaveLength(3);
+  });
+
+  it("recovers from a transient settlement failure by resending the same authorization", async () => {
+    let first = true;
+    let firstHeader = "";
+    const flaky = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const sig = new Headers(init?.headers).get("PAYMENT-SIGNATURE");
+      if (sig && first) {
+        first = false;
+        firstHeader = sig;
+        return new Response(null, { status: 402 }); // e.g. the facilitator's node had not seen the top-up yet
+      }
+      if (sig) expect(sig).toBe(firstHeader);
+      return fetch(input, init);
+    }) as typeof fetch;
+    const { pay, plan, url } = await client({ "/data": { price: 10_000n, payTo: MERCHANT_PAYTO } }, { fetch: flaky, settleRetryDelayMs: 1 });
+    const res = await pay.fetch(`${url}/data`, {}, { plan });
+    expect(res.status).toBe(200);
+    expect(res.payment?.settlement.success).toBe(true);
     expect(server!.received).toHaveLength(1);
+    expect(plan.remaining(url)).toBe(90_000n);
   });
 
   it("requires a human when the session breaks the Rule of Two, and respects a refusal", async () => {

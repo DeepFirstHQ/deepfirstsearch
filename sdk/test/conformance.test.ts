@@ -161,7 +161,7 @@ describe.skipIf(!canRun)("conformance with official x402 v2 packages", () => {
     const send = async (hash: Hex) => expect((await pub.waitForTransactionReceipt({ hash })).status).toBe("success");
 
     const f = artifact("BudgetVaultFactory");
-    const factoryHash = await deployer.deployContract({ abi: f.abi, bytecode: f.bytecode.object, args: [usdc, MERCHANT, MERCHANT] });
+    const factoryHash = await deployer.deployContract({ abi: f.abi, bytecode: f.bytecode.object, args: [usdc, "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333"] });
     const factory = (await pub.waitForTransactionReceipt({ hash: factoryHash })).contractAddress!;
     const salt = `0x${"01".repeat(32)}` as Hex;
     await send(await deployer.writeContract({ address: factory, abi: f.abi, functionName: "create", args: [owner.address, salt, 3600] }));
@@ -203,12 +203,17 @@ describe.skipIf(!canRun)("conformance with official x402 v2 packages", () => {
       }),
     });
     const plan = pay.commitPlan([{ origin: serverUrl, maxSpend: 100_000n }], 60_000);
-    const before = await pub.readContract({ address: usdc, abi: usdcAbi, functionName: "balanceOf", args: [MERCHANT] }) as bigint;
+    const bal = (a: Address) => pub.readContract({ address: usdc, abi: usdcAbi, functionName: "balanceOf", args: [a] }) as Promise<bigint>;
+    const JAR: Address = "0x2222222222222222222222222222222222222222";
+    const OPS: Address = "0x3333333333333333333333333333333333333333";
+    const before = await bal(MERCHANT);
+    const feesBefore = (await bal(JAR)) + (await bal(OPS));
     const res = await pay.fetch(`${serverUrl}/data`, {}, { plan });
     expect(res.status).toBe(200);
     const after = await pub.readContract({ address: usdc, abi: usdcAbi, functionName: "balanceOf", args: [MERCHANT] }) as bigint;
-    // Merchant got the 10_000 payment plus the vault's fee split (both fee sinks are the merchant address here).
-    expect(after - before).toBe(10_000n + 50n);
+    // The merchant got exactly the payment; the vault's fee on the funded tranche went to the jar and ops.
+    expect(after - before).toBe(10_000n);
+    expect((await bal(JAR)) + (await bal(OPS)) - feesBefore).toBe(50n);
 
     // The funding transaction carries the Builder Code attribution suffix.
     const logs = await pub.getContractEvents({ address: vault, abi: v.abi, eventName: "BurnerFunded", fromBlock: 0n });

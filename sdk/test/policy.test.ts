@@ -53,7 +53,7 @@ describe("policy engine: the 402 response is untrusted", () => {
 
   it("enforces the sealed plan and the period budget", () => {
     const { registry, plan } = setup();
-    plan.record(ORIGIN, 995_000n);
+    expect(plan.reserve(ORIGIN, 995_000n)).toBe(true);
     expect(evaluate(policy, registry, { url, required: required(), plan, spentInPeriod: 0n, now }).reasons.join()).toMatch(/sealed plan/);
     const fresh = setup();
     const d = evaluate(policy, fresh.registry, { url, required: required(), plan: fresh.plan, spentInPeriod: 19_995_000n, now });

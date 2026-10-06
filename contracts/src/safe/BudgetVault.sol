@@ -158,7 +158,8 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         if (
             intent.agent == address(0) || intent.counterparty == address(0) || intent.token != address(USDC)
                 || intent.period == 0 || intent.maxPerTx == 0 || intent.maxPerTx > intent.maxPerPeriod
-                || intent.expiry <= block.timestamp
+                || intent.expiry <= block.timestamp || _isProtocolAddress(intent.counterparty)
+                || _isProtocolAddress(intent.burner)
         ) revert BadIntent();
         if (_usedNonces.get(intent.nonce)) revert NonceUsed();
 
@@ -168,6 +169,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
 
         uint64 activeAt = uint64(block.timestamp) + activationDelay;
         if (intent.validAfter > activeAt) activeAt = intent.validAfter;
+        if (intent.expiry <= activeAt) revert BadIntent();
 
         IntentState storage st = _intents[id];
         st.intent = intent;
@@ -238,8 +240,8 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     }
 
     /// @notice Burns a nonce so a signed but unproposed intent can never be relayed.
+    ///         Idempotent, so relaying the intent first cannot make this call fail (revoke that intent instead).
     function invalidateNonce(uint256 nonce) external onlyOwner {
-        if (_usedNonces.get(nonce)) revert NonceUsed();
         _usedNonces.set(nonce);
         emit NonceInvalidated(nonce);
     }
@@ -252,16 +254,20 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     }
 
     /// @notice Pays out fees that could not be transferred when charged. Callable by anyone.
+    ///         Each recipient is paid independently, so one that still cannot receive never blocks the other.
     function flushFees() external nonReentrant {
         uint256 bal = USDC.balanceOf(address(this));
         uint256 j = owedJar < bal ? owedJar : bal;
-        bal -= j;
+        if (j != 0 && USDC.trySafeTransfer(FEE_JAR, j)) {
+            owedJar -= j;
+            bal -= j;
+        } else {
+            j = 0;
+        }
         uint256 o = owedOps < bal ? owedOps : bal;
-        owedJar -= j;
-        owedOps -= o;
+        if (o != 0 && USDC.trySafeTransfer(OPS, o)) owedOps -= o;
+        else o = 0;
         emit FeesFlushed(j, o);
-        if (j != 0) USDC.safeTransfer(FEE_JAR, j);
-        if (o != 0) USDC.safeTransfer(OPS, o);
     }
 
     // ---------------------------------------------------------------- agent: spend
@@ -270,6 +276,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     function pay(bytes32 id, address to, uint256 amount) external nonReentrant {
         IntentState storage st = _spend(id, amount);
         if (to != st.intent.counterparty) revert WrongCounterparty();
+        _requireFree(amount);
         uint256 fee = _chargeFee(amount);
         emit Paid(id, to, amount, fee);
         USDC.safeTransfer(to, amount);
@@ -280,6 +287,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         IntentState storage st = _spend(id, amount);
         if (burner == address(0) || burner != st.intent.burner) revert NotSignedBurner();
         if (USDC.balanceOf(burner) + amount > st.intent.trancheCap) revert OverTranche();
+        _requireFree(amount);
         isBurner[burner] = true;
         uint256 fee = _chargeFee(amount);
         emit BurnerFunded(id, burner, amount, fee);
@@ -332,6 +340,15 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         (address recovered, ECDSA.RecoverError err,) = ECDSA.tryRecoverCalldata(id, signature);
         if (err == ECDSA.RecoverError.NoError && recovered == OWNER) return true;
         return OWNER.code.length != 0 && SignatureChecker.isValidERC1271SignatureNowCalldata(OWNER, id, signature);
+    }
+
+    /// @dev The amount plus its fee must come from funds that are not owed to the fee recipients.
+    function _requireFree(uint256 amount) private view {
+        if (USDC.balanceOf(address(this)) < owedJar + owedOps + amount + feeFor(amount)) revert OwedFees();
+    }
+
+    function _isProtocolAddress(address a) private view returns (bool) {
+        return a == address(this) || a == FEE_JAR || a == OPS;
     }
 
     /// @dev A fee transfer that fails (for example, a fee recipient blacklisted by the token issuer) never blocks

@@ -13,8 +13,9 @@ export class SealedPlan {
   readonly id = randomUUID();
   readonly hash: string;
   readonly expiresAt: number;
-  private readonly limits: ReadonlyMap<string, bigint>;
-  private readonly spent = new Map<string, bigint>();
+  // Real private fields: nothing outside this class can read or change the limits or the spend.
+  readonly #limits: ReadonlyMap<string, bigint>;
+  readonly #spent = new Map<string, bigint>();
 
   constructor(items: PlanItem[], expiresAt: number) {
     const limits = new Map<string, bigint>();
@@ -24,24 +25,37 @@ export class SealedPlan {
       if (limits.has(origin)) throw new Error(`duplicate plan origin: ${origin}`);
       limits.set(origin, item.maxSpend);
     }
-    this.limits = limits;
+    this.#limits = limits;
     this.expiresAt = expiresAt;
     const canonical = JSON.stringify([...limits.entries()].sort().map(([o, v]) => [o, v.toString()]));
     this.hash = createHash("sha256").update(canonical).update(String(expiresAt)).digest("hex");
-    Object.freeze(this.limits);
+    Object.freeze(this);
   }
 
   covers(origin: string, now: number): boolean {
-    return now < this.expiresAt && this.limits.has(origin);
+    return now < this.expiresAt && this.#limits.has(origin);
   }
 
   remaining(origin: string): bigint {
-    const limit = this.limits.get(origin) ?? 0n;
-    return limit - (this.spent.get(origin) ?? 0n);
+    const limit = this.#limits.get(origin) ?? 0n;
+    return limit - (this.#spent.get(origin) ?? 0n);
   }
 
-  record(origin: string, amount: bigint): void {
-    this.spent.set(origin, (this.spent.get(origin) ?? 0n) + amount);
+  /**
+   * Checks and reserves in one synchronous step, so concurrent payments cannot all see the same remaining budget.
+   * Returns false (reserving nothing) if the amount does not fit.
+   */
+  reserve(origin: string, amount: bigint): boolean {
+    if (amount <= 0n || amount > this.remaining(origin)) return false;
+    this.#spent.set(origin, (this.#spent.get(origin) ?? 0n) + amount);
+    return true;
+  }
+
+  /** Gives back a reservation for a payment that was never sent. */
+  release(origin: string, amount: bigint): void {
+    const spent = this.#spent.get(origin) ?? 0n;
+    if (amount <= 0n || amount > spent) throw new Error("invalid plan release");
+    this.#spent.set(origin, spent - amount);
   }
 }
 

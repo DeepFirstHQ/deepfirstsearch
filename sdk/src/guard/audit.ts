@@ -9,6 +9,7 @@ export type AuditEvent = {
     | "payment.signed"
     | "payment.settled"
     | "payment.failed"
+    | "payment.retry"
     | "plan.sealed";
   [key: string]: unknown;
 };

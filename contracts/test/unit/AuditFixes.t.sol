@@ -154,3 +154,71 @@ contract AuditFixesTest is Test {
         new MerkleAirdrop(IBurnableToken(address(1)), keccak256("root"), uint64(block.timestamp));
     }
 }
+
+/// @notice Regression tests for the second internal review (private/docs/internal-audit-v03.md).
+contract AuditFixesRound2Test is AuditFixesTest {
+    /// A2-L-1: one recipient that still cannot receive never blocks the other's owed fees.
+    function test_FlushPaysEachRecipientIndependently() public {
+        bytes32 id = _propose(1);
+        skip(1 hours);
+        usdc.blacklist(jar);
+        usdc.blacklist(ops);
+        vm.prank(agent);
+        vault.pay(id, merchant, 10e6);
+        assertEq(vault.owedJar(), 5_000);
+        assertEq(vault.owedOps(), 5_000);
+        usdc.unBlacklist(ops); // the jar stays blacklisted
+        vault.flushFees();
+        assertEq(vault.owedOps(), 0);
+        assertEq(vault.owedJar(), 5_000);
+        assertEq(usdc.balanceOf(ops), 5_000);
+    }
+
+    /// A2-I-1: agent spending can never dip into fees that are owed.
+    function test_AgentCannotSpendOwedFees() public {
+        bytes32 id = _propose(1);
+        skip(1 hours);
+        usdc.blacklist(ops);
+        vm.prank(agent);
+        vault.pay(id, merchant, 10e6);
+        // Leave exactly the owed fees plus a little less than one more payment and its fee.
+        uint256 keep = vault.owedJar() + vault.owedOps() + 1e6;
+        uint256 out = usdc.balanceOf(address(vault)) - keep;
+        vm.prank(owner);
+        vault.withdraw(owner, out);
+        vm.prank(agent);
+        vm.expectRevert(BudgetVault.OwedFees.selector);
+        vault.pay(id, merchant, 1e6); // 1e6 + 1,000 fee > the 1e6 that is free
+    }
+
+    /// A2-I-2: invalidating a nonce is idempotent, so a front-runner relaying the intent cannot make it revert.
+    function test_InvalidateNonceIsIdempotent() public {
+        _propose(5);
+        vm.startPrank(owner);
+        vault.invalidateNonce(5);
+        vault.invalidateNonce(5);
+        vm.stopPrank();
+    }
+
+    /// A2-I-3 / S-I-12: payees can't be protocol addresses, and an intent must outlive its activation.
+    function test_IntentRejectsProtocolPayeesAndDeadOnArrival() public {
+        address[3] memory bad = [address(vault), jar, ops];
+        for (uint256 k; k < 3; ++k) {
+            BudgetVault.Intent memory i = _intent(10 + k);
+            i.burner = bad[k];
+            (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, vault.intentId(i));
+            vm.expectRevert(BudgetVault.BadIntent.selector);
+            vault.proposeIntent(i, abi.encodePacked(r, s, v));
+            i.burner = burner;
+            i.counterparty = bad[k];
+            (v, r, s) = vm.sign(ownerKey, vault.intentId(i));
+            vm.expectRevert(BudgetVault.BadIntent.selector);
+            vault.proposeIntent(i, abi.encodePacked(r, s, v));
+        }
+        BudgetVault.Intent memory short = _intent(20);
+        short.expiry = uint64(block.timestamp + 30 minutes); // expires before the 1-hour activation
+        (uint8 sv, bytes32 sr, bytes32 ss) = vm.sign(ownerKey, vault.intentId(short));
+        vm.expectRevert(BudgetVault.BadIntent.selector);
+        vault.proposeIntent(short, abi.encodePacked(sr, ss, sv));
+    }
+}

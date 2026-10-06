@@ -89,25 +89,31 @@ export function evaluate(config: PolicyConfig, registry: MerchantRegistry, input
   return { kind: "allow", reasons, ...approved };
 }
 
+/** Server-controlled values appear in denial reasons only as short, plain tokens (SDK-L-3). */
+function show(v: unknown): string {
+  const t = String(v).replace(/[^A-Za-z0-9:._-]/g, "").slice(0, 42);
+  return t.length ? t : "(invalid)";
+}
+
 function checkRequirement(
   r: PaymentRequirements,
   merchant: Merchant,
   config: PolicyConfig,
   bounds: { min: number; max: number },
 ): string | undefined {
-  if (r.scheme !== "exact") return `scheme ${r.scheme} is not supported`;
-  if (!config.allowedNetworks.includes(r.network)) return `network ${r.network} is not allowed`;
-  if (r.network !== merchant.network) return `network ${r.network} does not match the merchant's network`;
+  if (r.scheme !== "exact") return `scheme ${show(r.scheme)} is not supported`;
+  if (!config.allowedNetworks.includes(r.network)) return `network ${show(r.network)} is not allowed`;
+  if (r.network !== merchant.network) return `network ${show(r.network)} does not match the merchant's network`;
   const pinned = pinnedAsset(r.network, config.assets);
-  if (!pinned) return `no pinned asset for ${r.network}`;
-  if (r.asset.toLowerCase() !== pinned.asset.toLowerCase()) return `asset ${r.asset} is not the pinned USDC`;
+  if (!pinned) return `no pinned asset for ${show(r.network)}`;
+  if (r.asset.toLowerCase() !== pinned.asset.toLowerCase()) return `asset ${show(r.asset)} is not the pinned USDC`;
   const method = r.extra?.assetTransferMethod ?? "eip3009";
-  if (method !== "eip3009") return `transfer method ${method} is not supported`;
+  if (method !== "eip3009") return `transfer method ${show(method)} is not supported`;
   if (r.extra?.name !== undefined && r.extra.name !== pinned.domain.name) return "EIP-712 domain name does not match the pin";
   if (r.extra?.version !== undefined && r.extra.version !== pinned.domain.version) {
     return "EIP-712 domain version does not match the pin";
   }
-  if (getAddress(r.payTo) !== merchant.payTo) return `payTo ${r.payTo} is not the merchant's registered address`;
+  if (getAddress(r.payTo) !== merchant.payTo) return `payTo ${show(r.payTo)} is not the merchant's registered address`;
   if (r.maxTimeoutSeconds < bounds.min || r.maxTimeoutSeconds > bounds.max) {
     return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${bounds.min}, ${bounds.max}]`;
   }

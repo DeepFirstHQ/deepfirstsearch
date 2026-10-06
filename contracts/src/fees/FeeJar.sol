@@ -27,8 +27,10 @@ contract FeeJar {
     address public releaser;
     address public pendingReleaser;
     uint64 public pendingEta;
+    bytes32 public pendingCodehash;
 
-    event ReleaserProposed(address indexed releaser, address indexed depth, uint64 eta);
+    event ReleaserProposed(address indexed releaser, address indexed depth, bytes32 codehash, uint64 eta);
+    event ReleaserCancelled(address indexed releaser);
     event ReleaserSet(address indexed releaser);
     event Released(address indexed asset, address indexed to, uint256 amount);
 
@@ -39,6 +41,7 @@ contract FeeJar {
     error WrongJar();
     error NotReleaser();
     error ZeroAddress();
+    error CodeChanged();
 
     constructor(address initializer) {
         if (initializer == address(0)) revert ZeroAddress();
@@ -52,9 +55,22 @@ contract FeeJar {
         if (newReleaser == address(0)) revert ZeroAddress();
         if (IFirepitView(newReleaser).FEE_JAR() != address(this)) revert WrongJar();
         uint64 eta = uint64(block.timestamp) + RELEASER_DELAY;
+        bytes32 codehash = newReleaser.codehash;
         pendingReleaser = newReleaser;
         pendingEta = eta;
-        emit ReleaserProposed(newReleaser, IFirepitView(newReleaser).DEPTH(), eta);
+        pendingCodehash = codehash;
+        emit ReleaserProposed(newReleaser, IFirepitView(newReleaser).DEPTH(), codehash, eta);
+    }
+
+    /// @notice Withdraws a pending proposal (for example, one found to be wrong during the review window).
+    function cancelReleaser() external {
+        if (msg.sender != INITIALIZER) revert NotInitializer();
+        address r = pendingReleaser;
+        if (r == address(0)) revert NoPendingReleaser();
+        pendingReleaser = address(0);
+        pendingEta = 0;
+        pendingCodehash = bytes32(0);
+        emit ReleaserCancelled(r);
     }
 
     /// @notice Finalizes the proposed releaser once the timelock has passed. Callable by anyone; permanent.
@@ -63,9 +79,12 @@ contract FeeJar {
         address r = pendingReleaser;
         if (r == address(0)) revert NoPendingReleaser();
         if (block.timestamp < pendingEta) revert TooEarly();
+        // What takes effect must be exactly the code that was public during the review window.
+        if (r.codehash != pendingCodehash) revert CodeChanged();
         releaser = r;
         pendingReleaser = address(0);
         pendingEta = 0;
+        pendingCodehash = bytes32(0);
         emit ReleaserSet(r);
     }
 

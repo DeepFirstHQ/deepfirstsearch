@@ -73,9 +73,12 @@ async function setup() {
   }
   const vaultBalance = await pub.readContract({ address: USDC, abi: erc20Abi, functionName: "balanceOf", args: [vault] });
   if (vaultBalance < 500_000n) {
-    const fund = await ownerWallet.writeContract({ address: USDC, abi: erc20Abi, functionName: "transfer", args: [vault, 900_000n] });
+    const ownerBalance = await pub.readContract({ address: USDC, abi: erc20Abi, functionName: "balanceOf", args: [owner.address] });
+    const amount = ownerBalance < 900_000n ? ownerBalance : 900_000n;
+    if (amount < 200_000n) throw new Error(`owner holds only ${ownerBalance} atomic test USDC; top up from the Circle faucet`);
+    const fund = await ownerWallet.writeContract({ address: USDC, abi: erc20Abi, functionName: "transfer", args: [vault, amount] });
     await pub.waitForTransactionReceipt({ hash: fund });
-    console.log(`vault funded with 0.9 test USDC  ${explorer(fund)}`);
+    console.log(`vault funded with ${amount} atomic test USDC  ${explorer(fund)}`);
   } else console.log(`vault ${vault} already holds ${vaultBalance} atomic USDC`);
 
   const now = Math.floor(Date.now() / 1000);
