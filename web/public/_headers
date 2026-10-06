@@ -9,7 +9,6 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=(), interest-cohort=(), browsing-topics=()
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
-  X-Robots-Tag: noai, noimageai
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

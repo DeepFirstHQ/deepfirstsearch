@@ -1,0 +1,28 @@
+# Deep First Search: Agent Safe
+
+> Safe x402 payments for AI agents. The owner decides payees, prices and caps (in code and in an owner-signed, timelocked budget enforced by a contract on Base); the model only chooses which URL to fetch. A prompt-injected agent cannot overspend, pay a different wallet or accept a price hike. Open source, MIT. Live on Base mainnet as an unaudited beta, and on Base Sepolia.
+
+## Packages (npm)
+
+- `@deepfirstsearch/agent-pay`: TypeScript SDK. `createAgentPay({ registry, policy, payer, session, ensureFunded? })` returns `{ commitPlan(items, ttlMs), fetch(url, init, { plan }), kill(), audit }`. Also the owner CLI (`npx @deepfirstsearch/agent-pay owner …`), an offline demo (`npx @deepfirstsearch/agent-pay demo`), `AGENT_SAFE` deployments, contract ABIs, and `@deepfirstsearch/agent-pay/testing` (`startMockServer`, an offline x402 merchant).
+- `@deepfirstsearch/agent-pay-mcp`: MCP server (stdio). Tools: `paid_fetch(url, method?, body?, contentType?)`, `list_merchants()`, `budget_status()`. Config file holds merchants and caps; env `AGENT_PAY_AGENT_KEY`, `AGENT_PAY_BURNER_SEED`. Registry name `com.deepfirstsearch/agent-pay-mcp`.
+- `@deepfirstsearch/agent-pay-ai-sdk`: `paidFetchTool({ pay, plan })` for the Vercel AI SDK.
+- `@deepfirstsearch/agent-pay-langchain`: `createPaidFetchTool({ pay, plan })` for LangChain.js / LangGraph.
+
+## Key rules when integrating
+
+- Payee (`payTo`), price pin and caps come from `MerchantRegistry` and the sealed plan, never from the model or the 402 response.
+- Call `pay.commitPlan(...)` before the agent reads untrusted content; pass the plan to every `pay.fetch`.
+- Amounts are atomic USDC units (6 decimals) as bigint: 10_000n = 0.01 USDC.
+- `payer` can be any viem account (local key, Privy, Turnkey, Coinbase CDP, KMS).
+- On-chain budgets: each top-up must be <= the intent's `maxPerTx` and `trancheCap`.
+- Refusals throw `PaymentDeniedError` (policy) or `PaymentBlockedError` (kill switch, settlement); integrations return them as data.
+
+## Docs
+
+- Developers: https://deepfirstsearch.com/developers.html
+- Partners: https://deepfirstsearch.com/partners.html
+- SDK: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk
+- MCP server: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp
+- Deployments: https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/DEPLOYMENTS.md
+- Repository: https://github.com/DeepFirstHQ/deepfirstsearch

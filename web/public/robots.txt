@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# For AI assistants: a concise integration guide.
+# https://deepfirstsearch.com/llms.txt

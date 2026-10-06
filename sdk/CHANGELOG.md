@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 (2026-10-06)
+
+- `npx @deepfirstsearch/agent-pay demo`: a 10-second offline tour with a local x402 merchant (no keys, no chain): one honest payment and four attacks refused (payee swap, price hike, injected payee, budget overrun), with the audit chain verified.
+- `@deepfirstsearch/agent-pay/testing`: exports `startMockServer`, the offline x402 merchant, for integration tests.
+
 ## 0.4.0 (2026-10-06)
 
 - **Owner CLI** (`npx @deepfirstsearch/agent-pay owner …`): `create-vault`, `fund`, `budget`, `status`, `pause`/`unpause`, `revoke`, `withdraw`, `flush-fees`. Keys from a Foundry/geth keystore or `AGENT_PAY_OWNER_KEY`, never from arguments; mainnet transactions need confirmation; `--json` for scripts. `budget` refuses a per-payment cap above the daily cap before signing, and prints a ready-to-paste MCP server entry.

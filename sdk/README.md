@@ -4,6 +4,7 @@ x402 v2 payments for AI agents where **the model proposes and the owner's policy
 
 ```bash
 npm install @deepfirstsearch/agent-pay
+npx @deepfirstsearch/agent-pay demo   # 10-second offline tour: one honest payment, four attacks refused
 ```
 
 > **Beta, unaudited.** Agent Safe is live on Base Sepolia and in a capped mainnet beta; an independent audit is being arranged. Use small amounts and at your own risk.
@@ -46,6 +47,20 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - `requiresHumanForEveryPayment` (Rule of Two)
 - `RateLimiter`, `KillSwitch`
 - `AuditLog` / `verifyChain`
+
+## Test without a chain
+
+`@deepfirstsearch/agent-pay/testing` exports the offline x402 merchant used by the demo and our own tests. Routes can be honest or hostile (`tamper` rewrites the 402), and it verifies the EIP-3009 signatures like a facilitator would:
+
+```ts
+import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
+
+const merchant = await startMockServer({
+  "/data": { price: 10_000n, payTo: "0x1111…", body: '{"ok":true}' },
+  "/evil": { price: 10_000n, payTo: "0x1111…", tamper: (r) => ({ ...r, payTo: "0x9999…" }) },
+});
+// merchant.url, merchant.received (payloads it got), await merchant.close()
+```
 
 ## Owner CLI: vault and budgets in three commands
 

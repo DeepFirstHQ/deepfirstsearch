@@ -1,8 +1,32 @@
-# Deep First Search ($DEPTH)
+# Deep First Search: safe x402 payments for AI agents
 
 **Safe rails for the agent economy.** *Search deep. Reveal only what you choose.*
 
 AI agents now pay for things over x402. Every one of those payments is public, and any agent can be talked into paying the wrong party. Deep First Search makes the model **propose** payments while the owner's signed policy **decides**.
+
+[![npm](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay?label=agent-pay)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay) [![MCP](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay-mcp?label=agent-pay-mcp)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay-mcp) [![CI](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+## Try it in 10 seconds
+
+No keys, no wallet, no chain: a local x402 merchant plays honest and hostile, and you watch the agent pay for data and refuse four attacks.
+
+```bash
+npx @deepfirstsearch/agent-pay demo
+```
+
+## Pick your path
+
+| You use | Install | Guide |
+|---|---|---|
+| Claude Desktop, Claude Code, Cursor, any MCP client | `npx @deepfirstsearch/agent-pay-mcp` | [integrations/mcp](integrations/mcp/README.md) |
+| Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk` | [integrations/ai-sdk](integrations/ai-sdk/README.md) |
+| LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain` | [integrations/langchain](integrations/langchain/README.md) |
+| Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [sdk](sdk/README.md) |
+| On-chain budgets on Base | `npx @deepfirstsearch/agent-pay owner help` | [owner CLI](sdk/README.md#owner-cli-vault-and-budgets-in-three-commands) |
+
+Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)** · building a wallet, framework or platform? **[Partners](https://deepfirstsearch.com/partners.html)**.
+
+## What's in this repository
 
 | Component | What it does | Status |
 |---|---|---|
@@ -33,12 +57,9 @@ Payees, prices and limits come from the config file and the owner-signed on-chai
 
 > Status: pre-launch. **Live on Base Sepolia**, with a [real x402 payment settled](https://sepolia.basescan.org/tx/0x28c60778fcc40110440ec7fb7c944ad28fa90d5a5c26f639a5001c2736d85e5b) (see [deployments](docs/DEPLOYMENTS.md)); **unaudited beta on Base mainnet** since 2026-10-06 (small amounts, our own funds first, then invited design partners) while we arrange an independent audit; the public launch comes after the audit. No token exists.
 
-## Quick start
+## Develop on this repository
 
 ```bash
-# Use the SDK in your agent
-npm install @deepfirstsearch/agent-pay
-
 # Contracts (needs Foundry: curl -L https://foundry.paradigm.xyz | bash && foundryup)
 git submodule update --init --recursive
 cd contracts && forge test

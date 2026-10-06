@@ -10,6 +10,7 @@ const REPO = "https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/";
 const PAGES: Record<string, { src: string; title: string }> = {
   "whitepaper.html": { src: "WHITEPAPER.md", title: "Whitepaper" },
   "tokenomics.html": { src: "TOKENOMICS.md", title: "Tokenomics" },
+  "developers.html": { src: "DEVELOPERS.md", title: "Developers" },
   "partners.html": { src: "PARTNERS.md", title: "Partners" },
   "legal/terms.html": { src: "legal/TERMS.md", title: "Terms of Use" },
   "legal/privacy.html": { src: "legal/PRIVACY.md", title: "Privacy Policy" },
