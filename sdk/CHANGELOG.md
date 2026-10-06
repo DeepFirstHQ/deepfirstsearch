@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 (2026-10-06)
+
+- **Owner CLI** (`npx @deepfirstsearch/agent-pay owner …`): `create-vault`, `fund`, `budget`, `status`, `pause`/`unpause`, `revoke`, `withdraw`, `flush-fees`. Keys from a Foundry/geth keystore or `AGENT_PAY_OWNER_KEY`, never from arguments; mainnet transactions need confirmation; `--json` for scripts. `budget` refuses a per-payment cap above the daily cap before signing, and prints a ready-to-paste MCP server entry.
+- Exports the official deployments (`AGENT_SAFE`) and the full contract ABIs (`BUDGET_VAULT_FULL_ABI`, `BUDGET_VAULT_FACTORY_ABI`, `FEE_JAR_ABI`), checked against the compiled contracts in CI.
+
 ## 0.3.0 (2026-10-06)
 
 Security release from an internal adversarial review of the SDK. Works with Agent Safe contracts v0.3 and later; v0.4 is the current deployment (see `docs/DEPLOYMENTS.md`).

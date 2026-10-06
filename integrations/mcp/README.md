@@ -16,7 +16,7 @@ The model **cannot** choose a payee, an amount, a network or a limit: there is n
 
 ## Setup
 
-1. **Budget (owner, once):** create a vault and sign an intent per merchant. Follow the [SDK quickstart](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#try-the-whole-loop-on-base-sepolia-free-about-1-hour) on Base Sepolia. You get a vault address and one `intentId` per merchant. (No vault? Leave out `vault`, `tranche` and `intentId` and fund the payer addresses yourself.)
+1. **Budget (owner, once):** create a vault and sign a budget per merchant with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands): `npx @deepfirstsearch/agent-pay owner create-vault`, then `owner budget …`, which prints the `intentId` and a ready-to-paste `merchants[]` entry. (No vault? Leave out `vault`, `tranche` and `intentId` and fund the payer addresses yourself.)
 2. **Config:** copy [`config.example.json`](config.example.json) and fill it in. Amounts are USDC decimal strings. Keep `tranche` at or below each intent's `trancheCap` and `maxPerTx`.
 3. **Secrets (environment only):**
    - `AGENT_PAY_AGENT_KEY`: the intent's agent key (needed with a vault).

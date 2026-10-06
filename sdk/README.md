@@ -47,6 +47,24 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - `RateLimiter`, `KillSwitch`
 - `AuditLog` / `verifyChain`
 
+## Owner CLI: vault and budgets in three commands
+
+```bash
+export AGENT_PAY_BURNER_SEED=0x…   # the same 32-byte seed your agent's SDK uses for payer addresses
+npx @deepfirstsearch/agent-pay owner create-vault --keystore ~/.foundry/keystores/owner
+npx @deepfirstsearch/agent-pay owner fund   --vault 0x… --amount 5 --keystore ~/.foundry/keystores/owner
+npx @deepfirstsearch/agent-pay owner budget --vault 0x… --merchant 0x… --agent 0x… \
+    --per-tx 0.05 --per-day 0.50 --keystore ~/.foundry/keystores/owner
+npx @deepfirstsearch/agent-pay owner status --vault 0x…
+```
+
+- `--network base-sepolia` (default) or `--network base`. On Base mainnet every transaction asks for confirmation and warns that this is an unaudited beta.
+- The owner key comes from a Foundry/geth keystore (`--keystore`, password prompted) or `AGENT_PAY_OWNER_KEY`; never from arguments.
+- `budget` derives the merchant's payer address from `AGENT_PAY_BURNER_SEED`, signs the budget, proposes it, and prints the `intentId` plus a ready-to-paste entry for the [MCP server](../integrations/mcp) config.
+- Also: `pause`, `unpause`, `revoke --intent`, `withdraw --amount`, `flush-fees`, and `--json` for scripts.
+
+The official addresses and ABIs are exported too: `AGENT_SAFE.base.factory`, `BUDGET_VAULT_FULL_ABI`, `BUDGET_VAULT_FACTORY_ABI`, `FEE_JAR_ABI`.
+
 ## Try the whole loop on Base Sepolia (free, about 1 hour)
 
 `examples/sepolia-live.ts` runs a real x402 payment end to end with your own testnet keys: it creates a vault, signs a budget, waits out the timelock, then an agent pays a local x402 endpoint and the public facilitator settles it on-chain.

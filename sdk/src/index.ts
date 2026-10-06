@@ -33,3 +33,5 @@ export {
 export { signExactAuthorization, usdcDomain, TRANSFER_WITH_AUTHORIZATION_TYPES } from "./x402/exactEvm.js";
 export { encodeHeader, decodeHeader, X402DecodeError } from "./x402/codec.js";
 export * as schemas from "./x402/schemas.js";
+export { AGENT_SAFE, type AgentSafeDeployment } from "./contracts/deployments.js";
+export { BUDGET_VAULT_FULL_ABI, BUDGET_VAULT_FACTORY_ABI, FEE_JAR_ABI } from "./contracts/abi.js";
