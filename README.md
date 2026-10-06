@@ -39,6 +39,7 @@ cd ../web && npm ci && npm run dev
 | [Decisions](docs/DECISIONS.md) | ADRs: ticker, chain, burn, vesting, stand… (ES) |
 | [Deployments](docs/DEPLOYMENTS.md) | Base Sepolia contract addresses and the live demo vault |
 | [Audit scope](docs/audit/SCOPE.md) | Scope, nSLOC, roles, known issues and questions for reviewers |
+| [Airdrop tool](tools/airdrop/build.mjs) | Builds the airdrop Merkle tree and proofs; tested against the contract |
 | [Mainnet runbook](docs/MAINNET.md) | Safes, rehearsal, deploy, checks, guarded launch, monitoring |
 | [Security assessment](docs/assessments/SECURITY.md) | Pentest findings, threat model, evidence (ES) |
 | [Research](docs/research/) | Market pain, successes, failures, token models, launch mechanics (ES) |

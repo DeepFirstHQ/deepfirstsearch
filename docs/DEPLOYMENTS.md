@@ -40,6 +40,30 @@ Intent limits:
 
 Reproduce with `sdk/examples/sepolia-live.ts` (`setup`, then `pay` after the 1-hour activation timelock). The payment goes through the public x402 testnet facilitator (`https://x402.org/facilitator`).
 
+## Token launch rehearsal (Base Sepolia, testnet — no value)
+
+A full run of `contracts/script/DeployGenesis.s.sol` on testnet, deployed 2026-10-05 and verified on Blockscout or Sourcify.
+
+**This is not a token launch.** No $DEPTH exists on any mainnet, and these testnet tokens have no value.
+
+On testnet the beneficiaries are testnet EOAs. On mainnet they will be multisig Safes, and the founder's will be Nicolas Tursi's.
+
+| Contract | Address | Holds |
+|---|---|---|
+| DepthToken (fixed supply, no owner) | [`0xDAa1Cb9ED18685770BA6f2058486b36f76A591C9`](https://base-sepolia.blockscout.com/address/0xDAa1Cb9ED18685770BA6f2058486b36f76A591C9) | 1,000,000,000 total, minted once |
+| Founder vesting (12%) | [`0xa676f0000ec7526a518ba35692C0Ec9E8Eb5c427`](https://base-sepolia.blockscout.com/address/0xa676f0000ec7526a518ba35692C0Ec9E8Eb5c427) | 120,000,000 |
+| Contributors vesting (3%) | [`0xa930Eb534573b774C5d8Bd4a09C49D8445572844`](https://base-sepolia.blockscout.com/address/0xa930Eb534573b774C5d8Bd4a09C49D8445572844) | 30,000,000 |
+| Foundation vesting (10%) | [`0xc9267c2b9FB618CFBa40A7C1D1F57caA9Ca0C404`](https://base-sepolia.blockscout.com/address/0xc9267c2b9FB618CFBa40A7C1D1F57caA9Ca0C404) | 100,000,000 |
+| MerkleAirdrop (25%) | [`0xcBf281724D73910E754bC4456471E58931894271`](https://base-sepolia.blockscout.com/address/0xcBf281724D73910E754bC4456471E58931894271) | 250,000,000 |
+| RewardsPool (25%) | [`0xFDcaBd22de4059756EfEc7EF50fC07c8233A7FCB`](https://base-sepolia.blockscout.com/address/0xFDcaBd22de4059756EfEc7EF50fC07c8233A7FCB) | 250,000,000 |
+| Firepit | [`0x283F904a1888124EC8b3C92A89eA0642971648E9`](https://base-sepolia.blockscout.com/address/0x283F904a1888124EC8b3C92A89eA0642971648E9) | connected to the v0.2 FeeJar ([tx](https://sepolia.basescan.org/tx/0x4f58fee2d40d46d10723d3c78c3d63d948cfca1553b375804872a680f6c8bcd1)) |
+| Launch reserve (25%) | testnet EOA | 250,000,000, until the auction and LP contracts exist |
+
+Checked on-chain after deployment:
+- `totalSupply()` is exactly 1,000,000,000 DEPTH, and the deployer holds 0 after genesis.
+- Founder vesting: `start()` is 2027-10-06 (TGE + 1 year) and `duration()` is 3 years. `releasable()` is **0**, and `transferOwnership()` **reverts**, so the lock cannot be sold or moved.
+- The airdrop proof built with `tools/airdrop` claimed on-chain ([tx](https://sepolia.basescan.org/tx/0x80664e2eb75fcf272b882899318717a8ca40741e362f815e0b2b576547428953)).
+
 ## Base mainnet
 
 Not deployed. Requires an independent security review first.

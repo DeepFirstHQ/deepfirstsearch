@@ -1,0 +1,14 @@
+{
+  "name": "@deepfirstsearch/airdrop-tool",
+  "private": true,
+  "type": "module",
+  "description": "Builds the $DEPTH airdrop Merkle tree (OpenZeppelin StandardMerkleTree, leaves (uint256 index, address account, uint256 amount)).",
+  "license": "MIT",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8"
+  }
+}
