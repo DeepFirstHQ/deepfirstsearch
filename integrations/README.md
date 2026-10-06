@@ -4,5 +4,6 @@ Framework integrations for `@deepfirstsearch/agent-pay`, one package per folder.
 
 Available:
 - [`mcp/`](mcp/): MCP server for Claude Desktop, Claude Code, Cursor and any MCP client (`paid_fetch`, `list_merchants`, `budget_status`).
+- [`ai-sdk/`](ai-sdk/): `paidFetchTool` for the Vercel AI SDK (`generateText`, `streamText`, agents).
 
-Wanted (see the [`integration`](https://github.com/DeepFirstHQ/deepfirstsearch/labels/integration) issues): LangChain.js / LangGraph tool, Vercel AI SDK tool, Coinbase AgentKit action provider, ElizaOS plugin. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first.
+Wanted (see the [`integration`](https://github.com/DeepFirstHQ/deepfirstsearch/labels/integration) issues): LangChain.js / LangGraph tool, Coinbase AgentKit action provider, ElizaOS plugin. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first.
