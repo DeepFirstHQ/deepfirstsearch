@@ -1,0 +1,58 @@
+{
+  "name": "@deepfirstsearch/agent-pay-langchain",
+  "version": "0.1.0",
+  "description": "LangChain.js / LangGraph tool: agents fetch x402 APIs while an owner-signed, on-chain budget decides every payment",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
+    "directory": "integrations/langchain"
+  },
+  "keywords": [
+    "langchain",
+    "langgraph",
+    "x402",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@langchain/core": ">=1.0.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@deepfirstsearch/agent-pay": "0.4.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@langchain/core": "1.2.17",
+    "@langchain/langgraph": "1.4.19",
+    "@types/node": "26.6.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "viem": "2.57.3",
+    "vitest": "4.1.11"
+  }
+}
