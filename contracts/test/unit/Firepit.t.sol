@@ -21,19 +21,20 @@ contract FirepitTest is Test {
         (searcher, searcherKey) = makeAddrAndKey("searcher");
         usdc = new MockUSDC();
 
-        // The codehash of a Firepit does not depend on constructor args, so it can be pinned before the token exists.
-        Firepit probe = new Firepit(IBurnableToken(address(1)), address(1), 100_000e18);
-        jar = new FeeJar(initializer, address(probe).codehash);
+        jar = new FeeJar(initializer);
 
         address[] memory r = new address[](1);
         uint256[] memory a = new uint256[](1);
         r[0] = searcher;
         a[0] = 1_000_000_000e18;
         depth = new DepthToken(r, a);
-        pit = new Firepit(IBurnableToken(address(depth)), address(jar), 100_000e18);
+        // The auction starts when the jar connects, after the 14-day releaser timelock.
+        pit = new Firepit(IBurnableToken(address(depth)), address(jar), 100_000e18, uint64(block.timestamp + 14 days));
 
         vm.prank(initializer);
-        jar.setReleaser(address(pit));
+        jar.proposeReleaser(address(pit));
+        skip(jar.RELEASER_DELAY());
+        jar.acceptReleaser();
 
         usdc.mint(address(jar), 5_000e6);
         vm.prank(searcher);
@@ -80,20 +81,59 @@ contract FirepitTest is Test {
         jar.release(_assets(), address(this));
     }
 
-    function test_ReleaserCanBeSetOnlyOnceAndOnlyToRealFirepitCode() public {
+    function test_ReleaserIsSetOnceThroughAPublicTimelock() public {
         vm.prank(initializer);
         vm.expectRevert(FeeJar.AlreadySet.selector);
-        jar.setReleaser(address(pit));
+        jar.proposeReleaser(address(pit));
 
-        FeeJar fresh = new FeeJar(initializer, address(pit).codehash);
-        vm.prank(initializer);
-        vm.expectRevert(FeeJar.WrongReleaserCode.selector);
-        fresh.setReleaser(address(usdc));
-
-        // A genuine Firepit pointing at a different jar is rejected too.
+        FeeJar fresh = new FeeJar(initializer);
+        // Only the initializer proposes, and the Firepit must point at this jar.
+        vm.expectRevert(FeeJar.NotInitializer.selector);
+        fresh.proposeReleaser(address(pit));
         vm.prank(initializer);
         vm.expectRevert(FeeJar.WrongJar.selector);
-        fresh.setReleaser(address(pit));
+        fresh.proposeReleaser(address(pit));
+
+        Firepit mine = new Firepit(IBurnableToken(address(depth)), address(fresh), 100_000e18, uint64(block.timestamp));
+        vm.expectRevert(FeeJar.NoPendingReleaser.selector);
+        fresh.acceptReleaser();
+        vm.prank(initializer);
+        fresh.proposeReleaser(address(mine));
+        assertEq(fresh.pendingReleaser(), address(mine));
+        vm.expectRevert(FeeJar.TooEarly.selector);
+        fresh.acceptReleaser();
+        skip(fresh.RELEASER_DELAY());
+        fresh.acceptReleaser(); // anyone can finalize
+        assertEq(fresh.releaser(), address(mine));
+        vm.prank(initializer);
+        vm.expectRevert(FeeJar.AlreadySet.selector);
+        fresh.proposeReleaser(address(mine));
+    }
+
+    /// T-H-1 / S-M-3: a patched Firepit (different bytecode) can still be connected; nothing locks the jar.
+    function test_AnyFirepitVersionCanBeConnected() public {
+        FeeJar fresh = new FeeJar(initializer);
+        Firepit later =
+            new Firepit(IBurnableToken(address(depth)), address(fresh), 5_000_000e18, uint64(block.timestamp));
+        vm.prank(initializer);
+        fresh.proposeReleaser(address(later));
+        skip(fresh.RELEASER_DELAY());
+        fresh.acceptReleaser();
+        assertEq(fresh.releaser(), address(later));
+    }
+
+    /// T-M-1: nothing can be claimed before START, and the auction starts from the initial threshold, not the floor.
+    function test_AuctionStartsAtStartFromTheCeiling() public {
+        uint64 start = uint64(block.timestamp + 30 days);
+        Firepit late = new Firepit(IBurnableToken(address(depth)), address(jar), 10_000_000e18, start);
+        assertEq(late.threshold(), 10_000_000e18);
+        skip(29 days);
+        assertEq(late.threshold(), 10_000_000e18);
+        vm.prank(searcher);
+        vm.expectRevert(Firepit.NotStarted.selector);
+        late.release(_assets(), searcher, type(uint256).max);
+        skip(1 days + late.HALF_LIFE());
+        assertEq(late.threshold(), 5_000_000e18);
     }
 
     function test_ReleaseWithPermitSurvivesFrontRunPermit() public {

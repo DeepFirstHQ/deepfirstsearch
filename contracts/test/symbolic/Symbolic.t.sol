@@ -21,7 +21,7 @@ contract SymbolicTest {
     /// The firepit price for burning is always within its published bounds, for any start and any elapsed time.
     function testProperty_firepitThresholdAlwaysBounded(uint128 initial, uint64 elapsed) public {
         vm.assume(initial >= 10_000e18 && initial <= 10_000_000e18);
-        Firepit pit = new Firepit(IBurnableToken(address(0xBEEF)), address(0xCAFE), initial);
+        Firepit pit = new Firepit(IBurnableToken(address(0xBEEF)), address(0xCAFE), initial, uint64(block.timestamp));
         vm.warp(block.timestamp + elapsed);
         uint256 t = pit.threshold();
         assert(t >= pit.FLOOR());

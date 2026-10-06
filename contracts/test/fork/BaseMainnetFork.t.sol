@@ -6,7 +6,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BudgetVault} from "../../src/safe/BudgetVault.sol";
 import {BudgetVaultFactory} from "../../src/safe/BudgetVaultFactory.sol";
 import {FeeJar} from "../../src/fees/FeeJar.sol";
-import {Firepit} from "../../src/fees/Firepit.sol";
 
 interface IUSDC is IERC20 {
     function name() external view returns (string memory);
@@ -59,7 +58,7 @@ contract BaseMainnetForkTest is Test {
         (owner, ownerKey) = makeAddrAndKey("owner");
         (burner, burnerKey) = makeAddrAndKey("burner");
 
-        jar = new FeeJar(initializer, keccak256(type(Firepit).runtimeCode));
+        jar = new FeeJar(initializer);
         factory = new BudgetVaultFactory(USDC, address(jar), ops);
         vault = factory.create(owner, bytes32("fork"), DELAY);
         deal(address(USDC), address(vault), 1_000e6);
@@ -122,6 +121,7 @@ contract BaseMainnetForkTest is Test {
         BudgetVault.Intent memory i = BudgetVault.Intent({
             agent: agent,
             counterparty: merchant,
+            burner: burner,
             token: address(USDC),
             maxPerTx: 50e6,
             maxPerPeriod: 200e6,

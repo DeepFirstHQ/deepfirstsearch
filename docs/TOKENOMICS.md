@@ -25,23 +25,23 @@ Draft v0.2 · 5 October 2026 · Pre-launch. No token exists. Nothing here is an 
 | Fixed rewards pool | 25 | 250,000,000 | `RewardsPool` | Releases 125M, 62.5M, 31.25M and 15.625M over four 2-year epochs. Pays only for work. After 8 years **anyone can burn the remainder** |
 | Public fair auction | 15 | 150,000,000 | Auction contract (to be built) | One clearing price for everyone, minimum raise or full refund, per-wallet cap. Excludes the US, Argentina, Ontario and sanctioned jurisdictions |
 | Protocol-owned liquidity | 10 | 100,000,000 | LP | Paired with auction proceeds. **The LP position is burned** |
-| **Founder** | **12** | **120,000,000** | `DepthVesting` | **Nothing for 12 months, then 36 months linear (4 years total). The position cannot be transferred or sold** |
+| **Founder** | **12** | **120,000,000** | `DepthVesting` | **Nothing for 12 months, then 36 months linear (4 years total). The vesting contract cannot be transferred; the beneficiary is a public multisig Safe** |
 | Contributors | 3 | 30,000,000 | `DepthVesting` | Same schedule as the founder |
 | Foundation | 10 | 100,000,000 | `DepthVesting` | Linear over 5 years, which caps on-chain spending at 2% of supply per year. Beneficiary is a multisig |
 | Venture capital | **0** | 0 | — | None: no private round, no side letters, no refund rights |
 | **Total** | **100** | **1,000,000,000** | | |
 
-At launch, about 50% is in circulation or claimable (airdrop, auction and liquidity). The founder, contributors, foundation and rewards pool hold nothing liquid on day one.
+At launch, the airdrop (25%) is claimable, and the launch reserve (25%) sits in a public multisig Safe until the auction and liquidity contracts exist, then goes to them. The founder, contributors and rewards pool hold nothing liquid on day one; the foundation vests linearly from TGE.
 
 ## 3. The burn: fee jar and firepit
 
 1. **Agent Safe charges 0.1%** in USDC on every agent payment and burner top-up, paid on top of the amount.
 2. **An immutable split** set in `BudgetVaultFactory` sends 50% of that fee to the **FeeJar** and 50% to operations.
-3. **Anyone can claim the whole jar** by burning `threshold()` $DEPTH in the **Firepit**.
+3. **Anyone can claim the whole jar** by burning `threshold()` $DEPTH in the **Firepit**. The auction opens at TGE from the 10,000,000 ceiling, so fees collected before launch are not sold for the floor. The FeeJar connects to the Firepit once, through a public 14-day timelock.
 4. **The threshold doubles** after every claim and **halves every 3 days** without one. It always stays between **10,000 and 10,000,000 $DEPTH**. The `maxThreshold` argument protects claimers against front-running.
 
 **Why this design**
-- No swap, so no sandwich or MEV.
+- No swap, so no sandwich on a trade. Claims are still a public race: `maxThreshold` caps what a claimer burns if someone claims first.
 - No oracle, so nothing to manipulate.
 - No admin, so no discretion over when or how much is burned.
 - Searchers compete, so the jar is claimed roughly when its USDC is worth the $DEPTH burned.

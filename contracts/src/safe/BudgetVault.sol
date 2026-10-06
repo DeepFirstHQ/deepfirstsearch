@@ -14,16 +14,18 @@ import {IEIP3009} from "../interfaces/IEIP3009.sol";
 /// @notice Holds an owner's USDC and lets an AI agent spend it only inside budgets the owner signed.
 ///
 ///         Security model, in one paragraph: the agent's key can spend, never authorize. Every budget ("intent") is
-///         an EIP-712 message signed by the owner, bound to one agent key and one counterparty, and it only becomes
-///         active after a timelock, so a compromised owner session cannot instantly open a large budget either.
-///         Shrinking, revoking and pausing are instant. Whatever the model is tricked into, the most it can move is
-///         `maxPerTx` per call and `maxPerPeriod` per window, and only through `pay` (to the counterparty) or
-///         `fundBurner` (to a payer address holding at most `trancheCap`).
+///         an EIP-712 message signed by the owner, bound to one agent key, one counterparty and (optionally) one
+///         payer address, and it only becomes active after a timelock, so a phished or blind-signed intent cannot
+///         open a large budget instantly. Shrinking, revoking and pausing are instant. Whatever the model is tricked
+///         into, the most it can move is `maxPerTx` per call and `maxPerPeriod` per window (plus the 0.1% fee), and
+///         only to the counterparty (`pay`) or to the signed payer address (`fundBurner`, up to `trancheCap`).
+///         The owner key itself can always withdraw: protect it like any wallet key, and keep it out of the agent.
 ///
 /// @dev Burner tranches exist so agents can pay through any x402 facilitator: a burner EOA signs a normal EIP-3009
-///      authorization. A burner can pay anyone, so the merchant binding for burner funds is enforced by the SDK
-///      policy, while this contract bounds the loss to `trancheCap` per burner and `maxPerPeriod` per window.
-///      Windows are fixed (not rolling), so up to 2x `maxPerPeriod` can move around a window boundary.
+///      authorization. The vault funds only the burner the owner signed, so a stolen agent key cannot redirect
+///      tranches. Funds already in a burner can pay anyone if the burner key is also stolen; the SDK binds burner
+///      payments to the merchant, and the contract bounds that loss to `trancheCap` per burner and `maxPerPeriod`
+///      per window. Windows are fixed (not rolling), so up to 2x `maxPerPeriod` can move around a window boundary.
 contract BudgetVault is EIP712, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using BitMaps for BitMaps.BitMap;
@@ -31,6 +33,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     struct Intent {
         address agent;
         address counterparty;
+        address burner; // the only payer address `fundBurner` may top up; zero disables burner funding
         address token;
         uint128 maxPerTx;
         uint128 maxPerPeriod;
@@ -50,7 +53,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     }
 
     bytes32 public constant INTENT_TYPEHASH = keccak256(
-        "Intent(address agent,address counterparty,address token,uint128 maxPerTx,uint128 maxPerPeriod,uint128 trancheCap,uint32 period,uint64 validAfter,uint64 expiry,uint256 nonce)"
+        "Intent(address agent,address counterparty,address burner,address token,uint128 maxPerTx,uint128 maxPerPeriod,uint128 trancheCap,uint32 period,uint64 validAfter,uint64 expiry,uint256 nonce)"
     );
 
     uint32 public constant MIN_DELAY = 1 hours;
@@ -70,7 +73,9 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     bool public paused;
 
     mapping(bytes32 id => IntentState) private _intents;
-    mapping(address burner => bytes32 id) public burnerIntent;
+    mapping(address burner => bool) public isBurner;
+    uint256 public owedJar;
+    uint256 public owedOps;
     BitMaps.BitMap private _usedNonces;
 
     event IntentProposed(bytes32 indexed id, address indexed agent, address indexed counterparty, uint64 activeAt);
@@ -81,6 +86,10 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     event BurnerSwept(address indexed burner, uint256 amount);
     event Paused(bool paused);
     event Withdrawn(address indexed to, uint256 amount);
+    event NonceInvalidated(uint256 nonce);
+    event FeeDeferred(address indexed recipient, uint256 amount);
+    event FeesFlushed(uint256 toJar, uint256 toOps);
+    event Rescued(address indexed token, address indexed to, uint256 amount);
     event DelayChangeQueued(uint32 delay, uint64 eta);
     event DelayChanged(uint32 delay);
 
@@ -97,7 +106,10 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     error OverPerTx();
     error OverPeriod();
     error OverTranche();
-    error BurnerBoundElsewhere();
+    error NotSignedBurner();
+    error UnknownBurner();
+    error OwedFees();
+    error CannotRescueUsdc();
     error BadDelay();
     error NoPendingDelay();
     error TooEarly();
@@ -218,8 +230,38 @@ contract BudgetVault is EIP712, ReentrancyGuard {
 
     /// @notice The owner can always take funds out, even while paused.
     function withdraw(address to, uint256 amount) external nonReentrant onlyOwner {
+        uint256 bal = USDC.balanceOf(address(this));
+        uint256 owed = owedJar + owedOps;
+        if (amount > (bal > owed ? bal - owed : 0)) revert OwedFees();
         emit Withdrawn(to, amount);
         USDC.safeTransfer(to, amount);
+    }
+
+    /// @notice Burns a nonce so a signed but unproposed intent can never be relayed.
+    function invalidateNonce(uint256 nonce) external onlyOwner {
+        if (_usedNonces.get(nonce)) revert NonceUsed();
+        _usedNonces.set(nonce);
+        emit NonceInvalidated(nonce);
+    }
+
+    /// @notice Recovers tokens other than the vault's USDC that were sent here by mistake.
+    function rescue(IERC20 token, address to, uint256 amount) external nonReentrant onlyOwner {
+        if (address(token) == address(USDC)) revert CannotRescueUsdc();
+        emit Rescued(address(token), to, amount);
+        token.safeTransfer(to, amount);
+    }
+
+    /// @notice Pays out fees that could not be transferred when charged. Callable by anyone.
+    function flushFees() external nonReentrant {
+        uint256 bal = USDC.balanceOf(address(this));
+        uint256 j = owedJar < bal ? owedJar : bal;
+        bal -= j;
+        uint256 o = owedOps < bal ? owedOps : bal;
+        owedJar -= j;
+        owedOps -= o;
+        emit FeesFlushed(j, o);
+        if (j != 0) USDC.safeTransfer(FEE_JAR, j);
+        if (o != 0) USDC.safeTransfer(OPS, o);
     }
 
     // ---------------------------------------------------------------- agent: spend
@@ -233,21 +275,20 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         USDC.safeTransfer(to, amount);
     }
 
-    /// @notice Tops up a burner payer address bound to this intent. The burner never holds more than `trancheCap`.
+    /// @notice Tops up the payer address the owner signed into this intent. It never holds more than `trancheCap`.
     function fundBurner(bytes32 id, address burner, uint256 amount) external nonReentrant {
         IntentState storage st = _spend(id, amount);
-        if (burner == address(0)) revert BadIntent();
-        bytes32 bound = burnerIntent[burner];
-        if (bound == bytes32(0)) burnerIntent[burner] = id;
-        else if (bound != id) revert BurnerBoundElsewhere();
+        if (burner == address(0) || burner != st.intent.burner) revert NotSignedBurner();
         if (USDC.balanceOf(burner) + amount > st.intent.trancheCap) revert OverTranche();
+        isBurner[burner] = true;
         uint256 fee = _chargeFee(amount);
         emit BurnerFunded(id, burner, amount, fee);
         USDC.safeTransfer(burner, amount);
     }
 
     /// @notice Pulls a burner's leftover USDC back with the burner's EIP-3009 receive authorization.
-    ///         `receiveWithAuthorization` requires the caller to be the receiver, so this cannot be front-run.
+    ///         `receiveWithAuthorization` requires the caller to be the receiver (this vault), so the funds always
+    ///         come back here; front-running the call only spends the front-runner's gas.
     function sweepBurner(
         address burner,
         uint256 value,
@@ -256,7 +297,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         bytes32 nonce,
         bytes calldata signature
     ) external nonReentrant {
-        if (burnerIntent[burner] == bytes32(0)) revert UnknownIntent();
+        if (!isBurner[burner]) revert UnknownBurner();
         IEIP3009(address(USDC))
             .receiveWithAuthorization(burner, address(this), value, validAfter, validBefore, nonce, signature);
         emit BurnerSwept(burner, value);
@@ -293,12 +334,21 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         return OWNER.code.length != 0 && SignatureChecker.isValidERC1271SignatureNowCalldata(OWNER, id, signature);
     }
 
+    /// @dev A fee transfer that fails (for example, a fee recipient blacklisted by the token issuer) never blocks
+    ///      the payment: it is recorded as owed and can be flushed later by anyone.
     function _chargeFee(uint256 amount) private returns (uint256 fee) {
         fee = feeFor(amount);
         if (fee == 0) return 0;
         uint256 toJar = (fee * JAR_SHARE_BPS) / BPS;
-        if (toJar != 0) USDC.safeTransfer(FEE_JAR, toJar);
-        if (fee != toJar) USDC.safeTransfer(OPS, fee - toJar);
+        if (toJar != 0 && !USDC.trySafeTransfer(FEE_JAR, toJar)) {
+            owedJar += toJar;
+            emit FeeDeferred(FEE_JAR, toJar);
+        }
+        uint256 toOps = fee - toJar;
+        if (toOps != 0 && !USDC.trySafeTransfer(OPS, toOps)) {
+            owedOps += toOps;
+            emit FeeDeferred(OPS, toOps);
+        }
     }
 
     function _structHash(Intent calldata i) private pure returns (bytes32) {
@@ -307,6 +357,7 @@ contract BudgetVault is EIP712, ReentrancyGuard {
                 INTENT_TYPEHASH,
                 i.agent,
                 i.counterparty,
+                i.burner,
                 i.token,
                 i.maxPerTx,
                 i.maxPerPeriod,

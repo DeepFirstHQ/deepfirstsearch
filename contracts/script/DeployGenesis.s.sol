@@ -13,7 +13,8 @@ import {IBurnableToken} from "../src/interfaces/IBurnableToken.sol";
 /// @dev Allocation (must match docs/TOKENOMICS.md and web/src/config.ts):
 ///      airdrop 25% · rewards 25% · launch reserve 25% (15% auction + 10% liquidity, held by a Safe until the auction
 ///      and LP contracts exist) · founder 12% · contributors 3% · foundation 10%.
-///      After broadcasting, the FeeJar initializer Safe calls `FeeJar.setReleaser(firepit)`.
+///      After broadcasting, the FeeJar initializer Safe calls `FeeJar.proposeReleaser(firepit)`; anyone calls
+///      `acceptReleaser()` after the 14-day public timelock. Broadcast with `--slow` so each step lands before the next.
 contract DeployGenesis is Script {
     uint256 constant SUPPLY = 1_000_000_000e18;
     uint64 constant YEAR = 365 days;
@@ -44,6 +45,16 @@ contract DeployGenesis is Script {
 
     function run() external {
         Config memory c = _config();
+        // TGE in the past would let anyone burn the airdrop early and unlock vesting early; far future is a typo.
+        require(c.tge + 1 hours >= block.timestamp && c.tge <= block.timestamp + 90 days, "TGE out of range");
+        require(c.feeJar.code.length > 0, "FEE_JAR has no code");
+        if (block.chainid == 8453) {
+            require(
+                c.founderSafe.code.length > 0 && c.contributorsSafe.code.length > 0 && c.foundationSafe.code.length > 0
+                    && c.distributorSafe.code.length > 0 && c.launchReserveSafe.code.length > 0,
+                "mainnet beneficiaries must be Safes"
+            );
+        }
         vm.startBroadcast();
         // The broadcasting account (from --account), not the script contract.
         (, address deployer,) = vm.readCallers();
@@ -56,7 +67,8 @@ contract DeployGenesis is Script {
         DepthVesting foundation = new DepthVesting(c.foundationSafe, c.tge, 5 * YEAR);
         MerkleAirdrop airdrop = new MerkleAirdrop(token, c.airdropRoot, c.claimDeadline);
         RewardsPool rewards = new RewardsPool(token, c.distributorSafe, c.tge);
-        Firepit firepit = new Firepit(token, c.feeJar, 100_000e18);
+        // The burn auction starts at TGE from the ceiling, so pre-launch fees are not sold for the floor.
+        Firepit firepit = new Firepit(token, c.feeJar, 10_000_000e18, c.tge);
 
         address[] memory to = new address[](6);
         uint256[] memory amt = new uint256[](6);

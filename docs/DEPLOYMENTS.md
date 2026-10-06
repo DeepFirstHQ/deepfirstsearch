@@ -61,7 +61,7 @@ On testnet the beneficiaries are testnet EOAs. On mainnet they will be multisig 
 
 Checked on-chain after deployment:
 - `totalSupply()` is exactly 1,000,000,000 DEPTH, and the deployer holds 0 after genesis.
-- Founder vesting: `start()` is 2027-10-06 (TGE + 1 year) and `duration()` is 3 years. `releasable()` is **0**, and `transferOwnership()` **reverts**, so the lock cannot be sold or moved.
+- Founder vesting: `start()` is 2027-10-06 (TGE + 1 year) and `duration()` is 3 years. `releasable()` is **0**, and `transferOwnership()` **reverts**, so the vesting contract cannot be transferred. The beneficiary will be a public multisig Safe whose signers are published.
 - The airdrop proof built with `tools/airdrop` claimed on-chain ([tx](https://sepolia.basescan.org/tx/0x80664e2eb75fcf272b882899318717a8ca40741e362f815e0b2b576547428953)).
 
 ## Base mainnet

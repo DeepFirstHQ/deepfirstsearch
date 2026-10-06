@@ -96,7 +96,7 @@ Both are subject to `maxPerTx` and to the period budget. Burner payer addresses 
 
 | Property | How it is enforced |
 |---|---|
-| Spending per window never exceeds `maxPerPeriod` | Invariant test with about 16,000 randomized calls |
+| Spending per window never exceeds `maxPerPeriod` (plus the 0.1% fee, charged on top) | Invariant test with about 16,000 randomized calls |
 | The agent can never modify an intent, the delay, the pause flag or the owner's funds | Unit and invariant tests |
 | Loss on compromise of a payer key is at most `trancheCap` | Vault check on every top-up |
 | Owner signatures cannot be replayed | Nonce bitmap and EIP-712 domain separation |
@@ -160,14 +160,14 @@ Holding it entitles the holder to nothing beyond the ability to transfer or burn
 | Fixed rewards pool | 25% | `RewardsPool`, halving releases over 8 years; remainder burned |
 | Public fair auction | 15% | Single clearing price; restricted jurisdictions (US, Argentina, Ontario, sanctioned) excluded |
 | Protocol-owned liquidity | 10% | Paired with auction proceeds; LP position burned |
-| Founder | 12% | `DepthVesting`: nothing for 12 months, then 36 months linear; non-transferable |
+| Founder | 12% | `DepthVesting`: nothing for 12 months, then 36 months linear; the vesting contract cannot be transferred |
 | Contributors | 3% | Same schedule as the founder |
 | Foundation | 10% | `DepthVesting` over 5 years (at most 2% of supply per year) |
 
 ### 6.3 Burn mechanism
 - 50% of the 0.1% Agent Safe fee accrues in USDC to the FeeJar; the other 50% funds operations.
 - The Firepit threshold doubles after each claim and halves every three days without one, bounded between 10,000 and 10,000,000 $DEPTH.
-- No swap, oracle or administrator is involved.
+- No swap, oracle or administrator is involved. The auction opens at TGE from the ceiling.
 - Only Agent Safe, SDK and inference fees may feed the jar.
 - The burn mechanism activates only on a functioning network, and it is described as a protocol mechanism, never as a return.
 
@@ -225,8 +225,8 @@ A fuller list is published at `/legal/risks.html`.
 9. Project research notes: `docs/research/01–05`.
 
 ## Appendix A: Deployed contract interfaces (summary)
-- `BudgetVault`: `proposeIntent`, `reduceIntent`, `revokeIntent`, `setPaused`, `setActivationDelay`, `withdraw`, `pay`, `fundBurner`, `sweepBurner`.
-- `FeeJar`: `setReleaser` (once), `release` (Firepit only).
+- `BudgetVault`: `proposeIntent`, `reduceIntent`, `revokeIntent`, `invalidateNonce`, `setPaused`, `setActivationDelay`, `withdraw`, `rescue`, `pay`, `fundBurner` (only to the payer signed in the intent), `sweepBurner`, `flushFees`.
+- `FeeJar`: `proposeReleaser` (initializer, once) → 14-day public timelock → `acceptReleaser` (anyone); `release` (Firepit only).
 - `Firepit`: `threshold`, `release`, `releaseWithPermit`.
 - `DepthToken`: ERC-20 + burn + permit, with no privileged functions.
 

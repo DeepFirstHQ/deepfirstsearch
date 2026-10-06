@@ -10,11 +10,6 @@ import {BudgetVaultFactory} from "../../src/safe/BudgetVaultFactory.sol";
 import {IBurnableToken} from "../../src/interfaces/IBurnableToken.sol";
 
 contract DeployScriptsTest is Test {
-    function test_PinnedCodehashMatchesDeployedFirepit() public {
-        Firepit pit = new Firepit(IBurnableToken(address(1)), address(2), 100_000e18);
-        assertEq(address(pit).codehash, keccak256(type(Firepit).runtimeCode));
-    }
-
     function test_GenesisScriptAllocatesEverythingAndLeavesDeployerEmpty() public {
         vm.setEnv("INITIALIZER", vm.toString(makeAddr("initializer")));
         vm.setEnv("OPS", vm.toString(makeAddr("ops")));

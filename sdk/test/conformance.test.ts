@@ -21,7 +21,8 @@ import { MerchantRegistry } from "../src/policy/registry.js";
 import { encodeHeader } from "../src/x402/codec.js";
 import type { PinnedAsset } from "../src/policy/networks.js";
 import { vaultFunder } from "../src/wallet/vault.js";
-import { burnerPayers } from "../src/wallet/burner.js";
+import { burnerPayers, burnerAddress } from "../src/wallet/burner.js";
+import { signIntent } from "../src/wallet/intent.js";
 
 /**
  * Conformance against the official x402 v2 packages (@x402/core, @x402/evm by the x402 Foundation):
@@ -179,20 +180,11 @@ describe.skipIf(!canRun)("conformance with official x402 v2 packages", () => {
     await setTime(wall() - 3_700);
     const now = Number((await pub.getBlock()).timestamp);
     const intent = {
-      agent: agent.address, counterparty: MERCHANT, token: usdc, maxPerTx: 100_000n, maxPerPeriod: 1_000_000n,
+      agent: agent.address, counterparty: MERCHANT,
+      burner: burnerAddress({ ownerSeed: new Uint8Array(32).fill(3), vault, chainId: foundry.id, counterparty: MERCHANT }), token: usdc, maxPerTx: 100_000n, maxPerPeriod: 1_000_000n,
       trancheCap: 200_000n, period: 86_400, validAfter: 0n, expiry: BigInt(now + 86_400 * 30), nonce: 7n,
     };
-    const signature = await owner.signTypedData({
-      domain: { name: "Deep First Search Agent Safe", version: "1", chainId: foundry.id, verifyingContract: vault },
-      types: { Intent: [
-        { name: "agent", type: "address" }, { name: "counterparty", type: "address" }, { name: "token", type: "address" },
-        { name: "maxPerTx", type: "uint128" }, { name: "maxPerPeriod", type: "uint128" }, { name: "trancheCap", type: "uint128" },
-        { name: "period", type: "uint32" }, { name: "validAfter", type: "uint64" }, { name: "expiry", type: "uint64" },
-        { name: "nonce", type: "uint256" },
-      ] },
-      primaryType: "Intent",
-      message: intent,
-    });
+    const signature = await signIntent(owner, vault, foundry.id, intent);
     const v = artifact("BudgetVault");
     await send(await deployer.writeContract({ address: vault, abi: v.abi, functionName: "proposeIntent", args: [intent, signature] }));
     const intentId = (await pub.readContract({ address: vault, abi: v.abi, functionName: "intentId", args: [intent] })) as Hex;

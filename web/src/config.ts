@@ -47,7 +47,7 @@ export const ALLOCATIONS: Allocation[] = [
   {
     name: "Foundation",
     pct: 10,
-    terms: "Vests over 5 years on-chain (at most 2% of supply per year) · multisig",
+    terms: "Vests over 5 years on-chain (2% of the genesis supply per year) · multisig",
     color: "#008300",
   },
   {

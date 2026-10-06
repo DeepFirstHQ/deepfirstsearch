@@ -29,9 +29,11 @@ contract MerkleAirdrop {
     error AlreadyClaimed();
     error InvalidProof();
     error ZeroAddress();
+    error BadConfig();
 
     constructor(IBurnableToken token, bytes32 merkleRoot, uint64 deadline) {
         if (address(token) == address(0)) revert ZeroAddress();
+        if (merkleRoot == bytes32(0) || deadline <= block.timestamp) revert BadConfig();
         TOKEN = token;
         MERKLE_ROOT = merkleRoot;
         DEADLINE = deadline;

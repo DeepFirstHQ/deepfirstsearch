@@ -27,7 +27,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { baseSepolia } from "viem/chains";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { decodePaymentSignatureHeader, encodePaymentRequiredHeader, encodePaymentResponseHeader } from "@x402/core/http";
-import { createAgentPay, MerchantRegistry, burnerPayers, vaultFunder, PINNED_USDC } from "../src/index.js";
+import { createAgentPay, MerchantRegistry, burnerAddress, burnerPayers, signIntent, vaultFunder, PINNED_USDC, INTENT_TYPES } from "../src/index.js";
 
 const env = (k: string) => {
   const v = process.env[k];
@@ -56,20 +56,11 @@ const VAULT_ABI = [
   {
     type: "function", name: "proposeIntent", stateMutability: "nonpayable",
     inputs: [{ name: "intent", type: "tuple", components: [
-      { name: "agent", type: "address" }, { name: "counterparty", type: "address" }, { name: "token", type: "address" },
-      { name: "maxPerTx", type: "uint128" }, { name: "maxPerPeriod", type: "uint128" }, { name: "trancheCap", type: "uint128" },
-      { name: "period", type: "uint32" }, { name: "validAfter", type: "uint64" }, { name: "expiry", type: "uint64" }, { name: "nonce", type: "uint256" },
+      ...INTENT_TYPES.Intent,
     ] }, { name: "ownerSignature", type: "bytes" }],
     outputs: [{ name: "id", type: "bytes32" }],
   },
 ] as const;
-const INTENT_TYPES = {
-  Intent: [
-    { name: "agent", type: "address" }, { name: "counterparty", type: "address" }, { name: "token", type: "address" },
-    { name: "maxPerTx", type: "uint128" }, { name: "maxPerPeriod", type: "uint128" }, { name: "trancheCap", type: "uint128" },
-    { name: "period", type: "uint32" }, { name: "validAfter", type: "uint64" }, { name: "expiry", type: "uint64" }, { name: "nonce", type: "uint256" },
-  ],
-} as const;
 
 async function setup() {
   const ownerWallet = createWalletClient({ chain: baseSepolia, transport, account: owner });
@@ -89,14 +80,13 @@ async function setup() {
 
   const now = Math.floor(Date.now() / 1000);
   const intent = {
-    agent: agent.address, counterparty: merchant, token: USDC,
+    agent: agent.address, counterparty: merchant,
+    burner: burnerAddress({ ownerSeed: hexToBytes(env("BURNER_SEED") as Hex), vault, chainId: baseSepolia.id, counterparty: merchant }),
+    token: USDC,
     maxPerTx: 50_000n, maxPerPeriod: 500_000n, trancheCap: 100_000n,
     period: 86_400, validAfter: 0n, expiry: BigInt(now + 30 * 86_400), nonce: BigInt(now),
   };
-  const signature = await owner.signTypedData({
-    domain: { name: "Deep First Search Agent Safe", version: "1", chainId: baseSepolia.id, verifyingContract: vault },
-    types: INTENT_TYPES, primaryType: "Intent", message: intent,
-  });
+  const signature = await signIntent(owner, vault, baseSepolia.id, intent);
   const { result: id, request } = await pub.simulateContract({ address: vault, abi: VAULT_ABI, functionName: "proposeIntent", args: [intent, signature], account: owner });
   const ptx = await ownerWallet.writeContract(request);
   await pub.waitForTransactionReceipt({ hash: ptx });

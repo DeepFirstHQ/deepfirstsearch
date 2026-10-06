@@ -25,7 +25,7 @@ Fecha: 2026-10-05.
 | C-01 | Firepit | Escrituras de estado después de una llamada externa (`burnFrom`); Slither `reentrancy-no-eth` | Baja | ✅ Corregido: patrón checks-effects-interactions (además ya tenía `nonReentrant`) |
 | C-02 | DepthVesting | En el `VestingWallet` de OpenZeppelin el beneficiario puede transferir el wallet, es decir, vender por fuera del mercado tokens que todavía no vestearon | Media (contra la promesa de lockup) | ✅ Corregido: `transferOwnership` y `renounceOwnership` revierten |
 | C-03 | DepthVesting | `VestingWalletCliff` habría liberado el 25% de golpe en el mes 12 | Baja | ✅ Evitado: `VestingWallet` con `start = TGE + 1 año` |
-| C-04 | FeeJar | El `INITIALIZER` elige qué instancia de Firepit (y por lo tanto qué token) quema | Media (confianza) | Mitigado: el codehash está fijado, el setter se usa una sola vez y emite un evento público. Queda como supuesto documentado |
+| C-04 | FeeJar | El `INITIALIZER` elige qué instancia de Firepit (y por lo tanto qué token) quema | Media (confianza) | Mitigado (actualizado): una sola vez, tras un timelock público de 14 días en el que cualquiera puede verificar `DEPTH()`. Antes: el codehash está fijado, el setter se usa una sola vez y emite un evento público. Queda como supuesto documentado |
 | C-05 | Genesis | El 25% de "launch reserve" (subasta + liquidez) queda en un Safe hasta que existan los contratos de subasta y LP | Media (confianza) | Pendiente: reemplazarlo por un contrato de subasta antes de mainnet |
 | C-06 | BudgetVault | Las ventanas son fijas, así que alrededor del cambio de ventana se puede mover hasta 2× `maxPerPeriod` | Baja | Documentado; una ventana deslizante queda para la v1.1 |
 | C-07 | BudgetVault | Los fondos de un burner pueden pagarle a cualquiera; el vínculo con el comerciante lo hace cumplir el SDK, no el contrato | Media (por diseño) | Pérdida acotada a `trancheCap` por burner y a `maxPerPeriod` por ventana. Documentado (ADR-006) |
@@ -34,6 +34,27 @@ Fecha: 2026-10-05.
 | S-02 | SDK | El facilitador y el servidor ven la IP del agente y el timing de los pagos | Media (privacidad) | Documentado: usar proxy o Tor en el tramo HTTP; jitter en el fondeo |
 | S-03 | SDK | El seed del owner vive en memoria del proceso del agente | Media | Recomendación: firmar con KMS/HSM o en un proceso separado (interfaz `Signer`, v1.1) |
 | D-01 | Deps | `esbuild` (dependencia de desarrollo de tsup/vite): lectura de archivos con el dev server en Windows | Baja | Aceptado: solo afecta desarrollo en Windows; no va a producción |
+
+## Pre-auditoría interna (2026-10-06)
+
+Hicimos dos revisiones adversariales independientes, una del Agent Safe y otra del token, con un test de prueba de concepto por hallazgo. Informes completos y PoCs en `private/docs/` (se publican junto con la auditoría externa).
+
+| ID | Componente | Hallazgo | Severidad | Estado |
+|---|---|---|---|---|
+| T-H-1 / S-M-3 | FeeJar | El codehash fijado del Firepit trababa los fees para siempre ante cualquier cambio del Firepit | Alta | ✅ Corregido: releaser elegido una vez, con timelock público de 14 días, sin pin de bytecode |
+| S-M-1 | BudgetVault | Si el emisor de USDC bloqueaba `OPS` o el FeeJar, todos los pagos de todos los vaults quedaban frenados | Media | ✅ Corregido: el fee nunca bloquea el pago; se registra como adeudado y se paga con `flushFees()` |
+| S-M-2 | BudgetVault | Renovar un intent para el mismo comerciante dejaba la wallet de pagos atada al intent viejo | Media | ✅ Corregido: el payer va firmado en el intent |
+| S-L-1 | BudgetVault | Con la llave del agente robada, `fundBurner` podía fondear cualquier dirección | Baja (contradecía la documentación) | ✅ Corregido: solo se fondea el payer firmado en el intent |
+| T-M-1 | Firepit | El primer reclamo se llevaba todos los fees previos al lanzamiento por el precio piso | Media | ✅ Corregido: la subasta abre en `START` (TGE) desde el techo |
+| T-M-2 | DepthVesting | "Intransferible" no es exacto: el beneficiario es un Safe cuyos firmantes pueden cambiar | Media (comunicación) | ✅ Documentación corregida; los firmantes se publican |
+| S-L-2 | BudgetVault | No había forma de anular un intent firmado y no propuesto | Baja | ✅ `invalidateNonce` |
+| S-L-3 | BudgetVault | Los tokens ajenos enviados al vault quedaban trabados | Baja | ✅ `rescue` (excepto USDC) |
+| T-L-1 | DeployGenesis | No validaba TGE, el FeeJar ni que los beneficiarios fueran Safes en mainnet | Baja | ✅ Validaciones agregadas; se transmite con `--slow` |
+| T-L-2 | MerkleAirdrop | Aceptaba una raíz cero o un plazo vencido | Baja | ✅ Revierte |
+| T-L-3 | RewardsPool | El distribuidor puede pagar todo lo devengado de una vez | Baja | Aceptado: el distribuidor es un Safe multisig público |
+| T-L-4 | tools/airdrop | "1,000" se leía como 1, aceptaba la dirección cero, las pruebas dependían de la grafía | Baja | ✅ Corregido + tests |
+| S-I | BudgetVaultFactory | Cualquiera podía crear el vault ajeno primero y el `create` del dueño revertía | Info | ✅ `create` idempotente |
+| Info | Docs | Afirmaciones sobre el timelock y la sesión del dueño, el fee cobrado encima, la transferibilidad del vesting y el MEV en los reclamos | Info | ✅ Corregidas |
 
 ## 1. Web (`web/`)
 
@@ -61,7 +82,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 ## 2. Contratos (`contracts/`)
 
 **Herramientas y resultados:**
-- 57 tests: unitarios, de fuzzing (1.000 corridas), 5 propiedades universales y 4 invariantes (256 corridas × 64 llamadas, ~16 mil llamadas sin reverts).
+- 66 tests: unitarios, de regresión, de fuzzing (1.000 corridas), 5 propiedades universales y 4 invariantes (256 corridas × 64 llamadas, ~16 mil llamadas sin reverts).
 - Slither: **0 hallazgos high o medium**. Los restantes son falsos positivos o decisiones de diseño:
 
 | Detector | Dónde | Justificación |
@@ -145,7 +166,7 @@ Halmos 0.3.3 no puede correr todavía con Foundry 1.8 / forge-std 1.17 (falla en
 - El recibo `PAYMENT-RESPONSE` se parsea de forma tolerante, para que un campo nuevo del facilitador no haga parecer fallido un pago ya hecho.
 
 **Cifras actuales:**
-- Contratos: 57 tests, más 5 contra un fork de Base mainnet (USDC real).
+- Contratos: 66 tests, más 5 contra un fork de Base mainnet (USDC real).
 - SDK: 45 tests, incluidos el end-to-end on-chain y el de conformidad oficial.
 
 ## 3. SDK y agente (`sdk/`): modelo de prompt injection
@@ -216,7 +237,7 @@ Halmos 0.3.3 no puede correr todavía con Foundry 1.8 / forge-std 1.17 (falla en
 ## 5. Reproducir
 
 ```bash
-cd contracts && forge test                                  # 57 tests, fuzz + invariantes + propiedades
+cd contracts && forge test                                  # 66 tests, fuzz + invariantes + propiedades + regresiones
 BASE_FORK_RPC=https://mainnet.base.org forge test --mc BaseMainnetForkTest   # 5 tests contra Base mainnet
 uvx --from slither-analyzer slither . --config-file slither.config.json
 cd ../sdk && npm test                                       # 50 tests (incluye anvil end-to-end y conformidad x402)

@@ -37,6 +37,20 @@ export function deriveBurnerKey(params: {
   throw new Error("could not derive a valid key");
 }
 
+/**
+ * The burner address for one merchant, for the owner to put in the intent it signs (`Intent.burner`). The vault only
+ * funds that exact address, so a stolen agent key cannot redirect tranches to addresses of its own choosing.
+ */
+export function burnerAddress(params: {
+  ownerSeed: Uint8Array;
+  vault: Address;
+  chainId: number;
+  counterparty: Address;
+  epoch?: number;
+}): Address {
+  return privateKeyToAccount(deriveBurnerKey(params)).address;
+}
+
 /** Returns a payer provider that gives every merchant its own burner account. */
 export function burnerPayers(ownerSeed: Uint8Array, vault: Address, epoch = 0) {
   const cache = new Map<string, LocalAccount>();

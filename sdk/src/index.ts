@@ -18,8 +18,9 @@ export {
   type SessionCapabilities,
 } from "./guard/controls.js";
 export { AuditLog, verifyChain, parseJsonl, type AuditEntry, type AuditEvent } from "./guard/audit.js";
-export { deriveBurnerKey, burnerPayers } from "./wallet/burner.js";
+export { deriveBurnerKey, burnerAddress, burnerPayers } from "./wallet/burner.js";
 export { vaultFunder, BUDGET_VAULT_ABI, type VaultFunderOptions } from "./wallet/vault.js";
+export { INTENT_TYPES, intentDomain, signIntent, type Intent } from "./wallet/intent.js";
 export { createFundingService, remoteFunder, type Withdraw, type FundingLimits, type TopUpResult } from "./wallet/fundingService.js";
 export {
   encodeMetaAddress,

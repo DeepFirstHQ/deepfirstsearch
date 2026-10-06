@@ -14,17 +14,16 @@ interface IFeeJar {
 ///         burning `threshold()` $DEPTH. The threshold works like a descending auction for the right to burn:
 ///         it doubles after every claim and halves every `HALF_LIFE` while nobody claims, always staying within
 ///         [FLOOR, CEIL]. Searchers compete, so the jar is claimed roughly when its value matches the burn.
-/// @dev `DEPTH` and `FEE_JAR` are stored in storage instead of immutables so the runtime bytecode (and therefore the
-///      codehash pinned by FeeJar) is identical for every deployment.
+/// @dev The auction starts at `START` from `initialThreshold` and nothing can be claimed earlier, so the fees that
+///      accumulate before launch are sold through a descending auction from a high price, not taken for the floor.
 contract Firepit is ReentrancyGuard {
     uint256 public constant FLOOR = 10_000e18;
     uint256 public constant CEIL = 10_000_000e18;
     uint256 public constant HALF_LIFE = 3 days;
 
-    // solhint-disable-next-line var-name-mixedcase
-    IBurnableToken public DEPTH;
-    // solhint-disable-next-line var-name-mixedcase
-    address public FEE_JAR;
+    IBurnableToken public immutable DEPTH;
+    address public immutable FEE_JAR;
+    uint64 public immutable START;
 
     uint128 public startThreshold;
     uint64 public lastRelease;
@@ -34,18 +33,21 @@ contract Firepit is ReentrancyGuard {
     error ThresholdTooHigh(uint256 threshold, uint256 maxThreshold);
     error BadInitialThreshold();
     error ZeroAddress();
+    error NotStarted();
 
-    constructor(IBurnableToken depth, address feeJar, uint128 initialThreshold) {
+    constructor(IBurnableToken depth, address feeJar, uint128 initialThreshold, uint64 start) {
         if (address(depth) == address(0) || feeJar == address(0)) revert ZeroAddress();
         if (initialThreshold < FLOOR || initialThreshold > CEIL) revert BadInitialThreshold();
         DEPTH = depth;
         FEE_JAR = feeJar;
         startThreshold = initialThreshold;
-        lastRelease = uint64(block.timestamp);
+        START = start;
+        lastRelease = start;
     }
 
     /// @notice Amount of $DEPTH that must be burned right now to claim the jar.
     function threshold() public view returns (uint256) {
+        if (block.timestamp <= lastRelease) return startThreshold;
         uint256 elapsed = block.timestamp - lastRelease;
         uint256 halvings = elapsed / HALF_LIFE;
         if (halvings >= 64) return FLOOR;
@@ -78,6 +80,7 @@ contract Firepit is ReentrancyGuard {
     }
 
     function _release(address[] calldata assets, address to, uint256 maxThreshold) private {
+        if (block.timestamp < START) revert NotStarted();
         uint256 t = threshold();
         if (t > maxThreshold) revert ThresholdTooHigh(t, maxThreshold);
 

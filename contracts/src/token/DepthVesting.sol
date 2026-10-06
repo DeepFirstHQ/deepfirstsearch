@@ -3,7 +3,7 @@ pragma solidity 0.8.30;
 
 import {VestingWallet} from "@openzeppelin/contracts/finance/VestingWallet.sol";
 
-/// @title Non-transferable vesting wallet
+/// @title Vesting wallet whose ownership cannot be transferred
 /// @notice OpenZeppelin's VestingWallet with ownership frozen. Upstream, the beneficiary can transfer ownership of
 ///         the wallet, which lets unvested tokens be sold over the counter. Here both `transferOwnership` and
 ///         `renounceOwnership` revert, so the beneficiary can only ever receive tokens as they vest.

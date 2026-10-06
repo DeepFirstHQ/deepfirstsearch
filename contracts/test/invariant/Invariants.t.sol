@@ -107,16 +107,17 @@ contract InvariantsTest is StdInvariant, Test {
         (address owner, uint256 ownerKey) = makeAddrAndKey("owner");
         usdc = new MockUSDC();
 
-        Firepit probe = new Firepit(IBurnableToken(address(1)), address(1), 100_000e18);
-        jar = new FeeJar(address(this), address(probe).codehash);
+        jar = new FeeJar(address(this));
 
         address[] memory r = new address[](1);
         uint256[] memory a = new uint256[](1);
         r[0] = address(this);
         a[0] = 1_000_000_000e18;
         depth = new DepthToken(r, a);
-        pit = new Firepit(IBurnableToken(address(depth)), address(jar), 100_000e18);
-        jar.setReleaser(address(pit));
+        pit = new Firepit(IBurnableToken(address(depth)), address(jar), 100_000e18, uint64(block.timestamp));
+        jar.proposeReleaser(address(pit));
+        skip(jar.RELEASER_DELAY());
+        jar.acceptReleaser();
 
         BudgetVaultFactory factory = new BudgetVaultFactory(usdc, address(jar), makeAddr("ops"));
         vault = factory.create(owner, bytes32(0), 1 hours);
@@ -125,6 +126,7 @@ contract InvariantsTest is StdInvariant, Test {
         BudgetVault.Intent memory i = BudgetVault.Intent({
             agent: agent,
             counterparty: merchant,
+            burner: address(uint160(0xB000)),
             token: address(usdc),
             maxPerTx: 5e6,
             maxPerPeriod: 20e6,

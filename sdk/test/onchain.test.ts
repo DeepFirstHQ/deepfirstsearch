@@ -17,6 +17,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { signExactAuthorization } from "../src/x402/exactEvm.js";
 import { deriveBurnerKey } from "../src/wallet/burner.js";
+import { signIntent } from "../src/wallet/intent.js";
 import type { PinnedAsset } from "../src/policy/networks.js";
 
 /**
@@ -93,9 +94,12 @@ describe.skipIf(!canRun)("on-chain: BudgetVault + burner + EIP-3009", () => {
 
     // 1. Owner signs an intent (EIP-712) off-chain; anyone can relay it.
     const now = Number((await pub.getBlock()).timestamp);
+    const burnerKey = deriveBurnerKey({ ownerSeed: new Uint8Array(32).fill(9), vault, chainId: foundry.id, counterparty: merchant });
+    const burner = privateKeyToAccount(burnerKey);
     const intent = {
       agent: agent.address,
       counterparty: merchant,
+      burner: burner.address,
       token: usdc,
       maxPerTx: 5_000_000n,
       maxPerPeriod: 20_000_000n,
@@ -105,33 +109,13 @@ describe.skipIf(!canRun)("on-chain: BudgetVault + burner + EIP-3009", () => {
       expiry: BigInt(now + 30 * 86_400),
       nonce: 1n,
     };
-    const signature = await owner.signTypedData({
-      domain: { name: "Deep First Search Agent Safe", version: "1", chainId: foundry.id, verifyingContract: vault },
-      types: {
-        Intent: [
-          { name: "agent", type: "address" },
-          { name: "counterparty", type: "address" },
-          { name: "token", type: "address" },
-          { name: "maxPerTx", type: "uint128" },
-          { name: "maxPerPeriod", type: "uint128" },
-          { name: "trancheCap", type: "uint128" },
-          { name: "period", type: "uint32" },
-          { name: "validAfter", type: "uint64" },
-          { name: "expiry", type: "uint64" },
-          { name: "nonce", type: "uint256" },
-        ],
-      },
-      primaryType: "Intent",
-      message: intent,
-    });
+    const signature = await signIntent(owner, vault, foundry.id, intent);
     await send(keys.agent, vault, "BudgetVault", "proposeIntent", [intent, signature]);
     const id: Hex = await read(vault, "BudgetVault", "intentId", [intent]);
     await test.increaseTime({ seconds: 3601 });
     await test.mine({ blocks: 1 });
 
     // 2. Agent funds the merchant's burner (derived by the SDK) from the vault.
-    const burnerKey = deriveBurnerKey({ ownerSeed: new Uint8Array(32).fill(9), vault, chainId: foundry.id, counterparty: merchant });
-    const burner = privateKeyToAccount(burnerKey);
     await send(keys.agent, vault, "BudgetVault", "fundBurner", [id, burner.address, 2_000_000n]);
     expect(await read(usdc, "MockUSDC", "balanceOf", [burner.address])).toBe(2_000_000n);
 

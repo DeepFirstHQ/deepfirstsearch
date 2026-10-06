@@ -14,6 +14,7 @@ contract VaultFixture is Test {
     uint256 ownerKey;
     address agent = makeAddr("agentSessionKey");
     address merchant = makeAddr("merchant");
+    address burnerAddr = makeAddr("burner");
     address jar = makeAddr("feeJar");
     address ops = makeAddr("ops");
     uint32 constant DELAY = 1 hours;
@@ -32,6 +33,7 @@ contract VaultFixture is Test {
         i = BudgetVault.Intent({
             agent: agent,
             counterparty: merchant,
+            burner: burnerAddr,
             token: address(usdc),
             maxPerTx: 5e6,
             maxPerPeriod: 20e6,
@@ -194,7 +196,7 @@ contract BudgetVaultTest is VaultFixture {
         vm.expectRevert(BudgetVault.OverTranche.selector);
         vault.fundBurner(id, burner, 1);
         vm.stopPrank();
-        assertEq(vault.burnerIntent(burner), id);
+        assertTrue(vault.isBurner(burner));
     }
 
     function test_SweepBurnerWithReceiveAuthorization() public {
@@ -350,7 +352,7 @@ contract BudgetVaultEdgeCasesTest is VaultFixture {
         vm.prank(agent);
         vm.expectRevert(BudgetVault.UnknownIntent.selector);
         vault.pay(nope, merchant, 1e6);
-        vm.expectRevert(BudgetVault.UnknownIntent.selector);
+        vm.expectRevert(BudgetVault.UnknownBurner.selector);
         vault.sweepBurner(makeAddr("stranger"), 1, 0, 1, bytes32(0), "");
     }
 
@@ -372,10 +374,12 @@ contract BudgetVaultEdgeCasesTest is VaultFixture {
         skip(DELAY);
         address burner = makeAddr("burner");
         vm.startPrank(agent);
-        vm.expectRevert(BudgetVault.BadIntent.selector);
+        vm.expectRevert(BudgetVault.NotSignedBurner.selector);
         vault.fundBurner(id1, address(0), 1e6);
+        vm.expectRevert(BudgetVault.NotSignedBurner.selector);
+        vault.fundBurner(id1, makeAddr("attackerBurner"), 1e6);
         vault.fundBurner(id1, burner, 1e6);
-        vm.expectRevert(BudgetVault.BurnerBoundElsewhere.selector);
+        // A second (renewed) intent signed for the same payer can keep funding it (S-M-2).
         vault.fundBurner(id2, burner, 1e6);
         vm.stopPrank();
     }

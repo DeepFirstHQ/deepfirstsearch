@@ -25,12 +25,16 @@ contract BudgetVaultFactory {
         OPS = ops;
     }
 
+    /// @notice Deploys the vault, or returns it if it already exists (anyone may deploy any owner's vault first;
+    ///         the owner is bound into the salt, so the result is always the same vault).
     function create(address owner, bytes32 salt, uint32 activationDelay) external returns (BudgetVault vault) {
+        address predicted = predict(owner, salt, activationDelay);
+        if (predicted.code.length != 0) return BudgetVault(predicted);
         vault = new BudgetVault{salt: _salt(owner, salt)}(owner, USDC, FEE_JAR, OPS, JAR_SHARE_BPS, activationDelay);
         emit VaultCreated(owner, address(vault), salt);
     }
 
-    function predict(address owner, bytes32 salt, uint32 activationDelay) external view returns (address) {
+    function predict(address owner, bytes32 salt, uint32 activationDelay) public view returns (address) {
         bytes memory init = bytes.concat(
             type(BudgetVault).creationCode, abi.encode(owner, USDC, FEE_JAR, OPS, JAR_SHARE_BPS, activationDelay)
         );

@@ -11,8 +11,12 @@ export function parseCsv(text, decimals = 18) {
   for (const [n, raw] of text.split(/\r?\n/).entries()) {
     const line = raw.trim();
     if (!line || line.startsWith("#") || /^account\s*,/i.test(line)) continue;
-    const [account, amount] = line.split(",").map((s) => s.trim());
+    const cols = line.split(",").map((s) => s.trim());
+    // Exactly two columns: a thousands separator ("1,000") would otherwise be read silently as 1.
+    if (cols.length !== 2) throw new Error(`line ${n + 1}: expected "account,amount" (no thousands separators)`);
+    const [account, amount] = cols;
     if (!/^0x[0-9a-fA-F]{40}$/.test(account)) throw new Error(`line ${n + 1}: bad address ${account}`);
+    if (/^0x0{40}$/i.test(account)) throw new Error(`line ${n + 1}: zero address`);
     const key = account.toLowerCase();
     if (seen.has(key)) throw new Error(`line ${n + 1}: duplicate address ${account}`);
     seen.add(key);
@@ -36,7 +40,8 @@ export function buildTree(rows) {
   const tree = StandardMerkleTree.of(values, ["uint256", "address", "uint256"]);
   const proofs = {};
   for (const [i, v] of tree.entries()) {
-    proofs[v[1]] = { index: Number(v[0]), amount: v[2].toString(), proof: tree.getProof(i) };
+    // Keyed by lowercase address so lookups do not depend on how the CSV spelled it.
+    proofs[v[1].toLowerCase()] = { account: v[1], index: Number(v[0]), amount: v[2].toString(), proof: tree.getProof(i) };
   }
   const total = rows.reduce((s, [, a]) => s + a, 0n);
   return { tree, proofs, total };
