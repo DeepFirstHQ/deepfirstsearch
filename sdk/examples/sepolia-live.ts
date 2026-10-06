@@ -122,6 +122,7 @@ async function pay() {
       return;
     }
     const settled = await facilitator.settle(payload as never, requirement as never);
+    if (!settled.success) console.error(`facilitator could not settle: ${settled.errorReason ?? "unknown"} ${(settled as { errorMessage?: string }).errorMessage ?? ""}`);
     res.writeHead(settled.success ? 200 : 402, { "PAYMENT-RESPONSE": encodePaymentResponseHeader(settled) }).end('{"data":"premium"}');
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

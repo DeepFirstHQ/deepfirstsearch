@@ -199,7 +199,7 @@ describe.skipIf(!canRun)("conformance with official x402 v2 packages", () => {
       session: { readsUntrustedInput: false, accessesSensitiveData: false, canPay: true },
       ensureFunded: vaultFunder({
         agent: createWalletClient({ chain: foundry, transport, account: agent }),
-        publicClient: pub, vault, usdc, intents: { [MERCHANT]: intentId }, tranche: 50_000n, dataSuffix: suffix,
+        publicClient: pub, vault, usdc, intents: { [MERCHANT]: intentId }, tranche: 50_000n, dataSuffix: suffix, confirmations: 1,
       }),
     });
     const plan = pay.commitPlan([{ origin: serverUrl, maxSpend: 100_000n }], 60_000);

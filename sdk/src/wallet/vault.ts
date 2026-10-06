@@ -39,6 +39,11 @@ export type VaultFunderOptions = {
   tranche: bigint;
   /** Optional ERC-8021 attribution suffix (your Base Builder Code), appended to the agent's transactions. */
   dataSuffix?: Hex;
+  /**
+   * Blocks to wait after funding before the payment is signed (default 2). The facilitator settles through its own
+   * RPC node, which can lag behind ours; paying on the first confirmation made settlement fail intermittently.
+   */
+  confirmations?: number;
 };
 
 /**
@@ -69,7 +74,7 @@ export function vaultFunder(opts: VaultFunderOptions) {
       chain: opts.agent.chain,
       ...(opts.dataSuffix ? { dataSuffix: opts.dataSuffix } : {}),
     });
-    const receipt = await opts.publicClient.waitForTransactionReceipt({ hash });
+    const receipt = await opts.publicClient.waitForTransactionReceipt({ hash, confirmations: opts.confirmations ?? 2 });
     if (receipt.status !== "success") throw new Error(`fundBurner reverted (${hash})`);
   };
 }

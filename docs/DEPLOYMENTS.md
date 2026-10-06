@@ -10,6 +10,7 @@ Includes every fix from the internal pre-audit: intents sign the payer address, 
 | FeeJar | [`0xc8B733b06e89c8BbC1bA9D79C701608fdA125485`](https://base-sepolia.blockscout.com/address/0xc8B733b06e89c8BbC1bA9D79C701608fdA125485) |
 | BudgetVaultFactory | [`0xe0A23185976DF496AF0467aC47043d0e7B464930`](https://base-sepolia.blockscout.com/address/0xe0A23185976DF496AF0467aC47043d0e7B464930) |
 | Demo vault | [`0x876f3B7cDFdfcbf263AA6876DB1FCc2979f44ec6`](https://base-sepolia.blockscout.com/address/0x876f3B7cDFdfcbf263AA6876DB1FCc2979f44ec6) |
+| x402 payment through v0.3 (payer signed in the intent) | [tx](https://sepolia.basescan.org/tx/0xc2f0fcf1d3276307f8a20bf987c0ccc20386026deddb78cb214ad56f85783179) |
 
 ### v0.2 (2026-10-05)
 Includes the C-08 fix: EIP-7702 owners can sign with their own key. Source verified on Blockscout.
