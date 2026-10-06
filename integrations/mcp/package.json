@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server: any MCP agent (Claude, Cursor...) pays x402 APIs inside an owner-signed, on-chain budget",
   "license": "MIT",
   "type": "module",
@@ -8,9 +8,10 @@
     "agent-pay-mcp": "dist/index.js"
   },
   "files": [
-    "dist",
     "README.md",
-    "config.example.json"
+    "config.example.json",
+    "dist",
+    "server.json"
   ],
   "repository": {
     "type": "git",
@@ -48,5 +49,6 @@
     "base",
     "spending-limits"
   ],
-  "homepage": "https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp#readme"
+  "homepage": "https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp#readme",
+  "mcpName": "io.github.DeepFirstHQ/agent-pay-mcp"
 }

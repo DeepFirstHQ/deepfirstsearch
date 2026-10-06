@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.DeepFirstHQ/agent-pay-mcp",
+  "description": "x402 payments in USDC on Base inside an owner-signed, on-chain budget the model can't change",
+  "repository": {
+    "url": "https://github.com/DeepFirstHQ/deepfirstsearch",
+    "source": "github",
+    "subfolder": "integrations/mcp"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@deepfirstsearch/agent-pay-mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "AGENT_PAY_BURNER_SEED",
+          "description": "32-byte hex secret the per-merchant payer addresses are derived from. Never your owner key.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "AGENT_PAY_AGENT_KEY",
+          "description": "The budget's agent key (needed when a vault is configured).",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "valueHint": "config.json",
+          "description": "Path to the config file (merchants, caps, vault). See config.example.json.",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
