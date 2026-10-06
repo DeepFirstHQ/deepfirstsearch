@@ -64,7 +64,7 @@ npx tsx examples/sepolia-live.ts setup   # vault + funding + signed budget; the 
 npx tsx examples/sepolia-live.ts pay     # prints the settlement transaction
 ```
 
-Never reuse these keys on mainnet, and keep `BURNER_SEED` with the owner, not in the agent.
+Never reuse these keys on mainnet.
 
 ### Deployments
 
@@ -99,7 +99,10 @@ const signature = await signIntent(owner, vault, 8453, intent);
 // Anyone can relay it: vault.proposeIntent(intent, signature). It activates after the vault's timelock.
 ```
 
-Keep the owner key (and the burner seed) out of the agent process. A compromised agent key can then only pay the merchant or top up the signed payer, within the caps.
+Who holds what:
+- **Owner key:** only the owner (ideally a Safe or hardware wallet). It signs budgets and can pause, revoke and withdraw. Never on the agent's machine.
+- **Agent key and burner seed:** the payment process that runs the SDK. Run it apart from the model (a separate process or service): the model only asks for a URL, and the SDK decides. The burner seed must be its own random secret, never the owner key.
+- **If the payment process is compromised,** the loss is bounded: the agent key can only top up the signed payers within `maxPerTx`, `maxPerPeriod` and `trancheCap`, and each payer never holds more than `trancheCap`. Revoke the intent and rotate the seed (`epoch`).
 
 ## Funding payers from Agent Safe
 
