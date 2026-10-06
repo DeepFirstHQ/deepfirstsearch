@@ -47,6 +47,34 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - `RateLimiter`, `KillSwitch`
 - `AuditLog` / `verifyChain`
 
+## Try the whole loop on Base Sepolia (free, about 1 hour)
+
+`examples/sepolia-live.ts` runs a real x402 payment end to end with your own testnet keys: it creates a vault, signs a budget, waits out the timelock, then an agent pays a local x402 endpoint and the public facilitator settles it on-chain.
+
+1. Make two fresh **testnet-only** keys (owner and agent), e.g. `cast wallet new`, and any merchant address.
+2. Fund the owner with Base Sepolia ETH (the [Coinbase CDP faucet](https://portal.cdp.coinbase.com/products/faucet)) and at least 0.2 test USDC ([Circle faucet](https://faucet.circle.com), Base Sepolia).
+3. Run it:
+
+```bash
+git clone https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/sdk && npm ci
+export OWNER_PK=0x… AGENT_PK=0x… MERCHANT=0x… BURNER_SEED=0x$(openssl rand -hex 32) \
+       FACTORY=0xf245d3cb8700a804432ea50b253a923b4b32c0c7 STATE_FILE=./sepolia-state.json
+npx tsx examples/sepolia-live.ts setup   # vault + funding + signed budget; the agent gets gas from the owner
+# wait for the 1 h timelock printed by setup
+npx tsx examples/sepolia-live.ts pay     # prints the settlement transaction
+```
+
+Never reuse these keys on mainnet, and keep `BURNER_SEED` with the owner, not in the agent.
+
+### Deployments
+
+| Network | BudgetVaultFactory | FeeJar | Status |
+|---|---|---|---|
+| Base Sepolia (84532) | `0xf245d3cb8700a804432ea50b253a923b4b32c0c7` | `0x4ae59cf9462d1601de4fc5aa4538d376e93a79f2` | v0.4, testnet |
+| Base (8453) | `0xDe17e1B889efa4671852e0b268e100967A7a257E` | `0xa375245D25bdB557801Ad07A50c19b3442cA3Ae4` | v0.4, **unaudited beta**: small amounts only |
+
+Full list and transactions: [docs/DEPLOYMENTS.md](https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/DEPLOYMENTS.md). Questions or bugs: open an issue; security reports go through [SECURITY.md](https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/SECURITY.md).
+
 ## Signing a budget (owner side)
 
 The owner, never the agent, signs one budget per merchant. The budget names the agent key, the merchant and the only payer address the vault may top up:
