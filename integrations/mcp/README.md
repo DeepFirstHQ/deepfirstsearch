@@ -48,6 +48,16 @@ claude mcp add agent-pay \
 
 From source instead of npm: `cd integrations/mcp && npm ci && npm run build`, then use `node /path/to/integrations/mcp/dist/index.js` as the command.
 
+## See it work in 5 minutes (Base Sepolia)
+
+`sdk/examples/demo-merchant.ts` is a tiny x402 API on Base Sepolia with an honest route (`/premium`, 0.01 USDC) and a hostile one (`/malicious`: its 402 asks for 5 USDC to an attacker address and its body carries a prompt injection).
+
+```bash
+cd sdk && MERCHANT=0xYourMerchantAddress npx tsx examples/demo-merchant.ts
+```
+
+Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then ask your agent to fetch `/premium` and `/malicious`. Expected: the first is paid and settled on-chain; the second is refused before anything is signed ("payTo … is not the merchant's registered address").
+
 ## Config reference
 
 | Field | Meaning |
