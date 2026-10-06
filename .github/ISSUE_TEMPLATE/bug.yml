@@ -1,0 +1,24 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Security issue? Don't file it here; see SECURITY.md."
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Network (Base / Base Sepolia), SDK version, a minimal snippet. Never paste private keys.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: "@deepfirstsearch/agent-pay version"

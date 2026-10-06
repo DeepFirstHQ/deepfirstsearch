@@ -1,0 +1,24 @@
+name: Integration proposal
+description: Make agents in a framework or tool pay through Agent Safe
+labels: [integration, enhancement]
+body:
+  - type: input
+    id: target
+    attributes:
+      label: Framework or tool
+      placeholder: e.g. LangGraph, Mastra, CrewAI, a specific MCP client
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: How would an agent use it?
+      description: The tool/action surface you have in mind, and who holds the owner key.
+    validations:
+      required: true
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Building it
+      options:
+        - label: I'd like to build this myself
