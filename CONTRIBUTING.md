@@ -32,6 +32,17 @@ To see a real payment end to end on Base Sepolia (free, about 1 hour because of 
 - **Contracts are frozen for review.** Changes to `contracts/src` need an issue and a maintainer's OK first, because every change re-opens the audit scope.
 - Never commit private keys, seeds or `.env` files, even testnet ones.
 
+## Sensitive changes and AI-assisted PRs
+
+This code moves money, so some changes need a maintainer's OK in the issue **before** you open a PR. Otherwise the PR is closed:
+- anything under `.github/` (workflows, actions, templates);
+- new dependencies, version bumps, `package.json` scripts (especially `preinstall`/`postinstall`/`prepare`) or publishing config;
+- `contracts/src`, and the signing, policy and decoding code in `sdk/src/x402`, `sdk/src/policy` and `sdk/src/wallet`.
+
+Every diff is reviewed line by line before merging. Pull requests from forks run CI without secrets, and nothing is published from a PR.
+
+AI-assisted contributions are welcome. Say so in the PR. You should understand every line and be able to explain it in review. Tests must exercise the behavior they claim to; a test that would pass without your change doesn't count.
+
 ## Security
 
 Don't open public issues for vulnerabilities. Report them privately as described in [SECURITY.md](SECURITY.md).

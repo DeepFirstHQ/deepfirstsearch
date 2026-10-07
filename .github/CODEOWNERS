@@ -1,0 +1,7 @@
+# Every change needs a maintainer's review; these paths get extra scrutiny (see CONTRIBUTING.md).
+*                     @nicolastursi7-ops
+/.github/             @nicolastursi7-ops
+/contracts/src/       @nicolastursi7-ops
+/sdk/src/             @nicolastursi7-ops
+**/package.json       @nicolastursi7-ops
+**/package-lock.json  @nicolastursi7-ops
