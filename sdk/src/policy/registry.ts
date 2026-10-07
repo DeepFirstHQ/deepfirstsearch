@@ -34,6 +34,12 @@ export class MerchantRegistry {
 
   constructor(merchants: Merchant[]) {
     for (const m of merchants) {
+      if (m.maxTimeoutSeconds !== undefined) {
+        if (!Number.isInteger(m.maxTimeoutSeconds)) throw new Error("maxTimeoutSeconds must be an integer");
+        if (m.maxTimeoutSeconds < 10 || m.maxTimeoutSeconds > 86400) {
+          throw new Error("maxTimeoutSeconds must be between 10 and 86400");
+        }
+      }
       const origin = canonicalOrigin(m.origin);
       if (this.byOrigin.has(origin)) throw new Error(`duplicate merchant origin: ${origin}`);
       this.byOrigin.set(origin, Object.freeze({ ...m, origin, payTo: getAddress(m.payTo) }));

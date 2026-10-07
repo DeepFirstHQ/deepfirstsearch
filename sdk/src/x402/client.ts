@@ -11,7 +11,7 @@ import {
   type SessionCapabilities,
 } from "../guard/controls.js";
 import { commitPlan, type PlanItem, type SealedPlan } from "../guard/plan.js";
-import { evaluate, type PolicyConfig } from "../policy/engine.js";
+import { effectiveTimeoutBounds, evaluate, type PolicyConfig } from "../policy/engine.js";
 import type { Merchant, MerchantRegistry } from "../policy/registry.js";
 import type { SanctionsScreen } from "../policy/sanctions.js";
 import { decodeHeader, encodeHeader, X402DecodeError } from "./codec.js";
@@ -206,8 +206,8 @@ export function createAgentPay(options: AgentPayOptions) {
         throw new PaymentDeniedError([reason]);
       }
 
-      const boundsMax = merchant.maxTimeoutSeconds ?? options.policy.timeoutBounds?.max ?? 300;
-      const validFor = Math.min(requirement.maxTimeoutSeconds, boundsMax);
+      const bounds = effectiveTimeoutBounds(options.policy.timeoutBounds, merchant);
+      const validFor = Math.min(requirement.maxTimeoutSeconds, bounds.max);
       const { authorization, signature } = await signExactAuthorization({
         account: payer,
         asset,

@@ -44,6 +44,19 @@ describe("policy engine: the 402 response is untrusted", () => {
     if (d.kind !== "deny") expect(d.requirement.payTo).toBe(accepts[1]!.payTo);
   });
 
+  it("respects per-merchant maxTimeoutSeconds overrides", () => {
+    const mA = merchant({ origin: "https://merchant-a.com", maxTimeoutSeconds: 3600 });
+    const { registry: regA, plan: planA } = setup(mA);
+    const dA = evaluate(policy, regA, { url: "https://merchant-a.com/pay", required: required([requirement({ payTo: mA.payTo, maxTimeoutSeconds: 3600 })]), plan: planA, spentInPeriod: 0n, now });
+    expect(dA.kind).toBe("allow");
+
+    const mB = merchant({ origin: "https://merchant-b.com" });
+    const { registry: regB, plan: planB } = setup(mB);
+    const dB = evaluate(policy, regB, { url: "https://merchant-b.com/pay", required: required([requirement({ payTo: mB.payTo, maxTimeoutSeconds: 3600 })]), plan: planB, spentInPeriod: 0n, now });
+    expect(dB.kind).toBe("deny");
+    expect(dB.reasons.join()).toMatch(/maxTimeoutSeconds/);
+  });
+
   it("denies x402 v1 and unknown origins", () => {
     const { registry, plan } = setup();
     expect(evaluate(policy, registry, { url, required: required(undefined, 1), plan, spentInPeriod: 0n, now }).kind).toBe("deny");
@@ -87,6 +100,15 @@ describe("registry", () => {
   it("refuses plain-http merchants except localhost", () => {
     expect(() => new MerchantRegistry([merchant({ origin: "http://shop.example" })])).toThrow(/non-https/);
     expect(() => new MerchantRegistry([merchant({ origin: "http://127.0.0.1:8080" })])).not.toThrow();
+  });
+
+  it("validates maxTimeoutSeconds bounds", () => {
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: 9 })])).toThrow(/between 10 and 86400/);
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: 86401 })])).toThrow(/between 10 and 86400/);
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: 10.5 })])).toThrow(/integer/);
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: NaN })])).toThrow(/integer/);
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: Infinity })])).toThrow(/integer/);
+    expect(() => new MerchantRegistry([merchant({ maxTimeoutSeconds: 3600 })])).not.toThrow();
   });
 
   it("pins USDC per network", () => {
