@@ -1,0 +1,56 @@
+{
+  "name": "@deepfirstsearch/agent-pay-turnkey",
+  "version": "0.1.0",
+  "description": "Turnkey-held keys as Agent Safe payers: x402 payments signed inside Turnkey, inside an owner-signed budget",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
+    "directory": "integrations/turnkey"
+  },
+  "keywords": [
+    "turnkey",
+    "x402",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@turnkey/sdk-server": ">=4",
+    "viem": "^2"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@deepfirstsearch/agent-pay": "0.5.0"
+  },
+  "devDependencies": {
+    "@turnkey/sdk-server": "8.6.0",
+    "@types/node": "26.6.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "viem": "2.57.3",
+    "vitest": "4.1.11"
+  }
+}
