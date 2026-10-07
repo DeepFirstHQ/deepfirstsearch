@@ -16,7 +16,8 @@
       "price": "0.01",
       "tolerancePct": 0,
       "maxPerTx": "0.05",
-      "maxSpend": "0.50"
+      "maxSpend": "0.50",
+      "maxTimeoutSeconds": 3600
     }
   ]
 }

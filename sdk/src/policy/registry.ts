@@ -13,6 +13,8 @@ export type Merchant = {
   /** Tolerance in basis points over `pricePin` (default 0). */
   toleranceBps?: number;
   label?: string;
+  /** Per-merchant authorization window override in seconds. */
+  maxTimeoutSeconds?: number;
 };
 
 function canonicalOrigin(url: string): string {

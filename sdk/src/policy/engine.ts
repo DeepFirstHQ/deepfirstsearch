@@ -114,8 +114,10 @@ function checkRequirement(
     return "EIP-712 domain version does not match the pin";
   }
   if (getAddress(r.payTo) !== merchant.payTo) return `payTo ${show(r.payTo)} is not the merchant's registered address`;
-  if (r.maxTimeoutSeconds < bounds.min || r.maxTimeoutSeconds > bounds.max) {
-    return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${bounds.min}, ${bounds.max}]`;
+  
+  const mBounds = merchant.maxTimeoutSeconds ? { min: bounds.min, max: merchant.maxTimeoutSeconds } : bounds;
+  if (r.maxTimeoutSeconds < mBounds.min || r.maxTimeoutSeconds > mBounds.max) {
+    return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${mBounds.min}, ${mBounds.max}]`;
   }
   return undefined;
 }

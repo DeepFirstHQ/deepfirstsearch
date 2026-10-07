@@ -206,7 +206,8 @@ export function createAgentPay(options: AgentPayOptions) {
         throw new PaymentDeniedError([reason]);
       }
 
-      const validFor = Math.min(requirement.maxTimeoutSeconds, options.policy.timeoutBounds?.max ?? 300);
+      const boundsMax = merchant.maxTimeoutSeconds ?? options.policy.timeoutBounds?.max ?? 300;
+      const validFor = Math.min(requirement.maxTimeoutSeconds, boundsMax);
       const { authorization, signature } = await signExactAuthorization({
         account: payer,
         asset,
