@@ -31,9 +31,13 @@ export type MockServer = {
   close: () => Promise<void>;
 };
 
-const NETWORK = "eip155:84532";
-
-export async function startMockServer(routes: Record<string, Route>): Promise<MockServer> {
+/**
+ * Starts the mock merchant. It speaks Base Sepolia (`eip155:84532`) by default; pass `{ network: "eip155:8453" }` to
+ * match code written for Base mainnet. Either way nothing touches a chain: signatures are verified locally.
+ */
+export async function startMockServer(routes: Record<string, Route>, opts: { network?: string } = {}): Promise<MockServer> {
+  const NETWORK = opts.network ?? "eip155:84532";
+  if (!PINNED_USDC[NETWORK]) throw new Error(`no pinned USDC for ${NETWORK}`);
   const received: PaymentPayload[] = [];
   const asset = PINNED_USDC[NETWORK]!;
 

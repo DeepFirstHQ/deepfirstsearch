@@ -105,3 +105,19 @@ describe("settlement receipts", () => {
     await m.close();
   });
 });
+
+describe("mock merchant on Base mainnet", () => {
+  it("pays a mock merchant speaking eip155:8453, matching code written for mainnet", async () => {
+    const MERCHANT = "0x1111111111111111111111111111111111111111";
+    const m = await startMockServer({ "/d": { price: 10_000n, payTo: MERCHANT } }, { network: "eip155:8453" });
+    const pay = createAgentPay({
+      registry: new MerchantRegistry([{ origin: m.url, payTo: MERCHANT, network: "eip155:8453", maxPerTx: 50_000n, pricePin: 10_000n }]),
+      policy: { allowedNetworks: ["eip155:8453"] },
+      payer: () => privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"),
+      session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
+    });
+    const plan = pay.commitPlan([{ origin: m.url, maxSpend: 50_000n }], 60_000);
+    expect((await pay.fetch(`${m.url}/d`, {}, { plan })).status).toBe(200);
+    await m.close();
+  });
+});

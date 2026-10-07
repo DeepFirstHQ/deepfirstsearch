@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1 (2026-10-07)
+
+- `startMockServer(routes, { network })`: the offline mock merchant can speak Base mainnet (`eip155:8453`) as well as Base Sepolia (the default), so code written for mainnet runs against it unchanged. Found by a newcomer walkthrough of the docs.
+
 ## 0.6.0 (2026-10-07)
 
 - `confirmAuthorization` option and `usdcAuthorizationCheck(clients)`: when a merchant's receipt is missing or unreadable after the retries (Robtex sends `{settled: true, method: "direct"}`), the SDK asks USDC whether the signed authorization was used on-chain. Used and delivered: the payment counts as settled (`payment.confirmedOnChain`). Used but not delivered: a clear error, never resent. Not used, or the check fails: unconfirmed, as before. No extra RPC calls on the normal path (#16).
