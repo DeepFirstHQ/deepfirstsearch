@@ -51,4 +51,6 @@ The SDK reads BlockRun's receipt under either header name (`PAYMENT-RESPONSE` or
 
 (The MCP config takes a `price`; use your per-call ceiling there.)
 
+Source, issues and the full SDK: [github.com/DeepFirstHQ/deepfirstsearch](https://github.com/DeepFirstHQ/deepfirstsearch). Questions or a merchant you'd like covered: [Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions).
+
 > Agent Safe is an independent open-source project (MIT), live on Base mainnet as an unaudited beta. Not affiliated with BlockRun.

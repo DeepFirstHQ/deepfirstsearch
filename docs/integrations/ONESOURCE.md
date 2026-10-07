@@ -36,4 +36,6 @@ console.log(res.status, res.payment?.settlement.transaction);
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.5.3 or later.
 
+Source, issues and the full SDK: [github.com/DeepFirstHQ/deepfirstsearch](https://github.com/DeepFirstHQ/deepfirstsearch). Questions or a merchant you'd like covered: [Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions).
+
 > Agent Safe is an independent open-source project (MIT), live on Base mainnet as an unaudited beta. Not affiliated with OneSource.

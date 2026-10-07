@@ -36,4 +36,6 @@ Give the agent its own (non-root) Turnkey user and a policy that only allows `AC
 
 x402 uses EIP-3009 authorizations (EIP-712 typed data). `turnkeyPayer` hashes the typed data with viem and has Turnkey sign that exact digest. In our tests, `@turnkey/viem` 0.14.44's `signTypedData` recovered to a different address than the signing wallet, while signing the digest recovers correctly, and it makes the signed payload easy to audit.
 
+Source, issues and the full SDK: [github.com/DeepFirstHQ/deepfirstsearch](https://github.com/DeepFirstHQ/deepfirstsearch). Questions or a merchant you'd like covered: [Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions).
+
 > Agent Safe is an independent open-source project (MIT), live on Base mainnet as an unaudited beta. Not affiliated with Turnkey.
