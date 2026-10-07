@@ -1,0 +1,61 @@
+# PR guard: static safety checks on every pull request, run on the diff as data.
+#
+# pull_request_target runs THIS file and scripts/pr-guard/guard.mjs from main, so a pull request cannot edit or
+# disable its own checks. Nothing from the pull request is installed, imported or executed here: the PR head is
+# fetched as git objects only. Tests run separately in CI (pull_request: no secrets, read-only token).
+#
+# Approval: a maintainer adds the `maintainer-approved` label after reviewing the exact commit. Any new push removes
+# the label, so an approved PR can't be swapped for different code.
+name: PR guard
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # only to remove a stale approval label
+    steps:
+      - name: Check out main (the guard itself), never the PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the PR head as data
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags --quiet "https://github.com/${GITHUB_REPOSITORY}.git" "+refs/pull/${PR}/head:refs/remotes/pr/head"
+
+      - name: Drop a stale approval on new commits
+        if: github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          curl -sf -X DELETE -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR}/labels/maintainer-approved" > /dev/null
+          echo "New commits after approval: the maintainer-approved label was removed; a maintainer must review again."
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Static checks
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          # Approval counts only if the label was added by a maintainer and no commit came after it.
+          APPROVED: ${{ (github.event.action != 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')) && '1' || '0' }}
+        run: node scripts/pr-guard/guard.mjs

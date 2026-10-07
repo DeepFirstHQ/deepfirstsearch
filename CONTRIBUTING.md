@@ -39,7 +39,7 @@ This code moves money, so some changes need a maintainer's OK in the issue **bef
 - new dependencies, version bumps, `package.json` scripts (especially `preinstall`/`postinstall`/`prepare`) or publishing config;
 - `contracts/src`, and the signing, policy and decoding code in `sdk/src/x402`, `sdk/src/policy` and `sdk/src/wallet`.
 
-Every diff is reviewed line by line before merging. Pull requests from forks run CI without secrets, and nothing is published from a PR.
+Every diff is reviewed line by line before merging, and an automatic PR guard checks the diff for risky changes (see [docs/REVIEWING.md](docs/REVIEWING.md)). Pull requests from forks run CI without secrets, and nothing is published from a PR.
 
 AI-assisted contributions are welcome. Say so in the PR. You should understand every line and be able to explain it in review. Tests must exercise the behavior they claim to; a test that would pass without your change doesn't count.
 

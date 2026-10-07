@@ -112,6 +112,15 @@ jobs:
           npm test
           npm run build
 
+  pr-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/pr-guard/guard.test.mjs
+
   order-guard:
     runs-on: ubuntu-latest
     steps:
