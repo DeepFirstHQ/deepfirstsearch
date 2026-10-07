@@ -16,10 +16,11 @@ The model **cannot** choose a payee, an amount, a network or a limit: there is n
 
 ## Setup
 
-1. **Budget (owner, once):** create a vault and sign a budget per merchant with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands): `npx @deepfirstsearch/agent-pay owner create-vault`, then `owner budget …`, which prints the `intentId` and a ready-to-paste `merchants[]` entry. (No vault? Leave out `vault`, `tranche` and `intentId` and fund the payer addresses yourself.)
+1. **Budget (owner, once):** create a vault and sign a budget per merchant with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands): `npx @deepfirstsearch/agent-pay owner create-vault`, then `owner budget …`, which prints the `intentId` and a ready-to-paste `merchants[]` entry. (No vault? Leave out `vault`, `tranche` and `intentId`; each merchant then gets its own payer address derived from `AGENT_PAY_BURNER_SEED`, which you fund with USDC yourself.)
 2. **Config:** copy [`config.example.json`](config.example.json) and fill it in. Amounts are USDC decimal strings. Keep `tranche` at or below each intent's `trancheCap` and `maxPerTx`.
 3. **Secrets (environment only):**
-   - `AGENT_PAY_AGENT_KEY`: the intent's agent key (needed with a vault).
+   - `AGENT_PAY_AGENT_KEY`: the intent's agent key (only with a vault).
+   - `AGENT_PAY_MCP_CONFIG`: the config path, if you don't pass it as an argument.
    - `AGENT_PAY_BURNER_SEED`: the 32-byte secret the payer addresses were derived from. Never your owner key.
 
 ### Claude Code
@@ -57,6 +58,21 @@ Full walkthrough: [OpenClaw guide](https://deepfirstsearch.com/guides/openclaw.h
 ```
 
 From source instead of npm: `cd integrations/mcp && npm ci && npm run build`, then use `node /path/to/integrations/mcp/dist/index.js` as the command.
+
+## Try it offline (1 minute)
+
+No keys to fund, no chain: run a local mock merchant from the SDK and point the server at it.
+
+```bash
+npm install -g @deepfirstsearch/agent-pay-mcp
+mkdir mock && cd mock && npm init -y >/dev/null && npm install @deepfirstsearch/agent-pay
+node --input-type=module -e '
+import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
+const m = await startMockServer({ "/data": { price: 10000n, payTo: "0x1111111111111111111111111111111111111111", body: "{\"ok\":true}" } });
+console.log("origin:", m.url);'
+```
+
+Leave it running. In `offline.json`, use the printed origin: `{ "network": "eip155:84532", "merchants": [{ "origin": "<printed origin>", "payTo": "0x1111111111111111111111111111111111111111", "price": "0.01", "maxPerTx": "0.05", "maxSpend": "0.50" }] }`. Then start the server with `AGENT_PAY_BURNER_SEED=0x$(openssl rand -hex 32) agent-pay-mcp ./offline.json` (or add it to your MCP client) and call `paid_fetch` with `<printed origin>/data`. The mock verifies signatures locally, so the payer needs no funds.
 
 ## See it work in 5 minutes (Base Sepolia)
 

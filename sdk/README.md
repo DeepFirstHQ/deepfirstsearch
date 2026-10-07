@@ -37,6 +37,9 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - Prices above the pinned price, the per-merchant cap, the sealed plan or the period budget.
 - Merchants not in the registry; payees suggested by web content (tainted data).
 - x402 v1, malformed or oversized headers, and 402s reached through cross-origin redirects.
+- An authorization window above 300 s (`policy.timeoutBounds`), unless that merchant sets `maxTimeoutSeconds` (10 to 86400) in the registry.
+
+The 402 is read from `PAYMENT-REQUIRED`, or from `X-PAYMENT-REQUIRED` when the standard header is absent.
 - Retrying a payment: one signature per request, recorded in a hash-chained audit log.
 
 ## Guards
@@ -47,6 +50,8 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - `requiresHumanForEveryPayment` (Rule of Two)
 - `RateLimiter`, `KillSwitch`
 - `AuditLog` / `verifyChain`
+- `screen` (optional sanctions screening, fails closed): `screen: anyScreen(staticListScreen(list), oracleScreen(publicClient, oracle))`
+- `confirmAuthorization` (optional on-chain confirmation when a receipt is unusable): `usdcAuthorizationCheck({ "eip155:8453": publicClient })`
 
 ## Test without a chain
 
@@ -100,7 +105,7 @@ If the authorization was used but the merchant didn't deliver, you get a clear e
 
 ## Pay real x402 APIs on Base mainnet (2 cents, 1 minute)
 
-`examples/real-merchants.ts` pays three public x402 APIs (Blockchain.com, Spraay, CoinGecko) through the SDK, 0.012 USDC per run, then shows an injected 402 for 5 USDC being refused before anything is signed. The payer needs a few cents of USDC on Base and no ETH.
+`examples/real-merchants.ts` (in the repository; examples are not shipped in the npm package) pays three public x402 APIs (Blockchain.com, Spraay, CoinGecko) through the SDK, 0.012 USDC per run, then shows an injected 402 for 5 USDC being refused before anything is signed. The payer needs a few cents of USDC on Base and no ETH.
 
 ```bash
 git clone https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/sdk && npm ci

@@ -38,6 +38,7 @@ const { text } = await generateText({
 - A paid response comes back as `{ ok: true, status, paid: { amount, payTo, transaction }, body }`, with the body fenced as untrusted data. A refusal comes back as `{ ok: false, refused: true, reason }`, so the model can tell the user why.
 - Create the vault and the per-merchant budgets with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands).
 
+- **Try it offline first:** use `payer: () => privateKeyToAccount(generatePrivateKey())`, drop `ensureFunded`, and point the registry at `startMockServer` from `@deepfirstsearch/agent-pay/testing` (see [Test without a chain](https://deepfirstsearch.com/developers.html#test-without-a-chain)). For a model without an API key, `MockLanguageModelV4` from `ai/test`.
 ## Develop
 
 ```bash

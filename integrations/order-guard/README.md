@@ -29,10 +29,14 @@ Wrap whatever places orders for your agent (an MCP client, a CLI, an HTTP API) a
 
 ```ts
 import { createOrderGuard } from "@deepfirstsearch/order-guard";
+import { createMockDelivery } from "@deepfirstsearch/order-guard/testing";
+
+const backend = createMockDelivery({ address: "221B Baker St, Apt 2" }); // swap for your real ordering client
+const askOwnerOnPhone = async (order: { total: number }) => order.total < 2800; // your approval channel
 
 const guard = createOrderGuard(
   {
-    stores: { "store-123": { label: "La Taqueria" } }, // the only places it may order from
+    stores: { "la-taqueria": { label: "La Taqueria" } }, // the only places it may order from
     deliveryAddress: "221B Baker St, Apt 2",           // the only place food may go
     maxOrderTotal: 3000,                               // cents: $30 per order, all-in
     maxTip: 500,                                       // $5
@@ -43,7 +47,7 @@ const guard = createOrderGuard(
   backend, // { preview({ storeId, items, tip }), submit(previewId) }
 );
 
-const { preview, wouldBeRefusedFor } = await guard.preview({ storeId, items, tip: 200 });
+const { preview, wouldBeRefusedFor } = await guard.preview({ storeId: "la-taqueria", items: [{ itemId: "carnitas-burrito", quantity: 1 }], tip: 200 });
 await guard.submit(preview.previewId); // throws OrderRefusedError with the reasons, before the backend is called
 ```
 

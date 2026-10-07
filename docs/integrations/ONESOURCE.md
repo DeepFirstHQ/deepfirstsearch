@@ -15,6 +15,7 @@ const registry = new MerchantRegistry([{
   network: "eip155:8453",
   maxPerTx: 2_000n, // never more than 0.002 USDC per call
   pricePin: 1_000n, // 0.001 USDC, the published price
+  maxTimeoutSeconds: 3600, // OneSource asks for 60-minute authorizations; this widens the window for this merchant only
   label: "OneSource",
 }]);
 ```
@@ -24,7 +25,7 @@ const registry = new MerchantRegistry([{
 ```ts
 const pay = createAgentPay({
   registry,
-  policy: { allowedNetworks: ["eip155:8453"], periodBudget: { amount: 1_000_000n, periodMs: 86_400_000 }, timeoutBounds: { min: 10, max: 3600 } }, // OneSource asks for 60-minute authorizations
+  policy: { allowedNetworks: ["eip155:8453"], periodBudget: { amount: 1_000_000n, periodMs: 86_400_000 } },
   payer: () => yourWallet, // any viem account: local key, Turnkey, Privy, CDP, KMS
   session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
 });
@@ -34,7 +35,7 @@ const res = await pay.fetch("https://api.onesource.io/api/chain/block-number?net
 console.log(res.status, res.payment?.settlement.transaction);
 ```
 
-A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.5.3 or later.
+A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.5.5 or later (per-merchant `maxTimeoutSeconds`).
 
 Source, issues and the full SDK: [github.com/DeepFirstHQ/deepfirstsearch](https://github.com/DeepFirstHQ/deepfirstsearch). Questions or a merchant you'd like covered: [Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions).
 

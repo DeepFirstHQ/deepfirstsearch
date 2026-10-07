@@ -1,5 +1,7 @@
 # Zodiac Roles v2 × Agent Safe (proof of concept, not published)
 
+> Not on npm yet: clone the repository and run it from `integrations/zodiac-roles` (`npm ci && npm test`; the Base-fork tests need anvil and `BASE_FORK_RPC`).
+
 A Safe gives an AI agent an x402 budget through **Zodiac Roles v2**, without moving the funds out of the Safe. The agent can top up its per-merchant payer addresses from the Safe, and nothing else:
 
 - Only `USDC.transfer(to, amount)`.

@@ -7,5 +7,9 @@ Available:
 - [`ai-sdk/`](ai-sdk/): `paidFetchTool` for the Vercel AI SDK (`generateText`, `streamText`, agents).
 - [`turnkey/`](turnkey/): `turnkeyPayer`, a Turnkey-held key as the payer (signs the EIP-712 digest inside Turnkey).
 - [`langchain/`](langchain/): `createPaidFetchTool` for LangChain.js and LangGraph (`ToolNode`, `createReactAgent`).
+- [`order-guard/`](order-guard/): `createOrderGuard`, owner-set limits for agents that place real orders (approved stores, pinned delivery address, order and tip caps, daily budget, single-use previews).
+- [`zodiac-roles/`](zodiac-roles/): a Safe gives an agent an x402 budget through Zodiac Roles v2 (`rolesFunder`). Proof of concept, tested on a Base mainnet fork; not on npm yet.
+
+The tool integrations take `@deepfirstsearch/agent-pay` as a peer dependency, so an app always runs a single copy of the SDK.
 
 Wanted (see the [`integration`](https://github.com/DeepFirstHQ/deepfirstsearch/labels/integration) issues): Coinbase AgentKit action provider, ElizaOS plugin. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first.
