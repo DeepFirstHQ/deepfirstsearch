@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-ai-sdk",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Vercel AI SDK tool: let a model fetch x402 APIs while an owner-signed, on-chain budget decides every payment",
   "license": "MIT",
   "type": "module",
@@ -40,7 +40,7 @@
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@deepfirstsearch/agent-pay": "0.5.2",
+    "@deepfirstsearch/agent-pay": "0.5.3",
     "ai": "7.0.128",
     "zod": "4.6.5"
   },
