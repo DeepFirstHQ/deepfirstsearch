@@ -101,4 +101,35 @@ export const HEADERS = {
   response: "PAYMENT-RESPONSE",
   // x402 v1 name; some live merchants (e.g. BlockRun, October 2026) still send the receipt under it.
   legacyResponse: "X-PAYMENT-RESPONSE",
+  // x402 v1 incoming payment signature header
+  legacySignature: "X-PAYMENT",
 } as const;
+
+// Strict schema for v1 402 bodies (e.g., Neynar, SLAMai, Browserbase)
+export const PaymentRequiredV1Body = z.strictObject({
+  x402Version: z.literal(1),
+  network: z.literal("base"),
+  maxAmountRequired: z.string().regex(/^[0-9]{1,78}$/, "expected an atomic integer amount"),
+  payTo: z.string().min(1).max(128).optional(),
+  recipient: z.string().min(1).max(128).optional(),
+  asset: z.string().min(1).max(128).optional(),
+  currency: z.string().min(1).max(128).optional(),
+  maxTimeoutSeconds: z.number().int().nonnegative().optional(),
+}).superRefine((r, ctx) => {
+  if (!r.payTo && !r.recipient) ctx.addIssue({ code: "custom", path: ["payTo"], message: "payTo or recipient required" });
+  if (!r.asset && !r.currency) ctx.addIssue({ code: "custom", path: ["asset"], message: "asset or currency required" });
+}).transform((v1) => {
+  // Map v1 fields into standard v2 PaymentRequirements shape so existing policy checks apply unchanged
+  return {
+    x402Version: 1,
+    accepts: [{
+      scheme: "exact",
+      network: "eip155:8453", // Map "base" string to CAIP-2 standard
+      amount: v1.maxAmountRequired,
+      asset: v1.asset ?? v1.currency!,
+      payTo: v1.payTo ?? v1.recipient!,
+      maxTimeoutSeconds: v1.maxTimeoutSeconds ?? 300,
+      extra: {},
+    }]
+  } as PaymentRequired;
+});

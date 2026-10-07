@@ -15,6 +15,8 @@ export type PolicyConfig = {
   periodBudget?: { amount: bigint; periodMs: number };
   /** Asset pins for extra networks (e.g. a local test chain). Never sourced from a server. */
   assets?: Record<string, PinnedAsset>;
+  /** Whether to accept v1 PaymentRequired bodies. */
+  acceptV1?: boolean;
 };
 
 export type Approved = {
@@ -46,7 +48,11 @@ const DEFAULT_TIMEOUT = { min: 10, max: 300 };
  */
 export function evaluate(config: PolicyConfig, registry: MerchantRegistry, input: EvaluateInput): Decision {
   const { url, required, plan } = input;
-  if (required.x402Version !== 2) return deny(`unsupported x402 version ${required.x402Version}`);
+  
+  // Allow version 1 only when acceptV1 is explicitly enabled in policy config
+  if (required.x402Version !== 2 && !(required.x402Version === 1 && config.acceptV1)) {
+    return deny(`unsupported x402 version ${required.x402Version}`);
+  }
 
   const merchant = registry.forUrl(url);
   if (!merchant) return deny(`origin ${new URL(url).origin} is not an approved merchant`);

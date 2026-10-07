@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { evaluate } from "../src/policy/engine.js";
 import { MerchantRegistry } from "../src/policy/registry.js";
 import { commitPlan } from "../src/guard/plan.js";
-import { PaymentRequired } from "../src/x402/schemas.js";
+import { PaymentRequired, PaymentRequiredV1Body } from "../src/x402/schemas.js";
 import { createAgentPay } from "../src/x402/client.js";
 import { startMockServer } from "../src/testing/index.js";
 import { privateKeyToAccount } from "viem/accounts";
+import { getAddress } from "viem";
 
-// 402s captured from live x402 merchants on Base mainnet (2026-10-07). Parsing them must not break.
+// 402s captured from live x402 merchants on Base mainnet (2026-10-07). Parsing them must not break[cite: 7].
 const EXA = {
   x402Version: 2,
   resource: { url: "https://api.exa.ai/search", description: "Exa /search endpoint", mimeType: "application/json" },
@@ -24,7 +25,7 @@ const BLOCKRUN = {
   extensions: { bazaar: { schema: { type: "object" } } },
 };
 
-// CoinGecko (Coinbase facilitator) and Glassnode (Bazaar metadata inside `resource`), captured 2026-10-07.
+// CoinGecko (Coinbase facilitator) and Glassnode (Bazaar metadata inside `resource`), captured 2026-10-07[cite: 7].
 const GLASSNODE_RESOURCE = { url: "https://x402.glassnode.com/v1/metadata/metrics?a=BTC", description: "Metrics Catalog", mimeType: "application/json", serviceName: "Glassnode", tags: ["glassnode", "crypto"], iconUrl: "https://x402.glassnode.com/glassnode-com.svg" };
 
 describe("real x402 merchants on Base", () => {
@@ -67,6 +68,72 @@ describe("real x402 merchants on Base", () => {
   });
 });
 
+describe("x402 v1 merchants and compatibility", () => {
+  it("parses and evaluates v1 402s correctly when acceptV1 is enabled (Neynar / SLAMai style)", () => {
+    const merchantAddress = "0xe9030014F5DAe217d0A152f02A043567b16c1aBf";
+    const v1Payload = {
+      x402Version: 1,
+      network: "base",
+      maxAmountRequired: "3000",
+      recipient: merchantAddress,
+      currency: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      maxTimeoutSeconds: 300,
+    };
+    const required = PaymentRequiredV1Body.parse(v1Payload);
+    const registry = new MerchantRegistry([{ origin: "https://hub.neynar.com", payTo: merchantAddress, network: "eip155:8453", maxPerTx: 10_000n, pricePin: 3_000n }]);
+    const plan = commitPlan(registry, [{ origin: "https://hub.neynar.com", maxSpend: 10_000n }], 60_000);
+    const decision = evaluate({ allowedNetworks: ["eip155:8453"], acceptV1: true }, registry, {
+      url: "https://hub.neynar.com/v2/farcaster/user",
+      required,
+      plan,
+      spentInPeriod: 0n,
+      now: Date.now(),
+    });
+    
+    // Print exact denial reasons if it fails
+    if (decision.kind === "deny") {
+      console.log("POLICY DENY REASONS:", decision.reasons);
+    }
+
+    expect(decision.kind).toBe("allow");
+  });
+
+  it("refuses a v1 402 asking for a higher price or different payee before signing", () => {
+    const merchantAddress = "0xe9030014F5DAe217d0A152f02A043567b16c1aBf";
+    const hostilePriceV1 = {
+      x402Version: 1,
+      network: "base",
+      maxAmountRequired: "999999999",
+      recipient: merchantAddress,
+      currency: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      maxTimeoutSeconds: 300,
+    };
+    const required = PaymentRequiredV1Body.parse(hostilePriceV1);
+    const registry = new MerchantRegistry([{ origin: "https://hub.neynar.com", payTo: merchantAddress, network: "eip155:8453", maxPerTx: 10_000n, pricePin: 3_000n }]);
+    const plan = commitPlan(registry, [{ origin: "https://hub.neynar.com", maxSpend: 10_000n }], 60_000);
+    const decision = evaluate({ allowedNetworks: ["eip155:8453"], acceptV1: true }, registry, {
+      url: "https://hub.neynar.com/v2/farcaster/user",
+      required,
+      plan,
+      spentInPeriod: 0n,
+      now: Date.now(),
+    });
+    expect(decision.kind).toBe("deny");
+  });
+
+  it("strictly rejects unknown or malformed fields in v1 402 bodies", () => {
+    const merchantAddress = "0xe9030014F5DAe217d0A152f02A043567b16c1aBf";
+    const invalidV1 = {
+      x402Version: 1,
+      network: "base",
+      maxAmountRequired: "3000",
+      recipient: merchantAddress,
+      unknownMaliciousField: "should-fail",
+    };
+    expect(() => PaymentRequiredV1Body.parse(invalidV1)).toThrow();
+  });
+});
+
 describe("settlement receipts", () => {
   it("accepts a receipt under the legacy X-PAYMENT-RESPONSE header and does not report the payment as failed", async () => {
     const MERCHANT = "0x1111111111111111111111111111111111111111";
@@ -82,7 +149,7 @@ describe("settlement receipts", () => {
     const r = await pay.fetch(`${m.url}/data`, {}, { plan });
     expect(r.status).toBe(200);
     expect(r.payment?.amount).toBe(10_000n);
-    expect(m.received).toHaveLength(1); // no retry: the receipt was understood the first time
+    expect(m.received).toHaveLength(1); // no retry: the receipt was understood the first time[cite: 7]
     await m.close();
   });
 

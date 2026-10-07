@@ -16,7 +16,7 @@ import type { Merchant, MerchantRegistry } from "../policy/registry.js";
 import type { SanctionsScreen } from "../policy/sanctions.js";
 import { decodeHeader, encodeHeader, X402DecodeError } from "./codec.js";
 import { signExactAuthorization } from "./exactEvm.js";
-import { HEADERS, PaymentRequired, SettleResponse, type PaymentPayload } from "./schemas.js";
+import { HEADERS, PaymentRequired, SettleResponse, type PaymentPayload, PaymentRequiredV1Body } from "./schemas.js";
 
 export type PayerProvider = (merchant: Merchant, chainId: number) => LocalAccount | Promise<LocalAccount>;
 
@@ -97,10 +97,23 @@ export function createAgentPay(options: AgentPayOptions) {
     const payUrl = first.redirected ? first.url : input;
 
     let required: PaymentRequired;
+    let isV1 = false;
     try {
-      required = decodeHeader(first.headers.get(HEADERS.required), PaymentRequired);
+      const headerReq = first.headers.get(HEADERS.required);
+      if (headerReq) {
+        required = decodeHeader(headerReq, PaymentRequired);
+      } else if (options.policy.acceptV1) {
+        const bodyText = await first.clone().text();
+        if (!bodyText) throw new Error("No PAYMENT-REQUIRED header and empty body");
+        
+        const parsedBody = JSON.parse(bodyText);
+        required = PaymentRequiredV1Body.parse(parsedBody);
+        isV1 = true;
+      } else {
+        throw new Error("Missing PAYMENT-REQUIRED header (v1 disabled via policy)");
+      }
     } catch (e) {
-      const reason = e instanceof X402DecodeError ? e.message : "unreadable 402";
+      const reason = e instanceof X402DecodeError ? e.message : `unreadable 402: ${String((e as Error)?.message ?? e).slice(0, 100)}`;
       audit.append({ type: "payment.denied", url: input, reasons: [reason] });
       throw new PaymentDeniedError([reason]);
     }
@@ -219,7 +232,9 @@ export function createAgentPay(options: AgentPayOptions) {
       audit.append({ type: "payment.signed", origin: merchant.origin, payTo: merchant.payTo, payer: payer.address, amount, nonce: authorization.nonce });
 
       const headers = new Headers(init.headers);
-      headers.set(HEADERS.signature, encodeHeader(payload));
+      // Use X-PAYMENT for v1 merchants, standard PAYMENT-SIGNATURE for v2
+      const targetHeader = isV1 ? HEADERS.legacySignature : HEADERS.signature;
+      headers.set(targetHeader, encodeHeader(payload));
       headers.set("Idempotency-Key", authorization.nonce);
       sent = true; // from here on the money is possibly spent: the reservation stays
 
