@@ -98,7 +98,7 @@ export function createAgentPay(options: AgentPayOptions) {
 
     let required: PaymentRequired;
     try {
-      required = decodeHeader(first.headers.get(HEADERS.required), PaymentRequired);
+      required = decodeHeader(first.headers.get(HEADERS.required) ?? first.headers.get("X-PAYMENT-REQUIRED"), PaymentRequired);
     } catch (e) {
       const reason = e instanceof X402DecodeError ? e.message : "unreadable 402";
       audit.append({ type: "payment.denied", url: input, reasons: [reason] });
