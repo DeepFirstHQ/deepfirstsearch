@@ -4,7 +4,7 @@ OpenClaw reads your email, your chats and the web. Any of those can carry a prom
 
 This guide connects OpenClaw to **Agent Safe**, so your agent can pay for APIs with USDC over x402 while **you** decide, in advance, who it may pay, at what price and how much per day. The model only chooses which URL to fetch. A poisoned page can ask; nothing gets signed.
 
-Everything below was tested against OpenClaw 2026.9 (`openclaw mcp probe` reports the three tools). Allow about 15 minutes on Base Sepolia, a free test network.
+The OpenClaw connection below was tested with OpenClaw 2026.9 (`openclaw mcp probe` reports the three tools); the payment flow itself was tested on Base mainnet and with a real Claude session. Allow about 15 minutes on Base Sepolia, a free test network.
 
 > Agent Safe is an independent open-source project, not affiliated with OpenClaw. Beta, unaudited: use testnet or small amounts.
 
