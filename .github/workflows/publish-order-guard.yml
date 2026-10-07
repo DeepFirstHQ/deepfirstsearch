@@ -1,4 +1,4 @@
-# Publishes the Turnkey integration to npm when a tag like `order-guard-v0.1.1` is pushed. The tag must match integrations/order-guard/package.json.
+# Publishes @deepfirstsearch/order-guard to npm when a tag like `order-guard-v0.1.1` is pushed. The tag must match integrations/order-guard/package.json.
 # Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
 name: Publish order-guard
 
