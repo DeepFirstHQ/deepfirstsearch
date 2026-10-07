@@ -32,7 +32,12 @@ Result  spent 0.03 of 0.03 USDC · signatures to attackers: 0
 | LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain` | [LangChain tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain) |
 | Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk) |
 
-Integration guides, each tested live: [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Turnkey](integrations/TURNKEY.md) · [OpenClaw](guides/OPENCLAW.md).
+Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm:
+
+- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [OpenClaw agents](guides/OPENCLAW.md)
+- **Search, web and AI:** [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Pocket Network](integrations/POCKET.md) · [Spraay](integrations/SPRAAY.md) · [Otto AI](integrations/OTTO.md)
+- **Market and onchain data:** [CoinGecko](integrations/COINGECKO.md) · [Nansen](integrations/NANSEN.md) · [Glassnode](integrations/GLASSNODE.md) · [Massive](integrations/MASSIVE.md) · [Stock Trends](integrations/STOCKTRENDS.md) · [Blockchain.com](integrations/BLOCKCHAINCOM.md) · [OneSource](integrations/ONESOURCE.md)
+- **Commerce and storage:** [Bitrefill](integrations/BITREFILL.md) · [Pinata](integrations/PINATA.md)
 
 Using **OpenClaw**? Follow the step-by-step guide: [Give your OpenClaw agent a wallet it can't be tricked into emptying](guides/OPENCLAW.md).
 

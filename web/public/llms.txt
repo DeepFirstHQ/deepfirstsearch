@@ -22,6 +22,7 @@
 
 - Developers: https://deepfirstsearch.com/developers.html
 - Partners: https://deepfirstsearch.com/partners.html
+- Merchant guides (tested on Base mainnet): https://deepfirstsearch.com/integrations/{exa,blockrun,turnkey,coingecko,nansen,glassnode,massive,stocktrends,blockchaincom,onesource,pocket,spraay,otto,bitrefill,pinata}.html
 - SDK: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk
 - MCP server: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp
 - Deployments: https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/DEPLOYMENTS.md
