@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4 (2026-10-07)
+
+- The 402 is also read from `X-PAYMENT-REQUIRED` when `PAYMENT-REQUIRED` is absent (Ordiscan sends it there). The standard header wins when both are present, an invalid standard header never falls back, and the alias goes through the same size cap, strict schema and policy. First outside contribution, thanks @aqibmohd271 (#18).
+
 ## 0.5.3 (2026-10-07)
 
 Found by paying 14 x402 merchants on Base mainnet:
