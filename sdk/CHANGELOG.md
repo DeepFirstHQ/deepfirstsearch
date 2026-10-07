@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.5 (2026-10-07)
+
+- Per-merchant authorization window: `Merchant.maxTimeoutSeconds` (integer, 10 to 86400, validated when the registry is built) overrides `policy.timeoutBounds.max` for that merchant only, in both the policy check and the signed validity window. Useful for merchants that ask for long authorizations (OneSource asks for 3600 s). Thanks @Priyadharshan2003 (#21).
+
 ## 0.5.4 (2026-10-07)
 
 - The 402 is also read from `X-PAYMENT-REQUIRED` when `PAYMENT-REQUIRED` is absent (Ordiscan sends it there). The standard header wins when both are present, an invalid standard header never falls back, and the alias goes through the same size cap, strict schema and policy. First outside contribution, thanks @aqibmohd271 (#18).
