@@ -7,7 +7,7 @@ import type { Merchant, MerchantRegistry } from "./registry.js";
 export type PolicyConfig = {
   /** CAIP-2 networks the agent may pay on, e.g. ["eip155:8453"]. */
   allowedNetworks: string[];
-  /** Accepted range for the server's maxTimeoutSeconds. */
+  /** Accepted range for the server's maxTimeoutSeconds. merchant.maxTimeoutSeconds overrides policy.timeoutBounds.max for that merchant only. */
   timeoutBounds?: { min: number; max: number };
   /** Payments above this amount (atomic units) need a human. */
   approvalThreshold?: bigint;
@@ -38,6 +38,16 @@ export type EvaluateInput = {
 };
 
 const DEFAULT_TIMEOUT = { min: 10, max: 300 };
+
+export function effectiveTimeoutBounds(
+  bounds: { min: number; max: number } | undefined,
+  merchant: Merchant,
+): { min: number; max: number } {
+  const b = bounds ?? DEFAULT_TIMEOUT;
+  return merchant.maxTimeoutSeconds !== undefined
+    ? { min: b.min, max: merchant.maxTimeoutSeconds }
+    : b;
+}
 
 /**
  * Deterministic payment policy. It runs outside the model and treats the whole 402 response as untrusted input:
@@ -114,8 +124,10 @@ function checkRequirement(
     return "EIP-712 domain version does not match the pin";
   }
   if (getAddress(r.payTo) !== merchant.payTo) return `payTo ${show(r.payTo)} is not the merchant's registered address`;
-  if (r.maxTimeoutSeconds < bounds.min || r.maxTimeoutSeconds > bounds.max) {
-    return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${bounds.min}, ${bounds.max}]`;
+
+  const mBounds = effectiveTimeoutBounds(bounds, merchant);
+  if (r.maxTimeoutSeconds < mBounds.min || r.maxTimeoutSeconds > mBounds.max) {
+    return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${mBounds.min}, ${mBounds.max}]`;
   }
   return undefined;
 }
