@@ -21,6 +21,10 @@ Run it yourself (no accounts, no real orders): `git clone https://github.com/Dee
 
 ## Use it
 
+```bash
+npm install @deepfirstsearch/order-guard
+```
+
 Wrap whatever places orders for your agent (an MCP client, a CLI, an HTTP API) as an `OrderBackend`, and give the agent the guard's `preview` and `submit` instead of the raw tools:
 
 ```ts
@@ -57,6 +61,6 @@ Amounts are integer cents. Policies with fractional amounts are rejected.
 
 ## Status
 
-0.1.0, tested against the in-memory delivery service in `src/testing.ts` (also exported as `@deepfirstsearch/order-guard/testing`). Platforms that offer agent ordering today (for example DoorDash's ordering MCP and CLI, announced in September 2026) are in limited beta; an adapter for a real platform comes once we have access. Payments on those platforms are made by the platform (card on file); this guard decides whether an order may be placed at all.
+0.1.0 on npm, tested against the in-memory delivery service in `src/testing.ts` (also exported as `@deepfirstsearch/order-guard/testing`). Platforms that offer agent ordering today (for example DoorDash's ordering MCP and CLI, announced in September 2026) are in limited beta; an adapter for a real platform comes once we have access. Payments on those platforms are made by the platform (card on file); this guard decides whether an order may be placed at all.
 
 > Independent open-source project (MIT) by Deep First Search. Not affiliated with DoorDash or any delivery platform.
