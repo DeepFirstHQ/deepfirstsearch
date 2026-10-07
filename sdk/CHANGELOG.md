@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1 (2026-10-07)
+
+Found by paying real x402 merchants on Base mainnet (Exa and BlockRun) before showing them to anyone:
+- **Fix:** a 402 whose `extra` carries merchant-specific fields (Exa's `breakdown`, `totalUsd`, `acceptId`) was rejected. `extra` is free-form in the spec; unknown keys are now kept, and nothing in it is ever used to sign (the EIP-712 domain comes from the pins).
+- **Fix:** a 402 that also offers non-EVM options (Exa offers Solana) was rejected as a whole. Other chains' options now parse and are skipped by the policy; eip155 options keep strict address checks.
+- **Fix:** a receipt sent under the x402 v1 header `X-PAYMENT-RESPONSE` (BlockRun) was not recognized, so a settled payment was reported as unconfirmed and a later retry from a new process could pay again. Both header names are read now.
+
 ## 0.5.0 (2026-10-06)
 
 - `npx @deepfirstsearch/agent-pay demo`: a 10-second offline tour with a local x402 merchant (no keys, no chain): one honest payment and four attacks refused (payee swap, price hike, injected payee, budget overrun), with the audit chain verified.

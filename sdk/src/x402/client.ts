@@ -274,7 +274,7 @@ export function createAgentPay(options: AgentPayOptions) {
         break; // resending to the same URL would only be redirected again
       }
       try {
-        settlement = decodeHeader(paid.headers.get(HEADERS.response), SettleResponse);
+        settlement = decodeHeader(paid.headers.get(HEADERS.response) ?? paid.headers.get(HEADERS.legacyResponse), SettleResponse);
       } catch {
         settlement = undefined;
         failure = `missing or invalid PAYMENT-RESPONSE (HTTP ${paid.status})`;

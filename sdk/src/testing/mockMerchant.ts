@@ -16,6 +16,8 @@ export type Route = {
   /** Optional tampering applied to the 402 the server sends. */
   tamper?: (r: PaymentRequirements) => PaymentRequirements;
   body?: string;
+  /** Send the receipt under the x402 v1 header name (X-PAYMENT-RESPONSE), like some live merchants. */
+  legacyReceipt?: boolean;
 };
 
 export type MockServer = {
@@ -83,7 +85,7 @@ export async function startMockServer(routes: Record<string, Route>): Promise<Mo
       network: NETWORK,
       ...(valid && paidEnough ? {} : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
     };
-    res.writeHead(valid && paidEnough ? 200 : 402, { "PAYMENT-RESPONSE": encodeHeader(settlement), "Content-Type": "application/json" });
+    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(settlement), "Content-Type": "application/json" });
     res.end(route.body ?? JSON.stringify({ ok: true }));
   });
 

@@ -84,9 +84,22 @@ describe("regression: EIP-712 domain cannot be chosen by the server", () => {
     expect(ev([requirement({ extra: { version: "1" } })]).kind).toBe("deny");
     expect(ev([requirement({ extra: { assetTransferMethod: "permit2" } })]).kind).toBe("deny");
   });
-  it("rejects unknown extra fields such as chainId or verifyingContract", () => {
-    expect(() => parse({ x402Version: 2, accepts: [{ ...requirement(), extra: { chainId: 1 } }] })).toThrow();
-    expect(() => parse({ x402Version: 2, accepts: [{ ...requirement(), extra: { verifyingContract: ATTACKER } }] })).toThrow();
+  it("ignores domain fields a server puts in extra (chainId, verifyingContract): the signature uses the pinned domain", async () => {
+    // `extra` is free-form in the spec (real merchants add pricing breakdowns), so these keys parse, but nothing in
+    // them reaches the signature: the EIP-712 domain always comes from the pinned asset.
+    const { verifyTypedData } = await import("viem");
+    const { TRANSFER_WITH_AUTHORIZATION_TYPES, usdcDomain } = await import("../../src/x402/exactEvm.js");
+    const hostile = requirement({ extra: { name: USDC.domain.name, version: USDC.domain.version, chainId: 1, verifyingContract: ATTACKER } as never });
+    expect(() => parse({ x402Version: 2, accepts: [hostile] })).not.toThrow();
+    const net = fakeNet({ onFirst: (u) => resp(402, { "PAYMENT-REQUIRED": encodeHeader(required([hostile])) }, u) });
+    const { pay, plan } = mkPay(net);
+    await pay.fetch(URL_, {}, { plan });
+    const { authorization: a, signature } = net.signed[0]!.payload;
+    const msg = { from: a.from as never, to: a.to as never, value: BigInt(a.value), validAfter: BigInt(a.validAfter), validBefore: BigInt(a.validBefore), nonce: a.nonce as never };
+    const onPinned = await verifyTypedData({ address: a.from as never, domain: usdcDomain(USDC), types: TRANSFER_WITH_AUTHORIZATION_TYPES, primaryType: "TransferWithAuthorization", message: msg, signature: signature as never });
+    const onHostile = await verifyTypedData({ address: a.from as never, domain: { ...usdcDomain(USDC), chainId: 1, verifyingContract: ATTACKER }, types: TRANSFER_WITH_AUTHORIZATION_TYPES, primaryType: "TransferWithAuthorization", message: msg, signature: signature as never });
+    expect(onPinned).toBe(true);
+    expect(onHostile).toBe(false);
   });
   it("signs with the pinned domain even when extra is absent", async () => {
     const { verifyTypedData } = await import("viem");
