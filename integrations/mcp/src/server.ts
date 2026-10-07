@@ -18,7 +18,7 @@ import {
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
 
-export const VERSION = "0.1.2";
+export const VERSION = "0.1.3";
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
