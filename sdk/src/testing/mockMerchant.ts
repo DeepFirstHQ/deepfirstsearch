@@ -21,6 +21,8 @@ export type Route = {
   /** Behave like Coinbase-facilitated merchants (e.g. CoinGecko): reject payloads without the 402's `resource`, and
    * send `errorReason: null` in a successful receipt. */
   cdpStyle?: boolean;
+  /** Send this value as the receipt instead of a real settlement (e.g. Robtex's {settled: true, method: "direct"}). */
+  rawReceipt?: unknown;
 };
 
 export type MockServer = {
@@ -88,7 +90,7 @@ export async function startMockServer(routes: Record<string, Route>): Promise<Mo
       network: NETWORK,
       ...(valid && paidEnough ? (route.cdpStyle ? { errorReason: null } : {}) : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
     };
-    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(settlement), "Content-Type": "application/json" });
+    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
     res.end(route.body ?? JSON.stringify({ ok: true }));
   });
 

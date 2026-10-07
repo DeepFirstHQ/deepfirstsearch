@@ -80,6 +80,24 @@ npx @deepfirstsearch/agent-pay owner status --vault 0x…
 
 The official addresses and ABIs are exported too: `AGENT_SAFE.base.factory`, `BUDGET_VAULT_FULL_ABI`, `BUDGET_VAULT_FACTORY_ABI`, `FEE_JAR_ABI`.
 
+## When a merchant's receipt is missing
+
+Some merchants answer a paid request without a usable receipt (no transaction in `PAYMENT-RESPONSE`). The SDK then reports the payment as unconfirmed rather than guessing. To let the chain decide, pass `confirmAuthorization`: on that failure path only, it reads USDC's `authorizationState` for the exact authorization you signed.
+
+```ts
+import { createPublicClient, http } from "viem";
+import { base } from "viem/chains";
+import { createAgentPay, usdcAuthorizationCheck } from "@deepfirstsearch/agent-pay";
+
+const pay = createAgentPay({
+  // ...registry, policy, payer, session
+  confirmAuthorization: usdcAuthorizationCheck({ "eip155:8453": createPublicClient({ chain: base, transport: http() }) }),
+});
+// res.payment.confirmedOnChain === true when the receipt was unusable but the authorization was used on-chain.
+```
+
+If the authorization was used but the merchant didn't deliver, you get a clear error and nothing is resent.
+
 ## Pay real x402 APIs on Base mainnet (2 cents, 1 minute)
 
 `examples/real-merchants.ts` pays three public x402 APIs (Blockchain.com, Spraay, CoinGecko) through the SDK, 0.012 USDC per run, then shows an injected 402 for 5 USDC being refused before anything is signed. The payer needs a few cents of USDC on Base and no ETH.

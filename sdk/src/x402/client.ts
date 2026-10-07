@@ -1,4 +1,4 @@
-import type { LocalAccount } from "viem";
+import type { Address, Hex, LocalAccount } from "viem";
 import { AuditLog } from "../guard/audit.js";
 import {
   denyAll,
@@ -16,6 +16,7 @@ import type { Merchant, MerchantRegistry } from "../policy/registry.js";
 import type { SanctionsScreen } from "../policy/sanctions.js";
 import { decodeHeader, encodeHeader, X402DecodeError } from "./codec.js";
 import { signExactAuthorization } from "./exactEvm.js";
+import type { AuthorizationCheck } from "./onchain.js";
 import { HEADERS, PaymentRequired, SettleResponse, type PaymentPayload } from "./schemas.js";
 
 export type PayerProvider = (merchant: Merchant, chainId: number) => LocalAccount | Promise<LocalAccount>;
@@ -34,13 +35,21 @@ export type AgentPayOptions = {
   ensureFunded?: (payer: LocalAccount, merchant: Merchant, amount: bigint) => Promise<void>;
   fetch?: typeof fetch;
   now?: () => number;
+  /**
+   * When a merchant's receipt is missing or unreadable after the retries, ask the token whether the signed
+   * authorization was used on-chain (see usdcAuthorizationCheck). Used: the payment counts as settled, marked
+   * `confirmedOnChain`. Not used, or the check fails: the payment stays unconfirmed, as without this option.
+   */
+  confirmAuthorization?: AuthorizationCheck;
   /** Retries of a failed settlement, resending the same signed authorization (never a new one). Default 3. */
   settleRetries?: number;
   /** Base delay between those retries, in ms (linear backoff). Default 3000. */
   settleRetryDelayMs?: number;
 };
 
-export type PaidResponse = Response & { payment?: { amount: bigint; payTo: string; settlement: SettleResponse } };
+export type PaidResponse = Response & {
+  payment?: { amount: bigint; payTo: string; settlement: SettleResponse; confirmedOnChain?: boolean };
+};
 
 /**
  * x402 v2 client with a mandatory policy gate between "the server asked for money" and "we signed".
@@ -67,7 +76,7 @@ export function createAgentPay(options: AgentPayOptions) {
   const periodLedger: { start: number; spent: bigint } = { start: now(), spent: 0n };
   // Signed payments whose settlement was never confirmed, by resource. The server may still have settled them, so if
   // the agent asks for the same resource again we resend that authorization instead of signing a second one (SDK-L-4).
-  const unsettled = new Map<string, { headers: Headers; payer: string; authorization: { nonce: string; validBefore: string } }>();
+  const unsettled = new Map<string, { headers: Headers; payer: string; authorization: { from: string; nonce: string; validBefore: string } }>();
   // Validated up front, so a bad value can never surface after an authorization has been signed.
   const retries = options.settleRetries ?? 3;
   const backoff = options.settleRetryDelayMs ?? 3_000;
@@ -243,7 +252,7 @@ export function createAgentPay(options: AgentPayOptions) {
     amount: bigint;
     requirement: PaymentRequired["accepts"][number];
     payer: string;
-    authorization: { nonce: string; validBefore: string };
+    authorization: { from: string; nonce: string; validBefore: string };
     resourceKey: string;
   }): Promise<PaidResponse> {
     let paid!: PaidResponse;
@@ -297,6 +306,31 @@ export function createAgentPay(options: AgentPayOptions) {
         break;
       }
       break;
+    }
+    if ((!settlement || !settlement.success) && options.confirmAuthorization) {
+      // The receipt didn't confirm it; the chain can. Only reached on this failure path (no extra calls otherwise).
+      let used = false;
+      try {
+        used = await options.confirmAuthorization({
+          network: p.requirement.network,
+          asset: p.requirement.asset as Address,
+          authorizer: p.authorization.from as Address,
+          nonce: p.authorization.nonce as Hex,
+        });
+      } catch {
+        used = false; // an unreachable RPC leaves the payment unconfirmed
+      }
+      if (used) {
+        audit.append({ type: "payment.settled_onchain", origin: p.merchant.origin, amount: p.amount, nonce: p.authorization.nonce, status: paid?.status, receipt: failure });
+        if (!paid?.ok) {
+          // The money moved but the merchant didn't deliver: never resend (the authorization is spent), say so plainly.
+          throw new PaymentBlockedError(
+            `the authorization was used on-chain (the payment settled) but the merchant answered HTTP ${paid?.status ?? "none"} instead of the resource`,
+          );
+        }
+        paid.payment = { amount: p.amount, payTo: p.merchant.payTo, settlement: { success: true, transaction: "", network: p.requirement.network, payer: p.payer }, confirmedOnChain: true };
+        return paid;
+      }
     }
     if (!settlement || !settlement.success) {
       unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, authorization: p.authorization });

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0 (2026-10-07)
+
+- `confirmAuthorization` option and `usdcAuthorizationCheck(clients)`: when a merchant's receipt is missing or unreadable after the retries (Robtex sends `{settled: true, method: "direct"}`), the SDK asks USDC whether the signed authorization was used on-chain. Used and delivered: the payment counts as settled (`payment.confirmedOnChain`). Used but not delivered: a clear error, never resent. Not used, or the check fails: unconfirmed, as before. No extra RPC calls on the normal path (#16).
+- Audit event `payment.settled_onchain`. The testing mock merchant gains `rawReceipt`.
+
 ## 0.5.5 (2026-10-07)
 
 - Per-merchant authorization window: `Merchant.maxTimeoutSeconds` (integer, 10 to 86400, validated when the registry is built) overrides `policy.timeoutBounds.max` for that merchant only, in both the policy check and the signed validity window. Useful for merchants that ask for long authorizations (OneSource asks for 3600 s). Thanks @Priyadharshan2003 (#21).
