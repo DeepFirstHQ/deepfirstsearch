@@ -155,7 +155,7 @@ describe("x402 client", () => {
 
   it("rejects malformed or oversized 402 headers", async () => {
     const registry = new MerchantRegistry([{ origin: "https://shop.example", payTo: MERCHANT_PAYTO, network: NETWORK, maxPerTx: 1n }]);
-    const fake = async () => new Response(null, { status: 402, headers: { "PAYMENT-REQUIRED": "A".repeat(10_000) } });
+    const fake = async () => new Response(null, { status: 402, headers: { "PAYMENT-REQUIRED": "A".repeat(20_000) } });
     const pay = createAgentPay({ registry, policy, payer: () => payer, session: safeSession, fetch: fake as typeof fetch });
     const plan = pay.commitPlan([{ origin: "https://shop.example", maxSpend: 1n }], 60_000);
     await expect(pay.fetch("https://shop.example/x", {}, { plan })).rejects.toThrow(/too large/);

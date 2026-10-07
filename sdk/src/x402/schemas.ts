@@ -25,6 +25,10 @@ export const PaymentRequirements = z.strictObject({
   asset: chainAddress,
   payTo: chainAddress,
   maxTimeoutSeconds: z.number().int().nonnegative(),
+  // x402 v1 aliases some servers still send next to the v2 fields (OneSource). Accepted only when they agree.
+  currency: chainAddress.optional(),
+  maxAmountRequired: atomic.optional(),
+  recipient: chainAddress.optional(),
   // `extra` is scheme-specific and free-form in the spec (merchants add pricing breakdowns, ids, gateway data), so
   // unknown keys are kept, not rejected. The fields we act on stay typed, and none of them is ever used to sign:
   // the EIP-712 domain comes from our own pins. The header size limit bounds what extra can carry.
@@ -36,6 +40,10 @@ export const PaymentRequirements = z.strictObject({
     })
     .optional(),
 }).superRefine((r, ctx) => {
+  const same = (a: string | undefined, b: string) => a === undefined || a.toLowerCase() === b.toLowerCase();
+  if (!same(r.currency, r.asset)) ctx.addIssue({ code: "custom", path: ["currency"], message: "legacy currency disagrees with asset" });
+  if (!same(r.recipient, r.payTo)) ctx.addIssue({ code: "custom", path: ["recipient"], message: "legacy recipient disagrees with payTo" });
+  if (r.maxAmountRequired !== undefined && r.maxAmountRequired !== r.amount) ctx.addIssue({ code: "custom", path: ["maxAmountRequired"], message: "legacy maxAmountRequired disagrees with amount" });
   if (!r.network.startsWith("eip155:")) return;
   for (const k of ["asset", "payTo"] as const) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(r[k])) ctx.addIssue({ code: "custom", path: [k], message: "expected a 20-byte hex address" });

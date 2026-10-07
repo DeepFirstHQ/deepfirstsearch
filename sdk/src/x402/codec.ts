@@ -1,7 +1,8 @@
 import type { z } from "zod";
 
 /** Hard cap on any x402 header we parse; a hostile server cannot make us decode megabytes. */
-export const MAX_HEADER_BYTES = 8 * 1024;
+// Bazaar-style 402s with input/output schemas run past 8 KiB (Otto sends ~10 KiB).
+export const MAX_HEADER_BYTES = 16 * 1024;
 
 export class X402DecodeError extends Error {
   override name = "X402DecodeError";

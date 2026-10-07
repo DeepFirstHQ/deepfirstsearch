@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 (2026-10-07)
+
+Found by paying 14 x402 merchants on Base mainnet:
+- **Fix:** a 402 option that repeats the x402 v1 fields next to the v2 ones (`currency`, `maxAmountRequired`, `recipient`, as OneSource sends) was rejected. They are accepted now only when they agree with `asset`, `amount` and `payTo`; a disagreeing alias rejects the 402.
+- **Fix:** the 402 header limit rises from 8 to 16 KiB. Bazaar listings with input/output schemas (Otto sends ~10 KiB) were refused as too large.
+
 ## 0.5.2 (2026-10-07)
 
 Found by paying CoinGecko over x402 on Base mainnet (Coinbase facilitator):

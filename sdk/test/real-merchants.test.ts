@@ -53,6 +53,14 @@ describe("real x402 merchants on Base", () => {
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...BLOCKRUN.accepts[0], payTo: "not-an-address" }] })).toThrow(/20-byte hex/);
   });
 
+  it("accepts x402 v1 aliases only when they agree with the v2 fields (OneSource)", () => {
+    const opt = { ...BLOCKRUN.accepts[0]!, currency: BLOCKRUN.accepts[0]!.asset, maxAmountRequired: "3000", recipient: BLOCKRUN.accepts[0]!.payTo.toLowerCase() };
+    expect(PaymentRequired.parse({ ...BLOCKRUN, accepts: [opt] }).accepts).toHaveLength(1);
+    expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, recipient: "0x9999999999999999999999999999999999999999" }] })).toThrow(/recipient/);
+    expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, maxAmountRequired: "1" }] })).toThrow(/maxAmountRequired/);
+    expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, currency: "0x9999999999999999999999999999999999999999" }] })).toThrow(/currency/);
+  });
+
   it("still rejects unknown fields outside extra", () => {
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, surprise: 1 })).toThrow();
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...BLOCKRUN.accepts[0], payToOverride: "0x9999999999999999999999999999999999999999" }] })).toThrow();
