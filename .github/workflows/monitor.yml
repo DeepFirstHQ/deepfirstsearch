@@ -24,10 +24,19 @@ jobs:
         run: npm ci
       - working-directory: sdk
         env:
-          RPC_URL: https://mainnet.base.org
+          # Two public RPCs: GitHub runners share IPs and get rate-limited, so the monitor retries and falls back.
+          RPC_URL: https://mainnet.base.org,https://base-rpc.publicnode.com
           FACTORY: ${{ vars.MAINNET_FACTORY || '0xDe17e1B889efa4671852e0b268e100967A7a257E' }}
           FEE_JAR: ${{ vars.MAINNET_FEE_JAR || '0xa375245D25bdB557801Ad07A50c19b3442cA3Ae4' }}
           FROM_BLOCK: ${{ vars.MAINNET_FROM_BLOCK || '52261631' }}
-          LOOKBACK_BLOCKS: "12000"
+          # ~13 h: twice the schedule, so a run lost to an RPC outage is covered by the next one.
+          LOOKBACK_BLOCKS: "24000"
           LARGE_USDC: "100000000"
-        run: npx tsx scripts/monitor.ts
+        # Exit 1 = a finding that needs a human (fails the run, emails the maintainers).
+        # Exit 2 = RPCs unreachable after retries: a warning, not a page; the next run re-scans this window.
+        run: |
+          set +e
+          npx tsx scripts/monitor.ts
+          code=$?
+          if [ "$code" = "2" ]; then echo "::warning::monitor could not reach the RPCs; the next run re-scans this window"; exit 0; fi
+          exit $code

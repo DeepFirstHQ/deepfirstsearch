@@ -7,14 +7,18 @@
  *
  * Designed to run on a schedule (see .github/workflows/monitor.yml): a failing run emails the maintainers.
  */
-import { createPublicClient, http, parseAbiItem, formatUnits, type Address, type Log } from "viem";
+import { createPublicClient, fallback, getAbiItem, http, parseAbiItem, formatUnits, type Address, type Log } from "viem";
+import { BUDGET_VAULT_FACTORY_ABI, BUDGET_VAULT_FULL_ABI, FEE_JAR_ABI } from "../src/contracts/abi.js";
 
 const env = (k: string, d?: string) => {
   const v = process.env[k] ?? d;
   if (v === undefined || v === "") throw new Error(`missing env ${k}`);
   return v;
 };
-const client = createPublicClient({ transport: http(env("RPC_URL")) });
+// Comma-separated RPC list: shared CI IPs get rate-limited by public RPCs, so retry and fall back to the next one.
+const RPCS = env("RPC_URL").split(",").map((u) => u.trim()).filter(Boolean);
+const client = createPublicClient({ transport: fallback(RPCS.map((u) => http(u, { retryCount: 4, retryDelay: 800 }))) });
+const pause = () => new Promise((r) => setTimeout(r, Number(process.env.LOG_PAUSE_MS ?? 150)));
 const FACTORY = env("FACTORY") as Address;
 const FEE_JAR = env("FEE_JAR") as Address;
 const FROM = BigInt(env("FROM_BLOCK"));
@@ -22,14 +26,16 @@ const LOOKBACK = BigInt(env("LOOKBACK_BLOCKS", "12000")); // ~6.7 h on Base
 const LARGE = BigInt(env("LARGE_USDC", "100000000")); // 100 USDC, 6 decimals
 const CHUNK = BigInt(env("LOG_CHUNK", "500")); // public Base RPCs cap eth_getLogs at 500 blocks
 
+// Event definitions come from the compiled contracts, so they can never drift from what the contracts emit.
 const E = {
-  vaultCreated: parseAbiItem("event VaultCreated(address indexed owner, address vault, bytes32 salt)"),
-  paid: parseAbiItem("event Paid(bytes32 indexed id, address indexed to, uint256 amount, uint256 fee)"),
-  funded: parseAbiItem("event BurnerFunded(bytes32 indexed id, address indexed burner, uint256 amount, uint256 fee)"),
-  withdrawn: parseAbiItem("event Withdrawn(address indexed to, uint256 amount)"),
-  deferred: parseAbiItem("event FeeDeferred(address indexed recipient, uint256 amount)"),
-  proposed: parseAbiItem("event ReleaserProposed(address indexed releaser, address indexed depth, uint64 eta)"),
-  set: parseAbiItem("event ReleaserSet(address indexed releaser)"),
+  vaultCreated: getAbiItem({ abi: BUDGET_VAULT_FACTORY_ABI, name: "VaultCreated" }),
+  paid: getAbiItem({ abi: BUDGET_VAULT_FULL_ABI, name: "Paid" }),
+  funded: getAbiItem({ abi: BUDGET_VAULT_FULL_ABI, name: "BurnerFunded" }),
+  withdrawn: getAbiItem({ abi: BUDGET_VAULT_FULL_ABI, name: "Withdrawn" }),
+  deferred: getAbiItem({ abi: BUDGET_VAULT_FULL_ABI, name: "FeeDeferred" }),
+  proposed: getAbiItem({ abi: FEE_JAR_ABI, name: "ReleaserProposed" }),
+  cancelled: getAbiItem({ abi: FEE_JAR_ABI, name: "ReleaserCancelled" }),
+  set: getAbiItem({ abi: FEE_JAR_ABI, name: "ReleaserSet" }),
 };
 
 async function logs<T>(address: Address | Address[] | undefined, event: T, from: bigint, to: bigint) {
@@ -37,6 +43,7 @@ async function logs<T>(address: Address | Address[] | undefined, event: T, from:
   for (let a = from; a <= to; a += CHUNK) {
     const b = a + CHUNK - 1n > to ? to : a + CHUNK - 1n;
     out.push(...(await client.getLogs({ address, event: event as never, fromBlock: a, toBlock: b })));
+    await pause();
   }
   return out as (Log & { args: Record<string, unknown> })[];
 }
@@ -68,8 +75,9 @@ async function main() {
     return keep;
   };
 
-  for (const l of await logs(FEE_JAR, E.proposed, since, head)) alerts.push(`FeeJar releaser PROPOSED: ${l.args.releaser} for token ${l.args.depth}, eta ${l.args.eta} (tx ${l.transactionHash})`);
+  for (const l of await logs(FEE_JAR, E.proposed, since, head)) alerts.push(`FeeJar releaser PROPOSED: ${l.args.releaser} for token ${l.args.depth}, codehash ${l.args.codehash}, eta ${l.args.eta} (tx ${l.transactionHash})`);
   for (const l of await logs(FEE_JAR, E.set, since, head)) alerts.push(`FeeJar releaser SET: ${l.args.releaser} (tx ${l.transactionHash})`);
+  for (const l of await logs(FEE_JAR, E.cancelled, since, head)) alerts.push(`FeeJar releaser proposal CANCELLED: ${l.args.releaser} (tx ${l.transactionHash})`);
 
   {
     let volume = 0n;
@@ -90,4 +98,10 @@ async function main() {
   if (alerts.length) process.exit(1);
 }
 
-await main();
+try {
+  await main();
+} catch (e) {
+  // Not a security finding: the RPCs could not be reached even after retries and fallback.
+  console.log(`MONITOR UNAVAILABLE (RPC): ${(e as Error).message.split("\n")[0]}`);
+  process.exit(2);
+}
