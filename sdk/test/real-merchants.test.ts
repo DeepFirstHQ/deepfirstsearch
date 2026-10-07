@@ -24,7 +24,14 @@ const BLOCKRUN = {
   extensions: { bazaar: { schema: { type: "object" } } },
 };
 
+// CoinGecko (Coinbase facilitator) and Glassnode (Bazaar metadata inside `resource`), captured 2026-10-07.
+const GLASSNODE_RESOURCE = { url: "https://x402.glassnode.com/v1/metadata/metrics?a=BTC", description: "Metrics Catalog", mimeType: "application/json", serviceName: "Glassnode", tags: ["glassnode", "crypto"], iconUrl: "https://x402.glassnode.com/glassnode-com.svg" };
+
 describe("real x402 merchants on Base", () => {
+  it("parses a 402 whose resource carries Bazaar metadata (Glassnode)", () => {
+    expect(PaymentRequired.parse({ ...BLOCKRUN, resource: GLASSNODE_RESOURCE }).resource).toMatchObject({ serviceName: "Glassnode" });
+  });
+
   it("parses Exa's 402 (extra fields kept) and picks the standard USDC option, not the gateway one", () => {
     const required = PaymentRequired.parse(EXA);
     expect((required.accepts[0]!.extra as Record<string, unknown>).acceptId).toBe("legacy");
@@ -68,6 +75,25 @@ describe("settlement receipts", () => {
     expect(r.status).toBe(200);
     expect(r.payment?.amount).toBe(10_000n);
     expect(m.received).toHaveLength(1); // no retry: the receipt was understood the first time
+    await m.close();
+  });
+
+  it("echoes the 402's resource and accepts a null errorReason (CoinGecko via the Coinbase facilitator)", async () => {
+    const MERCHANT = "0x1111111111111111111111111111111111111111";
+    const m = await startMockServer({ "/price": { price: 10_000n, payTo: MERCHANT, cdpStyle: true } });
+    const pay = createAgentPay({
+      registry: new MerchantRegistry([{ origin: m.url, payTo: MERCHANT, network: "eip155:84532", maxPerTx: 50_000n, pricePin: 10_000n }]),
+      policy: { allowedNetworks: ["eip155:84532"] },
+      payer: () => privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"),
+      session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
+      settleRetries: 2, settleRetryDelayMs: 0,
+    });
+    const plan = pay.commitPlan([{ origin: m.url, maxSpend: 50_000n }], 60_000);
+    const r = await pay.fetch(`${m.url}/price`, {}, { plan });
+    expect(r.status).toBe(200);
+    expect(r.payment?.settlement.errorReason).toBeNull();
+    expect(m.received).toHaveLength(1);
+    expect(m.received[0]!.resource?.url).toBe("/price");
     await m.close();
   });
 });

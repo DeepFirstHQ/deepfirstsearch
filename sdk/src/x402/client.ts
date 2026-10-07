@@ -215,7 +215,7 @@ export function createAgentPay(options: AgentPayOptions) {
         validForSeconds: validFor,
         nowSeconds: Math.floor(now() / 1000),
       });
-      const payload: PaymentPayload = { x402Version: 2, accepted: requirement, payload: { signature, authorization } };
+      const payload: PaymentPayload = { x402Version: 2, ...(required.resource ? { resource: required.resource } : {}), accepted: requirement, payload: { signature, authorization } };
       audit.append({ type: "payment.signed", origin: merchant.origin, payTo: merchant.payTo, payer: payer.address, amount, nonce: authorization.nonce });
 
       const headers = new Headers(init.headers);

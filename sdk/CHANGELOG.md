@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2 (2026-10-07)
+
+Found by paying CoinGecko over x402 on Base mainnet (Coinbase facilitator):
+- **Fix:** the payment payload now echoes the 402's `resource`, as the spec's reference clients do. Merchants settled by Coinbase's facilitator (CoinGecko and others) reject payloads without it ("Facilitator returned 400"). Extensions are still never echoed.
+- **Fix:** a receipt with `"errorReason": null` (or a null `payer`/`amount`) is accepted. Before, a paid call was reported as unconfirmed; the SDK resent the same authorization, so nothing was paid twice.
+- `resource` in a 402 may carry Bazaar metadata (`serviceName`, `tags`, `iconUrl`, as Glassnode sends); it no longer fails parsing.
+- The testing mock merchant gains `cdpStyle` to reproduce both behaviours offline.
+
 ## 0.5.1 (2026-10-07)
 
 Found by paying real x402 merchants on Base mainnet (Exa and BlockRun) before showing them to anyone:

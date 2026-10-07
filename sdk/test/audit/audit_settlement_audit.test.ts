@@ -97,14 +97,15 @@ describe("SDK-I-7 settlement receipt is cross-checked against what was signed", 
 });
 
 describe("regression: what is and is not sent / logged", () => {
-  it("does not echo extensions or resource; sets Idempotency-Key to the nonce; logs no signature", async () => {
+  it("echoes the resource but not extensions; sets Idempotency-Key to the nonce; logs no signature", async () => {
     const net = fakeNet({
       onFirst: (u) => resp(402, { "PAYMENT-REQUIRED": encodeHeader({ ...required(), resource: { url: "https://x" }, extensions: { bazaar: { a: 1 } } }) }, u),
     });
     const { pay, plan } = mkPay(net);
     await pay.fetch(`${ORIGIN}/a`, {}, { plan });
     const p = net.signed[0]!;
-    expect(Object.keys(p).sort()).toEqual(["accepted", "payload", "x402Version"]);
+    expect(Object.keys(p).sort()).toEqual(["accepted", "payload", "resource", "x402Version"]);
+    expect(p.resource).toEqual({ url: "https://x" }); // the 402's own resource, required by Coinbase-facilitated merchants
     const h = new Headers(net.sent.at(-1)!.init.headers);
     expect(h.get("Idempotency-Key")).toBe(p.payload.authorization.nonce);
     const log = JSON.stringify(pay.audit.entries, (_k, v) => (typeof v === "bigint" ? v.toString() : v));

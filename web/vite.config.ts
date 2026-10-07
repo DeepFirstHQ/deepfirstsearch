@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { marked } from "marked";
 import { defineConfig, type Plugin } from "vite";
@@ -11,15 +11,18 @@ const PAGES: Record<string, { src: string; title: string }> = {
   "whitepaper.html": { src: "WHITEPAPER.md", title: "Whitepaper" },
   "tokenomics.html": { src: "TOKENOMICS.md", title: "Tokenomics" },
   "developers.html": { src: "DEVELOPERS.md", title: "Developers" },
-  "integrations/exa.html": { src: "integrations/EXA.md", title: "Exa + Agent Safe" },
-  "integrations/blockrun.html": { src: "integrations/BLOCKRUN.md", title: "BlockRun + Agent Safe" },
-  "integrations/turnkey.html": { src: "integrations/TURNKEY.md", title: "Turnkey + Agent Safe" },
   "guides/openclaw.html": { src: "guides/OPENCLAW.md", title: "OpenClaw: a wallet it can't be tricked into emptying" },
   "partners.html": { src: "PARTNERS.md", title: "Partners" },
   "legal/terms.html": { src: "legal/TERMS.md", title: "Terms of Use" },
   "legal/privacy.html": { src: "legal/PRIVACY.md", title: "Privacy Policy" },
   "legal/risks.html": { src: "legal/RISKS.md", title: "Risk Disclosure" },
 };
+
+// Every integration guide in docs/integrations becomes a page, titled by its first heading.
+for (const f of readdirSync(resolve(DOCS, "integrations")).filter((f) => f.endsWith(".md"))) {
+  const heading = readFileSync(resolve(DOCS, "integrations", f), "utf8").match(/^# (.+)$/m)?.[1] ?? f;
+  PAGES[`integrations/${f.replace(/\.md$/, "").toLowerCase()}.html`] = { src: `integrations/${f}`, title: heading.split(":")[0]! };
+}
 
 const CSP =
   "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'";

@@ -8,7 +8,8 @@ const hex32 = z.string().regex(/^0x[0-9a-fA-F]{64}$/, "expected 32 bytes of hex"
 const atomic = z.string().regex(/^[0-9]{1,78}$/, "expected an atomic integer amount");
 const caip2 = z.string().regex(/^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$/, "expected a CAIP-2 network id");
 
-export const ResourceInfo = z.strictObject({
+// Loose: Bazaar-style 402s add metadata (serviceName, tags, iconUrl). It is echoed back to the server as received.
+export const ResourceInfo = z.looseObject({
   url: z.string().max(2048),
   description: z.string().max(1024).optional(),
   mimeType: z.string().max(128).optional(),
@@ -47,7 +48,7 @@ export const PaymentRequired = z.strictObject({
   error: z.string().max(1024).optional(),
   resource: ResourceInfo.optional(),
   accepts: z.array(PaymentRequirements).max(16),
-  // Extensions (e.g. Bazaar) are accepted on input but never echoed back: they only leak metadata.
+  // Extensions (e.g. Bazaar) are accepted on input but never echoed back: they only leak metadata. The resource is.
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
 export type PaymentRequired = z.infer<typeof PaymentRequired>;
@@ -64,6 +65,8 @@ export type Authorization = z.infer<typeof Authorization>;
 
 export const PaymentPayload = z.strictObject({
   x402Version: z.literal(2),
+  // The 402's resource, echoed as the spec's clients do; facilitators such as Coinbase's reject payloads without it.
+  resource: ResourceInfo.optional(),
   accepted: PaymentRequirements,
   payload: z.strictObject({
     signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
@@ -76,11 +79,11 @@ export type PaymentPayload = z.infer<typeof PaymentPayload>;
 // a newer facilitator adding a field must not make a completed payment look failed. Requests stay strict.
 export const SettleResponse = z.object({
   success: z.boolean(),
-  payer: hexAddress.optional(),
+  payer: hexAddress.nullish(),
   transaction: z.string().max(256),
   network: caip2,
-  amount: atomic.optional(),
-  errorReason: z.string().max(512).optional(),
+  amount: atomic.nullish(),
+  errorReason: z.string().max(512).nullish(), // some facilitators send null on success
 });
 export type SettleResponse = z.infer<typeof SettleResponse>;
 
