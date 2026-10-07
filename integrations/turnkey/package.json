@@ -43,7 +43,7 @@
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@deepfirstsearch/agent-pay": "0.5.1"
+    "@deepfirstsearch/agent-pay": "0.5.2"
   },
   "devDependencies": {
     "@turnkey/sdk-server": "8.6.0",
