@@ -15,7 +15,7 @@
  * Exit code 1 if anything blocks.
  */
 import { execFileSync } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
 
@@ -57,10 +57,30 @@ const BLOB = /[A-Za-z0-9+/=_-]{160,}/;
 const MAX_FILE_BYTES = 256 * 1024;
 const MAX_LINE = 400;
 
+const DEP_SECTIONS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies", "overrides", "resolutions"];
+const showJson = (rev, file) => { try { return JSON.parse(git("show", `${rev}:${file}`)); } catch { return null; } };
+// Anything that isn't a plain registry version or range: git, URLs, local paths, GitHub shorthand, npm: aliases.
+const NON_REGISTRY = /^(git|git\+|https?:|file:|link:|workspace:|npm:|github:|gitlab:|bitbucket:)|^[\w.-]+\/[\w.-]+(#.*)?$/;
+
+/** Dependencies added or changed in one package.json, compared as parsed JSON (not line by line). */
+export function dependencyChanges(baseRev, headRev, file) {
+  const before = showJson(baseRev, file) ?? {}, after = showJson(headRev, file) ?? {};
+  const out = [];
+  for (const section of DEP_SECTIONS) {
+    const a = before[section] ?? {}, b = after[section] ?? {};
+    for (const [name, spec] of Object.entries(b)) {
+      if (typeof spec !== "string") { out.push({ section, name, spec: JSON.stringify(spec), was: a[name] }); continue; }
+      if (a[name] !== spec) out.push({ section, name, spec, was: a[name] });
+    }
+  }
+  return out;
+}
+
 export function analyze(base, head) {
   const findings = [];
   const add = (level, file, line, what, text = "") => findings.push({ level, file, line, what, text: text.slice(0, 140) });
   const mergeBase = git("merge-base", base, head).trim();
+  const deps = [];
 
   for (const row of git("diff", "--raw", "--no-renames", "-z", mergeBase, head).split("\0:").filter(Boolean)) {
     const [meta, file] = row.replace(/^:/, "").split("\0");
@@ -70,6 +90,13 @@ export function analyze(base, head) {
     if (newMode === "160000") add("review", file, 0, "submodule pointer changed");
     if (status === "D") { add("note", file, 0, "file deleted"); continue; }
     for (const [re, why] of SENSITIVE_PATHS) if (re.test(file)) { add("review", file, 0, `sensitive path: ${why}`); break; }
+    if (/(^|\/)package\.json$/.test(file)) {
+      for (const d of dependencyChanges(mergeBase, head, file)) {
+        deps.push({ file, ...d });
+        if (NON_REGISTRY.test(d.spec)) add("block", file, 0, `dependency ${d.name} comes from outside the npm registry`, d.spec);
+        else add("review", file, 0, `${d.was === undefined ? "new" : "changed"} ${d.section} entry ${d.name}@${d.spec}${d.was ? ` (was ${d.was})` : ""}`);
+      }
+    }
     if (newSha && !/^0+$/.test(newSha) && newMode !== "160000") {
       const size = Number(git("cat-file", "-s", newSha).trim());
       if (size > MAX_FILE_BYTES) add("block", file, 0, `file is ${Math.round(size / 1024)} KiB (limit ${MAX_FILE_BYTES / 1024} KiB)`);
@@ -92,6 +119,10 @@ export function analyze(base, head) {
     const isLock = /package-lock\.json$|yarn\.lock$|pnpm-lock\.yaml$/.test(file);
     if (INVISIBLE.test(text)) add("block", file, line, "invisible or bidirectional Unicode character", JSON.stringify(text));
     if (/package\.json$/.test(file) && LIFECYCLE.test(text)) add("block", file, line, "install-time lifecycle script", text);
+    // Lockfile injection: a package resolved from anywhere but the public npm registry.
+    const resolved = /"resolved"\s*:\s*"([^"]+)"/.exec(text);
+    if (resolved && isLock && !/^https:\/\/registry\.npmjs\.org\//.test(resolved[1])) add("block", file, line, "lockfile resolves a package outside registry.npmjs.org", resolved[1]);
+    if (isLock && /"(hasInstallScript)"\s*:\s*true/.test(text)) add("review", file, line, "a locked package has install scripts (blocked at install by --ignore-scripts; check why it's needed)", text.trim());
     if (!isLock && BLOB.test(text)) add("block", file, line, "long encoded blob", text);
     if (!isLock && CODE.test(file) && text.length > MAX_LINE) add("block", file, line, `line of ${text.length} characters (minified or obfuscated?)`, text);
     if (CODE.test(file) && !isLock) {
@@ -99,6 +130,7 @@ export function analyze(base, head) {
     }
     line++;
   }
+  analyze.deps = deps;
   return findings;
 }
 
@@ -125,5 +157,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error("set BASE_SHA and HEAD_SHA (hex commit ids)");
     process.exit(2);
   }
-  process.exit(report(analyze(BASE_SHA, HEAD_SHA), APPROVED === "1"));
+  const findings = analyze(BASE_SHA, HEAD_SHA);
+  if (process.env.DEPS_OUT) writeFileSync(process.env.DEPS_OUT, JSON.stringify(analyze.deps ?? [], null, 1));
+  process.exit(report(findings, APPROVED === "1"));
 }

@@ -58,4 +58,14 @@ jobs:
           # Approval counts only if the label was added by a maintainer and no commit came after it.
           APPROVED: ${{ (github.event.action != 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')) && '1' || '0' }}
         # The diff is taken from the merge base of current main and the PR head, so only the PR's own changes count.
-        run: BASE_SHA="$(git rev-parse HEAD)" node scripts/pr-guard/guard.mjs
+        run: BASE_SHA="$(git rev-parse HEAD)" DEPS_OUT="$RUNNER_TEMP/deps.json" node scripts/pr-guard/guard.mjs
+
+      # New or changed dependencies, checked against public npm metadata only (nothing is installed or run):
+      # typosquats of packages we use, install scripts, brand-new or unpopular packages, missing versions.
+      - name: Dependency audit
+        if: always()
+        env:
+          APPROVED: ${{ (github.event.action != 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')) && '1' || '0' }}
+        run: |
+          [ -f "$RUNNER_TEMP/deps.json" ] || echo "[]" > "$RUNNER_TEMP/deps.json"
+          DEPS_IN="$RUNNER_TEMP/deps.json" node scripts/pr-guard/deps-audit.mjs
