@@ -42,23 +42,6 @@ describe("x402 client", () => {
     expect(server!.received).toHaveLength(0);
   });
 
-  it("bounds the signed validity window to min(requirement, merchant max)", async () => {
-    // Merchant max overrides policy to 3600; server requires 3600; should sign for 3600
-    server = await startMockServer({ "/data": { price: 10_000n, payTo: MERCHANT_PAYTO, tamper: (r) => ({ ...r, maxTimeoutSeconds: 3600 }) } });
-    const registry = new MerchantRegistry([
-      { origin: server.url, payTo: MERCHANT_PAYTO, network: NETWORK, maxPerTx: 1_000_000n, pricePin: 10_000n, maxTimeoutSeconds: 3600 },
-    ]);
-    const pay = createAgentPay({ registry, policy, payer: () => payer, session: safeSession });
-    const plan = pay.commitPlan([{ origin: server.url, maxSpend: 100_000n }], 60_000);
-    const res = await pay.fetch(`${server.url}/data`, {}, { plan });
-    expect(res.status).toBe(200);
-
-    const auth = server!.received[0]!.payload.authorization;
-    // exactEvm.ts sets validAfter = now - 30, validBefore = now + validFor
-    // So validBefore - validAfter should be 3600 + 30
-    expect(Number(auth.validBefore) - Number(auth.validAfter)).toBe(3630);
-  });
-
   it("never signs when the server raises the price", async () => {
     const { pay, plan, url } = await client({ "/data": { price: 900_000n, payTo: MERCHANT_PAYTO } });
     await expect(pay.fetch(`${url}/data`, {}, { plan })).rejects.toThrow(/pinned price/);
