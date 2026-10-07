@@ -30,6 +30,16 @@ claude mcp add agent-pay \
   -- npx -y @deepfirstsearch/agent-pay-mcp /absolute/path/config.json
 ```
 
+### OpenClaw
+
+```bash
+npm install -g @deepfirstsearch/agent-pay-mcp
+openclaw mcp set agent-pay '{"command":"agent-pay-mcp","args":["/absolute/path/config.json"],"env":{"AGENT_PAY_AGENT_KEY":"${AGENT_PAY_AGENT_KEY}","AGENT_PAY_BURNER_SEED":"${AGENT_PAY_BURNER_SEED}"}}'
+openclaw mcp probe agent-pay   # - agent-pay: 3 tools
+```
+
+Full walkthrough: [OpenClaw guide](https://deepfirstsearch.com/guides/openclaw.html).
+
 ### Claude Desktop / Cursor
 
 `claude_desktop_config.json` (Claude Desktop) or `.cursor/mcp.json` (Cursor):

@@ -11,6 +11,7 @@ const PAGES: Record<string, { src: string; title: string }> = {
   "whitepaper.html": { src: "WHITEPAPER.md", title: "Whitepaper" },
   "tokenomics.html": { src: "TOKENOMICS.md", title: "Tokenomics" },
   "developers.html": { src: "DEVELOPERS.md", title: "Developers" },
+  "guides/openclaw.html": { src: "guides/OPENCLAW.md", title: "OpenClaw: a wallet it can't be tricked into emptying" },
   "partners.html": { src: "PARTNERS.md", title: "Partners" },
   "legal/terms.html": { src: "legal/TERMS.md", title: "Terms of Use" },
   "legal/privacy.html": { src: "legal/PRIVACY.md", title: "Privacy Policy" },

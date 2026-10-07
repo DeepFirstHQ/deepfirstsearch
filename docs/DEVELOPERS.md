@@ -32,6 +32,8 @@ Result  spent 0.03 of 0.03 USDC · signatures to attackers: 0
 | LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain` | [LangChain tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain) |
 | Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk) |
 
+Using **OpenClaw**? Follow the step-by-step guide: [Give your OpenClaw agent a wallet it can't be tricked into emptying](guides/OPENCLAW.md).
+
 ### Claude Code, in one line
 
 ```bash
