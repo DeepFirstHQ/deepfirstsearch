@@ -32,6 +32,10 @@ jobs:
           # ~13 h: twice the schedule, so a run lost to an RPC outage is covered by the next one.
           LOOKBACK_BLOCKS: "24000"
           LARGE_USDC: "100000000"
+          # Optional: also send alerts to Telegram and/or Discord (scripts/notify.ts). Unset secrets are skipped.
+          TELEGRAM_BOT_TOKEN: ${{ secrets.MONITOR_TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.MONITOR_TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.MONITOR_DISCORD_WEBHOOK_URL }}
         # Exit 1 = a finding that needs a human (fails the run, emails the maintainers).
         # Exit 2 = RPCs unreachable after retries: a warning, not a page; the next run re-scans this window.
         run: |

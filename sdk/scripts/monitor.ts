@@ -6,9 +6,11 @@
  *   LOOKBACK_BLOCKS=12000 LARGE_USDC=100000000 npx tsx scripts/monitor.ts
  *
  * Designed to run on a schedule (see .github/workflows/monitor.yml): a failing run emails the maintainers.
+ * Optionally also sends alerts to Telegram and/or Discord (see scripts/notify.ts).
  */
 import { createPublicClient, fallback, getAbiItem, http, parseAbiItem, formatUnits, type Address, type Log } from "viem";
 import { BUDGET_VAULT_FACTORY_ABI, BUDGET_VAULT_FULL_ABI, FEE_JAR_ABI } from "../src/contracts/abi.js";
+import { notify } from "./notify.js";
 
 const env = (k: string, d?: string) => {
   const v = process.env[k] ?? d;
@@ -95,6 +97,7 @@ async function main() {
   console.log(`blocks ${since}–${head}`);
   for (const i of info) console.log(`info: ${i}`);
   for (const a of alerts) console.log(`ALERT: ${a}`);
+  for (const r of await notify(alerts, `blocks ${since}–${head}`, process.env)) console.log(`notify ${r}`);
   if (alerts.length) process.exit(1);
 }
 

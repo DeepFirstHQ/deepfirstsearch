@@ -80,6 +80,17 @@ npx @deepfirstsearch/agent-pay owner status --vault 0x…
 
 The official addresses and ABIs are exported too: `AGENT_SAFE.base.factory`, `BUDGET_VAULT_FULL_ABI`, `BUDGET_VAULT_FACTORY_ABI`, `FEE_JAR_ABI`.
 
+## Pay real x402 APIs on Base mainnet (2 cents, 1 minute)
+
+`examples/real-merchants.ts` pays three public x402 APIs (Blockchain.com, Spraay, CoinGecko) through the SDK, 0.012 USDC per run, then shows an injected 402 for 5 USDC being refused before anything is signed. The payer needs a few cents of USDC on Base and no ETH.
+
+```bash
+git clone https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/sdk && npm ci
+PAYER_KEY=0x… npx tsx examples/real-merchants.ts   # a throwaway key, never a wallet that matters
+```
+
+Fourteen merchants, each tested with a real payment, have a step-by-step guide at [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html).
+
 ## Try the whole loop on Base Sepolia (free, about 1 hour)
 
 `examples/sepolia-live.ts` runs a real x402 payment end to end with your own testnet keys: it creates a vault, signs a budget, waits out the timelock, then an agent pays a local x402 endpoint and the public facilitator settles it on-chain.
