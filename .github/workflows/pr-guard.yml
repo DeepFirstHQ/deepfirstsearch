@@ -29,7 +29,7 @@ jobs:
       - name: Check out main (the guard itself), never the PR
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          ref: ${{ github.event.repository.default_branch }} # current main, not the PR's (possibly older) base
           fetch-depth: 0
           persist-credentials: false
 
@@ -54,8 +54,18 @@ jobs:
 
       - name: Static checks
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           # Approval counts only if the label was added by a maintainer and no commit came after it.
           APPROVED: ${{ (github.event.action != 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')) && '1' || '0' }}
-        run: node scripts/pr-guard/guard.mjs
+        # The diff is taken from the merge base of current main and the PR head, so only the PR's own changes count.
+        run: BASE_SHA="$(git rev-parse HEAD)" DEPS_OUT="$RUNNER_TEMP/deps.json" node scripts/pr-guard/guard.mjs
+
+      # New or changed dependencies, checked against public npm metadata only (nothing is installed or run):
+      # typosquats of packages we use, install scripts, brand-new or unpopular packages, missing versions.
+      - name: Dependency audit
+        if: always()
+        env:
+          APPROVED: ${{ (github.event.action != 'synchronize' && contains(github.event.pull_request.labels.*.name, 'maintainer-approved')) && '1' || '0' }}
+        run: |
+          [ -f "$RUNNER_TEMP/deps.json" ] || echo "[]" > "$RUNNER_TEMP/deps.json"
+          DEPS_IN="$RUNNER_TEMP/deps.json" node scripts/pr-guard/deps-audit.mjs

@@ -93,3 +93,14 @@ test("computed imports and raw sockets are flagged", () => {
   assert.ok(has(f, "review", /computed path/));
   assert.ok(has(f, "review", /socket/));
 });
+
+test("a dependency from git or a URL blocks; a registry dependency is listed for review", () => {
+  const f = repo((d) => write(d, { "integrations/mcp/package.json": JSON.stringify({ dependencies: { "left-pad": "1.3.0", helper: "github:evil/helper", other: "https://evil.example.net/x.tgz" } }, null, 2) + "\n" }));
+  assert.ok(f.some((x) => x.level === "review" && /new dependencies entry left-pad@1\.3\.0/.test(x.what)));
+  assert.equal(f.filter((x) => x.level === "block" && /outside the npm registry/.test(x.what)).length, 2);
+});
+
+test("a lockfile resolving a package outside registry.npmjs.org blocks", () => {
+  const f = repo((d) => write(d, { "integrations/mcp/package-lock.json": '{\n  "packages": {\n    "node_modules/x": {\n      "resolved": "https://evil.example.net/x-1.0.0.tgz"\n    },\n    "node_modules/y": {\n      "resolved": "https://registry.npmjs.org/y/-/y-1.0.0.tgz"\n    }\n  }\n}\n' }));
+  assert.equal(f.filter((x) => x.level === "block" && /outside registry\.npmjs\.org/.test(x.what)).length, 1);
+});

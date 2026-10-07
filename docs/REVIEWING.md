@@ -11,6 +11,10 @@ This code moves money, so every outside pull request goes through the same four 
   - sensitive paths: `.github/`, `package.json`, lockfiles, build configs, contracts, signing/policy/wallet code, integration runtime code, scripts;
   - dangerous APIs in added lines: process execution, `eval`/`new Function`, computed imports, requests to outside hosts, raw sockets, home directory, credentials or keys, unexpected environment variables, decoding hidden strings, filesystem writes.
 
+- **Dependencies:** every added or changed dependency is listed. Sources other than the npm registry (git, URLs, local paths) and lockfiles that resolve a package anywhere but `registry.npmjs.org` block outright. Then `scripts/pr-guard/deps-audit.mjs` checks each one against public npm metadata, without installing anything:
+  - blocks: a name one or two letters away from a package we already use (typosquat), install scripts, missing or deprecated versions;
+  - flags for review: packages created less than 90 days ago, versions under 14 days old, fewer than 5,000 weekly downloads, a single maintainer, no repository link, ranges instead of exact pins.
+
 **Approval** is the `maintainer-approved` label, added after reviewing the **exact head commit**. Any new push removes the label automatically, so approved code can't be swapped.
 
 ## 2. Tests in CI (sandboxed)
@@ -41,4 +45,4 @@ It was verified to block reading `private/`, `~/.ssh` and Foundry keystores, int
 
 ## Merge
 
-Merge only when all four are green: guard passed (with approval if needed), CI passed, review done, and the approval is on the current head commit. Squash-merge, so the history shows one reviewed change.
+Merge only when all four are green: guard passed (with approval if needed), CI passed, review done, and the approval is on the current head commit. Before approving, check the dependency audit even when it passed: a new library is where most supply-chain attacks start, and a contributor's first harmless PR can be the trust-building step before a malicious one. Every PR gets the same review, whoever opened it.

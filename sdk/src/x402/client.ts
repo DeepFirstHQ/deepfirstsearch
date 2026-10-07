@@ -99,19 +99,7 @@ export function createAgentPay(options: AgentPayOptions) {
     let required: PaymentRequired;
     let isV1 = false;
     try {
-      const headerReq = first.headers.get(HEADERS.required);
-      if (headerReq) {
-        required = decodeHeader(headerReq, PaymentRequired);
-      } else if (options.policy.acceptV1) {
-        const bodyText = await first.clone().text();
-        if (!bodyText) throw new Error("No PAYMENT-REQUIRED header and empty body");
-        
-        const parsedBody = JSON.parse(bodyText);
-        required = PaymentRequiredV1Body.parse(parsedBody);
-        isV1 = true;
-      } else {
-        throw new Error("Missing PAYMENT-REQUIRED header (v1 disabled via policy)");
-      }
+      required = decodeHeader(first.headers.get(HEADERS.required), PaymentRequired);
     } catch (e) {
       const reason = e instanceof X402DecodeError ? e.message : `unreadable 402: ${String((e as Error)?.message ?? e).slice(0, 100)}`;
       audit.append({ type: "payment.denied", url: input, reasons: [reason] });
