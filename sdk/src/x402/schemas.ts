@@ -105,31 +105,44 @@ export const HEADERS = {
   legacySignature: "X-PAYMENT",
 } as const;
 
-// Strict schema for v1 402 bodies (e.g., Neynar, SLAMai, Browserbase)
-export const PaymentRequiredV1Body = z.strictObject({
+// Live v1 bodies (Neynar, SLAMai) shape matching maintainer review requirements
+const PaymentRequiredV1Raw = z.object({
   x402Version: z.literal(1),
-  network: z.literal("base"),
-  maxAmountRequired: z.string().regex(/^[0-9]{1,78}$/, "expected an atomic integer amount"),
-  payTo: z.string().min(1).max(128).optional(),
-  recipient: z.string().min(1).max(128).optional(),
-  asset: z.string().min(1).max(128).optional(),
-  currency: z.string().min(1).max(128).optional(),
-  maxTimeoutSeconds: z.number().int().nonnegative().optional(),
-}).superRefine((r, ctx) => {
-  if (!r.payTo && !r.recipient) ctx.addIssue({ code: "custom", path: ["payTo"], message: "payTo or recipient required" });
-  if (!r.asset && !r.currency) ctx.addIssue({ code: "custom", path: ["asset"], message: "asset or currency required" });
-}).transform((v1) => {
-  // Map v1 fields into standard v2 PaymentRequirements shape so existing policy checks apply unchanged
-  return {
-    x402Version: 1,
-    accepts: [{
-      scheme: "exact",
-      network: "eip155:8453", // Map "base" string to CAIP-2 standard
-      amount: v1.maxAmountRequired,
-      asset: v1.asset ?? v1.currency!,
-      payTo: v1.payTo ?? v1.recipient!,
-      maxTimeoutSeconds: v1.maxTimeoutSeconds ?? 300,
-      extra: {},
-    }]
-  } as PaymentRequired;
+  error: z.string().optional(),
+  accepts: z.array(
+    z.object({
+      scheme: z.string(),
+      network: z.string(),
+      maxAmountRequired: atomic,
+      resource: z.string().optional(),
+      description: z.string().optional(),
+      mimeType: z.string().optional(),
+      payTo: z.string(),
+      maxTimeoutSeconds: z.number().int().nonnegative(),
+      asset: z.string(),
+      outputSchema: z.unknown().optional(),
+      extra: z.unknown().optional(),
+    })
+  ).min(1),
 });
+
+export const PaymentRequiredV1Body = PaymentRequiredV1Raw.transform((v1): z.input<typeof PaymentRequired> => {
+  const first = v1.accepts[0]!;
+  
+  // Map once inside the schema to normalize to the v2 shape
+  return {
+    x402Version: 2, // Standardize to v2 internally for the policy engine
+    error: v1.error,
+    resource: first.resource 
+      ? { url: first.resource, description: first.description, mimeType: first.mimeType } 
+      : undefined,
+    accepts: v1.accepts.map((acc) => ({
+      scheme: acc.scheme,
+      network: acc.network === "base" ? "eip155:8453" : acc.network,
+      amount: acc.maxAmountRequired,
+      payTo: acc.payTo,
+      asset: acc.asset,
+      maxTimeoutSeconds: acc.maxTimeoutSeconds,
+    })),
+  };
+}).pipe(PaymentRequired); // Force mapped requirements through the exact same hex/address checks as v2

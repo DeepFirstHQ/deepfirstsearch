@@ -22,6 +22,77 @@ async function client(routes: Parameters<typeof startMockServer>[0], extra: Part
 }
 
 describe("x402 client", () => {
+  it("pays a real v1 402 end-to-end", async () => {
+    // 1. Setup the real Neynar JSON shape we captured
+    const neynarV1Body = {
+      x402Version: 1,
+      error: "X-PAYMENT header or API key required",
+      accepts: [{
+        scheme: "exact",
+        network: "base",
+        maxAmountRequired: "10000",
+        resource: "http://api.neynar.com/farcaster/user/bulk",
+        payTo: MERCHANT_PAYTO, // using fixture address for tests
+        maxTimeoutSeconds: 60,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      }]
+    };
+
+    // 2. Mock fetch to return the JSON body instead of a PAYMENT-REQUIRED header
+    let fetchCount = 0;
+    const fetchMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCount++;
+      const headers = new Headers(init?.headers);
+      
+      // On the second request, verify the agent sent the v1 payload format in the correct header
+      if (headers.has("X-PAYMENT")) {
+        const payload = JSON.parse(atob(headers.get("X-PAYMENT") as string));
+        expect(payload.x402Version).toBe(1);
+        expect(payload.network).toBe("base"); // must be 'base', not 'eip155:8453' in the payload
+        expect(payload.payload.signature).toBeDefined();
+        return new Response(null, { status: 200, headers: { "X-PAYMENT-RESPONSE": JSON.stringify({ success: true, network: "eip155:8453", transaction: "0x..." }) } });
+      }
+
+      // First request returns the 402 with the JSON body
+      return new Response(JSON.stringify(neynarV1Body), { status: 402, headers: { "Content-Type": "application/json" } });
+    };
+
+    // 3. Initialize the agent with v1 enabled in the policy
+    const registry = new MerchantRegistry([{ origin: "https://api.neynar.com", payTo: MERCHANT_PAYTO, network: "eip155:8453", maxPerTx: 100_000n, pricePin: 10_000n }]);
+    const v1Policy = { ...policy, acceptV1: true };
+    const pay = createAgentPay({ registry, policy: v1Policy, payer: () => payer, session: safeSession, fetch: fetchMock as typeof fetch });
+    const plan = pay.commitPlan([{ origin: "https://api.neynar.com", maxSpend: 100_000n }], 60_000);
+    
+    const res = await pay.fetch("https://api.neynar.com/v2/farcaster/user/bulk?fids=3", {}, { plan });
+    
+    expect(res.status).toBe(200);
+    expect(fetchCount).toBe(2);
+  });
+
+  it("refuses hostile v1 402s with zero signatures", async () => {
+    // 1. Setup a hostile payload (amount higher than maxPerTx)
+    const hostileBody = {
+      x402Version: 1,
+      accepts: [{
+        scheme: "exact",
+        network: "base",
+        maxAmountRequired: "9999999999999999", // Hostile: Way too high
+        payTo: MERCHANT_PAYTO,
+        asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      }]
+    };
+
+    const fetchMock = async () => new Response(JSON.stringify(hostileBody), { status: 402, headers: { "Content-Type": "application/json" } });
+
+    const registry = new MerchantRegistry([{ origin: "https://api.neynar.com", payTo: MERCHANT_PAYTO, network: "eip155:8453", maxPerTx: 10_000n }]);
+    const pay = createAgentPay({ registry, policy: { ...policy, acceptV1: true }, payer: () => payer, session: safeSession, fetch: fetchMock as typeof fetch });
+    const plan = pay.commitPlan([{ origin: "https://api.neynar.com", maxSpend: 100_000n }], 60_000);
+    
+    // Ensure the guard blocks it and NO signatures were generated
+    await expect(pay.fetch("https://api.neynar.com/x", {}, { plan })).rejects.toThrow();
+    expect(pay.audit.entries.some(e => e.event.type === "payment.signed")).toBe(false);
+  });
+  
   it("pays an honest merchant and records a verifiable audit chain", async () => {
     const { pay, plan, url } = await client({ "/data": { price: 10_000n, payTo: MERCHANT_PAYTO } });
     const res = await pay.fetch(`${url}/data`, {}, { plan });
