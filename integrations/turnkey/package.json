@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-turnkey",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Turnkey-held keys as Agent Safe payers: x402 payments signed inside Turnkey, inside an owner-signed budget",
   "license": "MIT",
   "type": "module",
@@ -33,6 +33,7 @@
     "node": ">=20"
   },
   "peerDependencies": {
+    "@deepfirstsearch/agent-pay": ">=0.5.3 <1",
     "@turnkey/sdk-server": ">=4",
     "viem": "^2"
   },
@@ -42,15 +43,14 @@
     "test": "vitest run",
     "prepublishOnly": "npm run typecheck && npm run build"
   },
-  "dependencies": {
-    "@deepfirstsearch/agent-pay": "0.5.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@turnkey/sdk-server": "8.6.0",
     "@types/node": "26.6.4",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
     "viem": "2.57.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "@deepfirstsearch/agent-pay": "0.6.1"
   }
 }

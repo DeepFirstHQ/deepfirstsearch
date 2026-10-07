@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { tool } from "ai";
 import { z } from "zod";
-import { PaymentBlockedError, PaymentDeniedError, type createAgentPay, type SealedPlan } from "@deepfirstsearch/agent-pay";
+import type { createAgentPay, SealedPlan } from "@deepfirstsearch/agent-pay";
 
 type AgentPay = ReturnType<typeof createAgentPay>;
 
@@ -60,7 +60,9 @@ export function paidFetchTool(opts: PaidFetchToolOptions) {
           truncated: text.length > max,
         };
       } catch (e) {
-        const refused = e instanceof PaymentDeniedError || e instanceof PaymentBlockedError;
+        // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
+        const name = (e as Error)?.name;
+        const refused = name === "PaymentDeniedError" || name === "PaymentBlockedError";
         return { ok: false, refused, reason: (e as Error).message };
       }
     },

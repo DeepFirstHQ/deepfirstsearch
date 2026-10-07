@@ -18,7 +18,7 @@ import {
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
 
-export const VERSION = "0.1.3";
+export const VERSION = "0.1.6"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
@@ -139,7 +139,7 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
         };
       } catch (e) {
         const kind =
-          e instanceof PaymentDeniedError ? "Payment refused by policy" : e instanceof PaymentBlockedError ? "Payment blocked" : "Request failed";
+          (e as Error)?.name === "PaymentDeniedError" ? "Payment refused by policy" : (e as Error)?.name === "PaymentBlockedError" ? "Payment blocked" : "Request failed";
         return { content: [{ type: "text" as const, text: `${kind}: ${(e as Error).message}` }], isError: true };
       }
     },
