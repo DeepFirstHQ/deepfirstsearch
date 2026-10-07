@@ -121,6 +121,23 @@ jobs:
           node-version: 22
       - run: node --test scripts/pr-guard/guard.test.mjs scripts/pr-guard/deps-audit.test.mjs
 
+  zodiac-roles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/zodiac-roles/package-lock.json
+      # The Base-fork suite needs anvil and BASE_FORK_RPC; without them it is skipped and the unit tests run.
+      - working-directory: integrations/zodiac-roles
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
   order-guard:
     runs-on: ubuntu-latest
     steps:
