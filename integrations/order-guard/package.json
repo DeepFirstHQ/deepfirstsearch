@@ -1,0 +1,31 @@
+{
+  "name": "@deepfirstsearch/order-guard",
+  "version": "0.1.0",
+  "description": "Owner-set limits for AI agents that place real orders (food delivery, shopping): approved stores, pinned delivery address, order and tip caps, daily budget",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./testing": { "types": "./dist/testing.d.ts", "import": "./dist/testing.js" }
+  },
+  "files": ["dist", "README.md"],
+  "repository": { "type": "git", "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git", "directory": "integrations/order-guard" },
+  "keywords": ["ai-agents", "agentic-commerce", "mcp", "prompt-injection", "spending-limits", "food-delivery"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsup src/index.ts src/testing.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "demo": "tsx examples/burrito.ts",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.4",
+    "tsup": "8.5.1",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
