@@ -100,10 +100,107 @@ export const SettleResponse = z.object({
 });
 export type SettleResponse = z.infer<typeof SettleResponse>;
 
+// ---------------------------------------------------------------------------------------------------------------
+// x402 v1 (opt-in per merchant, see Merchant.x402Versions). v1 sends the 402 as a JSON body, names networks with
+// short names instead of CAIP-2, puts the price in `maxAmountRequired`, and exchanges `X-PAYMENT` /
+// `X-PAYMENT-RESPONSE`. Field names follow the reference client (coinbase/x402, @x402/core types/v1 and
+// @x402/evm exact/v1/client). A v1 402 is normalized into the v2 shape above and then goes through the same policy.
+
+/**
+ * The only v1 network names we understand, mapped to CAIP-2 by a fixed table (never derived from the server).
+ * Any other name (solana, polygon, typos...) is not a payable option.
+ */
+export const V1_NETWORKS: Readonly<Record<string, `eip155:${number}`>> = Object.freeze({
+  base: "eip155:8453",
+  "base-sepolia": "eip155:84532",
+});
+
+/** CAIP-2 id for a v1 network name, or undefined when the name is not in the fixed table. */
+export function v1NetworkToCaip2(name: string): `eip155:${number}` | undefined {
+  return Object.prototype.hasOwnProperty.call(V1_NETWORKS, name) ? V1_NETWORKS[name] : undefined;
+}
+
+/** v1 name for a CAIP-2 id in the fixed table, or undefined. */
+export function caip2ToV1Network(caip2Id: string): string | undefined {
+  return Object.keys(V1_NETWORKS).find((k) => V1_NETWORKS[k] === caip2Id);
+}
+
+const v1Network = z.string().regex(/^[a-z0-9][-a-z0-9]{0,31}$/, "expected a v1 network name");
+
+export const PaymentRequirementsV1 = z.strictObject({
+  scheme: z.string().max(32),
+  network: v1Network,
+  maxAmountRequired: atomic,
+  // Resource metadata, informational only (a v1 payment payload does not echo it).
+  resource: z.string().max(2048).optional(),
+  description: z.string().max(2048).optional(),
+  mimeType: z.string().max(128).optional(),
+  // Bazaar-style input/output description. Informational only; never read, never echoed back.
+  outputSchema: z.record(z.string(), z.unknown()).nullish(),
+  payTo: chainAddress,
+  maxTimeoutSeconds: z.number().int().nonnegative(),
+  asset: chainAddress,
+  // Same rules as v2: free-form, the typed fields are checked against the pins, nothing in it is used to sign.
+  extra: z
+    .looseObject({
+      name: z.string().max(64).optional(),
+      version: z.string().max(16).optional(),
+      assetTransferMethod: z.string().max(32).optional(),
+    })
+    .nullish(),
+}).superRefine((r, ctx) => {
+  if (v1NetworkToCaip2(r.network) === undefined) return; // not payable; the policy skips it
+  for (const k of ["asset", "payTo"] as const) {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(r[k])) ctx.addIssue({ code: "custom", path: [k], message: "expected a 20-byte hex address" });
+  }
+});
+export type PaymentRequirementsV1 = z.infer<typeof PaymentRequirementsV1>;
+
+export const PaymentRequiredV1 = z.strictObject({
+  x402Version: z.literal(1),
+  error: z.string().max(1024).optional(),
+  accepts: z.array(PaymentRequirementsV1).max(16),
+  // Browserbase repeats its EVM payee here. Informational only, accepted only when it agrees with an EVM option.
+  payToAddress: hexAddress.optional(),
+}).superRefine((r, ctx) => {
+  if (r.payToAddress === undefined) return;
+  const evm = r.accepts.filter((a) => v1NetworkToCaip2(a.network) !== undefined);
+  if (!evm.some((a) => a.payTo.toLowerCase() === r.payToAddress!.toLowerCase())) {
+    ctx.addIssue({ code: "custom", path: ["payToAddress"], message: "payToAddress disagrees with the offered payTo" });
+  }
+});
+export type PaymentRequiredV1 = z.infer<typeof PaymentRequiredV1>;
+
+/** The v1 `X-PAYMENT` payload: no `accepted`, no `resource`; scheme and v1 network name at the top level. */
+export const PaymentPayloadV1 = z.strictObject({
+  x402Version: z.literal(1),
+  scheme: z.literal("exact"),
+  network: v1Network,
+  payload: z.strictObject({
+    signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
+    authorization: Authorization,
+  }),
+});
+export type PaymentPayloadV1 = z.infer<typeof PaymentPayloadV1>;
+
+// v1 receipt (`X-PAYMENT-RESPONSE`): same leniency and bounds as SettleResponse, except the network is a v1 name.
+// A CAIP-2 id is tolerated too. The client maps it through the fixed table and compares it with what was signed.
+export const SettleResponseV1 = z.object({
+  success: z.boolean(),
+  payer: hexAddress.nullish(),
+  transaction: z.string().max(256),
+  network: z.union([v1Network, caip2]),
+  amount: atomic.nullish(),
+  errorReason: z.string().max(512).nullish(),
+});
+export type SettleResponseV1 = z.infer<typeof SettleResponseV1>;
+
 export const HEADERS = {
   required: "PAYMENT-REQUIRED",
   signature: "PAYMENT-SIGNATURE",
   response: "PAYMENT-RESPONSE",
   // x402 v1 name; some live merchants (e.g. BlockRun, October 2026) still send the receipt under it.
   legacyResponse: "X-PAYMENT-RESPONSE",
+  /** x402 v1 request header carrying the signed payment (opt-in merchants only). */
+  v1Signature: "X-PAYMENT",
 } as const;

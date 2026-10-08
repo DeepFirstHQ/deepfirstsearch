@@ -1,6 +1,6 @@
 # @deepfirstsearch/agent-pay
 
-x402 v2 payments for AI agents where **the model proposes and the owner's policy decides**.
+x402 payments for AI agents (v2, plus v1 for merchants you opt in) where **the model proposes and the owner's policy decides**.
 
 ```bash
 npm install @deepfirstsearch/agent-pay
@@ -36,11 +36,28 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - A 402 whose `payTo`, asset, network, EIP-712 domain, scheme or timeout differ from owner configuration.
 - Prices above the pinned price, the per-merchant cap, the sealed plan or the period budget.
 - Merchants not in the registry; payees suggested by web content (tainted data).
-- x402 v1, malformed or oversized headers, and 402s reached through cross-origin redirects.
+- x402 v1 from any merchant whose registry entry does not set `x402Versions: [1, 2]` (see below), malformed or oversized headers, and 402s reached through cross-origin redirects.
 - An authorization window above 300 s (`policy.timeoutBounds`), unless that merchant sets `maxTimeoutSeconds` (10 to 86400) in the registry.
 
 The 402 is read from `PAYMENT-REQUIRED`, or from `X-PAYMENT-REQUIRED` when the standard header is absent.
 - Retrying a payment: one signature per request, recorded in a hash-chained audit log.
+
+## x402 v1 merchants (opt-in per merchant)
+
+Some live merchants still speak x402 v1 (Heurist Mesh, for example): the 402 comes as a JSON body, networks have short names (`"base"`), the price is `maxAmountRequired`, and the payment goes in `X-PAYMENT`. v1 is off by default and there is no global switch. Allow it for one merchant in its registry entry:
+
+```ts
+new MerchantRegistry([
+  { origin: "https://mesh.heurist.xyz", payTo: "0xA112c9C8BF655c678c768B6fD42a1C6FbfeD7D60", network: "eip155:8453",
+    maxPerTx: 5_000n, pricePin: 1_000n, x402Versions: [1, 2] },   // default [2]; [1] allows only v1
+]);
+```
+
+- Without the opt-in, a v1 402 is refused with a reason that names `x402Versions`; nothing is signed.
+- v1 network names map to CAIP-2 through a fixed table only: `base` → `eip155:8453`, `base-sepolia` → `eip155:84532`. Options on any other network (e.g. `solana`) are skipped; if none is left, the 402 is refused.
+- After that mapping every check above applies unchanged: registered `payTo`, pinned USDC and EIP-712 domain (never taken from `extra`), price pin, `maxPerTx`, plan and period budgets, timeout bounds, `allowedNetworks`.
+- The signed payment is sent as `X-PAYMENT` (`{ x402Version: 1, scheme: "exact", network: "base", payload: { signature, authorization } }`, base64 JSON), the receipt is read from `X-PAYMENT-RESPONSE` with the same checks as v2, and `res.payment.settlement.network` is reported as CAIP-2. One signature per payment; retries resend the same header; `confirmAuthorization` works the same.
+- A merchant whose `payTo` changes on every request (Browserbase hands out a fresh deposit address per 402) cannot be paid with a pinned payee and stays refused ("payTo … is not the merchant's registered address").
 
 ## Guards
 - `commitPlan` (plan-then-execute)
@@ -66,6 +83,8 @@ const merchant = await startMockServer({
 });
 // merchant.url, merchant.received (payloads it got), await merchant.close()
 ```
+
+A route with `x402Version: 1` speaks x402 v1 instead (402 in the body, `X-PAYMENT`, `X-PAYMENT-RESPONSE`); its payloads land in `merchant.receivedV1`, and `tamperV1` rewrites the whole v1 402 body (to add a Solana option, say).
 
 ## Owner CLI: vault and budgets in three commands
 

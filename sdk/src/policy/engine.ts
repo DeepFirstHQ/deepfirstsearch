@@ -2,7 +2,7 @@ import { getAddress } from "viem";
 import type { SealedPlan } from "../guard/plan.js";
 import type { PaymentRequired, PaymentRequirements } from "../x402/schemas.js";
 import { pinnedAsset, type PinnedAsset } from "./networks.js";
-import type { Merchant, MerchantRegistry } from "./registry.js";
+import { merchantVersions, type Merchant, type MerchantRegistry } from "./registry.js";
 
 export type PolicyConfig = {
   /** CAIP-2 networks the agent may pay on, e.g. ["eip155:8453"]. */
@@ -56,10 +56,19 @@ export function effectiveTimeoutBounds(
  */
 export function evaluate(config: PolicyConfig, registry: MerchantRegistry, input: EvaluateInput): Decision {
   const { url, required, plan } = input;
-  if (required.x402Version !== 2) return deny(`unsupported x402 version ${required.x402Version}`);
+  if (required.x402Version !== 1 && required.x402Version !== 2) return deny(`unsupported x402 version ${show(required.x402Version)}`);
 
   const merchant = registry.forUrl(url);
   if (!merchant) return deny(`origin ${new URL(url).origin} is not an approved merchant`);
+  // x402 v1 is opt-in per merchant, never a global fallback. A v1 402 reaches this point already normalized
+  // (network mapped to CAIP-2 through the fixed table, maxAmountRequired as amount), so every check below applies.
+  if (!merchantVersions(merchant).includes(required.x402Version)) {
+    return deny(
+      required.x402Version === 1
+        ? `merchant ${merchant.origin} sent an x402 v1 402; v1 is off for it (allow it with x402Versions: [1, 2] in its registry entry)`
+        : `merchant ${merchant.origin} sent an x402 v2 402 but its registry entry allows only x402Versions [${merchantVersions(merchant).join(", ")}]`,
+    );
+  }
   if (!plan.covers(merchant.origin, input.now)) return deny("merchant is not in the sealed plan, or the plan expired");
 
   const bounds = config.timeoutBounds ?? DEFAULT_TIMEOUT;

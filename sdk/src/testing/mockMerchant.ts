@@ -1,13 +1,22 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { verifyTypedData, type Address } from "viem";
 import { decodeHeader, encodeHeader } from "../x402/codec.js";
 import { TRANSFER_WITH_AUTHORIZATION_TYPES, usdcDomain } from "../x402/exactEvm.js";
-import { PaymentPayload, type PaymentRequired, type PaymentRequirements } from "../x402/schemas.js";
+import {
+  caip2ToV1Network,
+  PaymentPayload,
+  PaymentPayloadV1,
+  type PaymentRequired,
+  type PaymentRequiredV1,
+  type PaymentRequirements,
+  type PaymentRequirementsV1,
+} from "../x402/schemas.js";
 import { PINNED_USDC } from "../policy/networks.js";
 
 /**
- * A local x402 v2 resource server plus facilitator, for tests and the demo. Each route can behave honestly or like
+ * A local x402 resource server plus facilitator, for tests and the demo. Speaks v2 by default; a route with
+ * `x402Version: 1` speaks v1 (402 as a JSON body, `X-PAYMENT` in, `X-PAYMENT-RESPONSE` out). Each route can behave honestly or like
  * an attacker (swapping the payee, the asset, the price...). It verifies signatures the way a facilitator would.
  */
 export type Route = {
@@ -23,11 +32,18 @@ export type Route = {
   cdpStyle?: boolean;
   /** Send this value as the receipt instead of a real settlement (e.g. Robtex's {settled: true, method: "direct"}). */
   rawReceipt?: unknown;
+  /** Speak x402 v1 on this route (like Heurist Mesh or Browserbase): 402 in the body, `X-PAYMENT`, `X-PAYMENT-RESPONSE`.
+   * `tamper` still applies, to the v2-shaped requirement before it is converted to v1. */
+  x402Version?: 1 | 2;
+  /** v1 only: rewrite the whole v1 402 body before it is sent (e.g. add a Solana option or an unknown network). */
+  tamperV1?: (body: PaymentRequiredV1) => unknown;
 };
 
 export type MockServer = {
   url: string;
   received: PaymentPayload[];
+  /** x402 v1 payloads received on `x402Version: 1` routes (kept apart so `received` stays v2-typed). */
+  receivedV1: PaymentPayloadV1[];
   close: () => Promise<void>;
 };
 
@@ -39,6 +55,8 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
   const NETWORK = opts.network ?? "eip155:84532";
   if (!PINNED_USDC[NETWORK]) throw new Error(`no pinned USDC for ${NETWORK}`);
   const received: PaymentPayload[] = [];
+  const receivedV1: PaymentPayloadV1[] = [];
+  const V1_NETWORK = caip2ToV1Network(NETWORK);
   const asset = PINNED_USDC[NETWORK]!;
 
   const server: Server = createServer(async (req, res) => {
@@ -57,6 +75,11 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
       extra: { name: asset.domain.name, version: asset.domain.version, assetTransferMethod: "eip3009" },
     });
 
+    if (route.x402Version === 1) {
+      await serveV1(route, requirement, req.url ?? "/", req.headers["x-payment"], res);
+      return;
+    }
+
     const sig = req.headers["payment-signature"];
     if (typeof sig !== "string") {
       const required: PaymentRequired = {
@@ -71,7 +94,21 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
     const payload = decodeHeader(sig, PaymentPayload);
     received.push(payload);
     const { authorization, signature } = payload.payload;
-    const valid = await verifyTypedData({
+    const valid = await verifyAuthorization(authorization, signature);
+    const paidEnough = BigInt(authorization.value) >= route.price && (!route.cdpStyle || payload.resource !== undefined);
+    const settlement = {
+      success: valid && paidEnough,
+      payer: authorization.from,
+      transaction: valid ? `0x${"ab".repeat(32)}` : "",
+      network: NETWORK,
+      ...(valid && paidEnough ? (route.cdpStyle ? { errorReason: null } : {}) : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
+    };
+    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
+    res.end(route.body ?? JSON.stringify({ ok: true }));
+  });
+
+  async function verifyAuthorization(authorization: PaymentPayload["payload"]["authorization"], signature: string): Promise<boolean> {
+    return verifyTypedData({
       address: authorization.from as Address,
       domain: usdcDomain(asset),
       types: TRANSFER_WITH_AUTHORIZATION_TYPES,
@@ -86,23 +123,50 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
       },
       signature: signature as `0x${string}`,
     });
-    const paidEnough = BigInt(authorization.value) >= route.price && (!route.cdpStyle || payload.resource !== undefined);
+  }
+
+  async function serveV1(route: Route, r: PaymentRequirements, path: string, sig: string | string[] | undefined, res: ServerResponse) {
+    if (!V1_NETWORK) throw new Error(`no x402 v1 name for ${NETWORK}`);
+    if (typeof sig !== "string") {
+      const option: PaymentRequirementsV1 = {
+        scheme: r.scheme,
+        network: caip2ToV1Network(r.network) ?? r.network,
+        maxAmountRequired: r.amount,
+        resource: `http://127.0.0.1${path}`,
+        description: "market data",
+        mimeType: "application/json",
+        payTo: r.payTo,
+        maxTimeoutSeconds: r.maxTimeoutSeconds,
+        asset: r.asset,
+        ...(r.extra ? { extra: { name: r.extra.name, version: r.extra.version } } : {}),
+      };
+      const body: PaymentRequiredV1 = { x402Version: 1, error: "X-PAYMENT header is required", accepts: [option] };
+      res.writeHead(402, { "Content-Type": "application/json" }).end(JSON.stringify(route.tamperV1 ? route.tamperV1(body) : body));
+      return;
+    }
+    const payload = decodeHeader(sig, PaymentPayloadV1);
+    receivedV1.push(payload);
+    const { authorization, signature } = payload.payload;
+    const valid = payload.network === V1_NETWORK && (await verifyAuthorization(authorization, signature));
+    const paidEnough = BigInt(authorization.value) >= route.price;
+    const ok = valid && paidEnough;
     const settlement = {
-      success: valid && paidEnough,
+      success: ok,
       payer: authorization.from,
       transaction: valid ? `0x${"ab".repeat(32)}` : "",
-      network: NETWORK,
-      ...(valid && paidEnough ? (route.cdpStyle ? { errorReason: null } : {}) : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
+      network: V1_NETWORK,
+      ...(ok ? {} : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
     };
-    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
+    res.writeHead(ok ? 200 : 402, { "X-PAYMENT-RESPONSE": encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
     res.end(route.body ?? JSON.stringify({ ok: true }));
-  });
+  }
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}`,
     received,
+    receivedV1,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }

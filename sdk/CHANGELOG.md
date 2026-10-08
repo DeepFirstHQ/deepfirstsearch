@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 (2026-10-08)
+
+Opt-in x402 v1 support, per merchant (#14):
+- `Merchant.x402Versions` (default `[2]`). A merchant whose entry sets `[1, 2]` (or `[1]`) may be paid over x402 v1; for every other merchant a v1 402 is refused with a reason naming the option. There is no global switch and no automatic downgrade. The registry rejects an empty, duplicated or unknown version list.
+- v1 402s are read from the JSON body (at most 32 KiB, strict schema; resource metadata and `outputSchema` are informational and never echoed). Network names map to CAIP-2 only through a fixed table (`base`, `base-sepolia`); options on other networks, such as Browserbase's `solana`, are skipped. The amount is `maxAmountRequired`. After mapping, every existing policy check applies unchanged.
+- The payment goes in `X-PAYMENT` as the reference v1 client sends it (`{x402Version: 1, scheme, network, payload: {signature, authorization}}`), signed with the pinned EIP-712 domain. The receipt is read from `X-PAYMENT-RESPONSE` with the same strictness as v2 (its network must map to what was signed). One signature per payment, retries and later requests resend the same header, and `confirmAuthorization` covers v1 too.
+- Merchants that hand out a new `payTo` on every 402 (Browserbase deposit addresses) stay refused under payee pinning, with the "payTo … is not the merchant's registered address" reason.
+- The testing mock merchant gains per-route `x402Version: 1` and `tamperV1`, and `MockServer.receivedV1`. Tests replay 402s captured from Heurist Mesh and Browserbase.
+- Exported schemas gain `PaymentRequiredV1`, `PaymentRequirementsV1`, `PaymentPayloadV1`, `SettleResponseV1`, `V1_NETWORKS` and `HEADERS.v1Signature`.
+
 ## 0.6.3 (2026-10-08)
 
 Found by paying x402 merchants on Base mainnet (#33):

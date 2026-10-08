@@ -15,7 +15,19 @@ export type Merchant = {
   label?: string;
   /** Per-merchant authorization window override in seconds. */
   maxTimeoutSeconds?: number;
+  /**
+   * x402 protocol versions this merchant may be paid with. Default `[2]`. Set `[1, 2]` (or `[1]`) only for a merchant
+   * you know still speaks x402 v1; every policy check applies to v1 payments unchanged. There is no global switch.
+   */
+  x402Versions?: readonly (1 | 2)[];
 };
+
+export const DEFAULT_X402_VERSIONS: readonly (1 | 2)[] = Object.freeze([2] as const);
+
+/** The x402 versions a merchant accepts (its `x402Versions`, or `[2]`). */
+export function merchantVersions(m: Merchant): readonly (1 | 2)[] {
+  return m.x402Versions ?? DEFAULT_X402_VERSIONS;
+}
 
 function canonicalOrigin(url: string): string {
   const u = new URL(url);
@@ -40,9 +52,18 @@ export class MerchantRegistry {
           throw new Error("maxTimeoutSeconds must be between 10 and 86400");
         }
       }
+      if (m.x402Versions !== undefined) {
+        const v = m.x402Versions as readonly unknown[];
+        if (!Array.isArray(v) || v.length === 0 || v.some((x) => x !== 1 && x !== 2) || new Set(v).size !== v.length) {
+          throw new Error("x402Versions must be a non-empty list of distinct versions from [1, 2]");
+        }
+      }
       const origin = canonicalOrigin(m.origin);
       if (this.byOrigin.has(origin)) throw new Error(`duplicate merchant origin: ${origin}`);
-      this.byOrigin.set(origin, Object.freeze({ ...m, origin, payTo: getAddress(m.payTo) }));
+      this.byOrigin.set(
+        origin,
+        Object.freeze({ ...m, origin, payTo: getAddress(m.payTo), ...(m.x402Versions ? { x402Versions: Object.freeze([...m.x402Versions]) } : {}) }),
+      );
     }
   }
 

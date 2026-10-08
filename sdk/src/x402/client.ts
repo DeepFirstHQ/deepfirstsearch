@@ -12,12 +12,13 @@ import {
 } from "../guard/controls.js";
 import { commitPlan, type PlanItem, type SealedPlan } from "../guard/plan.js";
 import { effectiveTimeoutBounds, evaluate, type PolicyConfig } from "../policy/engine.js";
-import type { Merchant, MerchantRegistry } from "../policy/registry.js";
+import { merchantVersions, type Merchant, type MerchantRegistry } from "../policy/registry.js";
 import type { SanctionsScreen } from "../policy/sanctions.js";
 import { decodeHeader, encodeHeader, X402DecodeError } from "./codec.js";
 import { signExactAuthorization } from "./exactEvm.js";
 import type { AuthorizationCheck } from "./onchain.js";
-import { HEADERS, PaymentRequired, SettleResponse, type PaymentPayload } from "./schemas.js";
+import { caip2ToV1Network, HEADERS, PaymentRequired, SettleResponse, type PaymentPayload } from "./schemas.js";
+import { decodeV1Receipt, looksLikeV1, normalizeV1, parseV1, readBodyCapped, v1Payload } from "./v1.js";
 
 export type PayerProvider = (merchant: Merchant, chainId: number) => LocalAccount | Promise<LocalAccount>;
 
@@ -55,7 +56,7 @@ export type PaidResponse = Response & {
 };
 
 /**
- * x402 v2 client with a mandatory policy gate between "the server asked for money" and "we signed".
+ * x402 client (v2; v1 only for merchants that opt in with `x402Versions`) with a mandatory policy gate between "the server asked for money" and "we signed".
  *
  * - The 402 response is untrusted: payee, asset, network, price and timeout must match owner configuration.
  * - Payments are only possible inside a plan sealed before the agent read untrusted content.
@@ -79,7 +80,7 @@ export function createAgentPay(options: AgentPayOptions) {
   const periodLedger: { start: number; spent: bigint } = { start: now(), spent: 0n };
   // Signed payments whose settlement was never confirmed, by resource. The server may still have settled them, so if
   // the agent asks for the same resource again we resend that authorization instead of signing a second one (SDK-L-4).
-  const unsettled = new Map<string, { headers: Headers; payer: string; authorization: { from: string; nonce: string; validBefore: string } }>();
+  const unsettled = new Map<string, { headers: Headers; payer: string; version: 1 | 2; authorization: { from: string; nonce: string; validBefore: string } }>();
   // Validated up front, so a bad value can never surface after an authorization has been signed.
   const retries = options.settleRetries ?? 3;
   const backoff = options.settleRetryDelayMs ?? 3_000;
@@ -93,6 +94,37 @@ export function createAgentPay(options: AgentPayOptions) {
       periodLedger.spent = 0n;
     }
     return periodLedger.spent;
+  }
+
+  /**
+   * A 402 without a payment header may be x402 v1 (JSON body). The body is read only up to a fixed cap, and a v1 402
+   * is strictly parsed only for a merchant that opted in; for any other origin the policy refuses it with a clear
+   * reason. Returns undefined when the body is not a v1 402 (the caller then reports the missing header).
+   */
+  async function readV1Body(res: Response, url: string): Promise<{ required: PaymentRequired; skipped: string[] } | undefined> {
+    let merchant: Merchant | undefined;
+    try {
+      merchant = options.registry.forUrl(url);
+    } catch {
+      merchant = undefined; // e.g. a non-https URL: the policy refuses it below
+    }
+    const optedIn = merchant !== undefined && merchantVersions(merchant).includes(1);
+    const text = await readBodyCapped(res);
+    if (text === undefined) {
+      if (optedIn) throw new X402DecodeError("402 body too large");
+      return undefined;
+    }
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return undefined;
+    }
+    if (!looksLikeV1(json)) return undefined;
+    // Not opted in (or unknown origin): hand the policy a bare v1 marker so it refuses with the reason naming the
+    // option. The body of such a 402 is never parsed further.
+    if (!optedIn) return { required: { x402Version: 1, accepts: [] }, skipped: [] };
+    return normalizeV1(parseV1(json));
   }
 
   async function payingFetch(input: string, init: RequestInit = {}, ctx: { plan: SealedPlan }): Promise<PaidResponse> {
@@ -109,8 +141,17 @@ export function createAgentPay(options: AgentPayOptions) {
     const payUrl = first.redirected ? first.url : input;
 
     let required: PaymentRequired;
+    let version: 1 | 2 = 2;
+    let skipped: string[] = [];
     try {
-      required = decodeHeader(first.headers.get(HEADERS.required) ?? first.headers.get("X-PAYMENT-REQUIRED"), PaymentRequired);
+      const header = first.headers.get(HEADERS.required) ?? first.headers.get("X-PAYMENT-REQUIRED");
+      const v1 = header === null ? await readV1Body(first, input) : undefined;
+      if (v1) {
+        ({ required, skipped } = v1);
+        version = 1;
+      } else {
+        required = decodeHeader(header, PaymentRequired);
+      }
     } catch (e) {
       const reason = e instanceof X402DecodeError ? e.message : "unreadable 402";
       audit.append({ type: "payment.denied", url: input, reasons: [reason] });
@@ -133,8 +174,11 @@ export function createAgentPay(options: AgentPayOptions) {
       throw new PaymentDeniedError([reason]);
     }
     if (decision.kind === "deny") {
-      audit.append({ type: "payment.denied", url: input, reasons: decision.reasons });
-      throw new PaymentDeniedError(decision.reasons);
+      // A v1 402 whose every option was on a network outside the table: say which, not just "no payment options".
+      const onlySkipped = skipped.length > 0 && decision.reasons.length === 1 && decision.reasons[0] === "server offered no payment options";
+      const reasons = onlySkipped ? skipped : [...decision.reasons, ...skipped];
+      audit.append({ type: "payment.denied", url: input, reasons });
+      throw new PaymentDeniedError(reasons);
     }
     const { merchant, asset, amount, requirement } = decision;
 
@@ -147,7 +191,8 @@ export function createAgentPay(options: AgentPayOptions) {
       if (Number(pendingPayment.authorization.validBefore) - Math.floor(now() / 1000) >= 15) {
         kill.assertAlive();
         audit.append({ type: "payment.retry", origin: merchant.origin, amount, attempt: 0, reason: "agent retried an unconfirmed payment", nonce: pendingPayment.authorization.nonce });
-        return await settle({ input: payUrl, init, headers: pendingPayment.headers, merchant, amount, requirement, payer: pendingPayment.payer, authorization: pendingPayment.authorization, resourceKey });
+        // Resent exactly as first sent (same header, same version), whatever this 402 says.
+        return await settle({ input: payUrl, init, headers: pendingPayment.headers, version: pendingPayment.version, merchant, amount, requirement, payer: pendingPayment.payer, authorization: pendingPayment.authorization, resourceKey });
       }
     }
 
@@ -218,6 +263,9 @@ export function createAgentPay(options: AgentPayOptions) {
         throw new PaymentDeniedError([reason]);
       }
 
+      if (version === 1 && !caip2ToV1Network(requirement.network)) {
+        throw new PaymentDeniedError(["x402 v1 network is not supported"]); // unreachable: normalizeV1 maps only table entries
+      }
       const bounds = effectiveTimeoutBounds(options.policy.timeoutBounds, merchant);
       const validFor = Math.min(requirement.maxTimeoutSeconds, bounds.max);
       const { authorization, signature } = await signExactAuthorization({
@@ -228,15 +276,22 @@ export function createAgentPay(options: AgentPayOptions) {
         validForSeconds: validFor,
         nowSeconds: Math.floor(now() / 1000),
       });
-      const payload: PaymentPayload = { x402Version: 2, ...(required.resource ? { resource: required.resource } : {}), accepted: requirement, payload: { signature, authorization } };
+      const headers = new Headers(init.headers);
+      // Never both: a request carries exactly one payment header, in the version the merchant spoke.
+      headers.delete(HEADERS.signature);
+      headers.delete(HEADERS.v1Signature);
+      if (version === 1) {
+        headers.set(HEADERS.v1Signature, encodeHeader(v1Payload(requirement, { signature, authorization })));
+      } else {
+        const payload: PaymentPayload = { x402Version: 2, ...(required.resource ? { resource: required.resource } : {}), accepted: requirement, payload: { signature, authorization } };
+        headers.set(HEADERS.signature, encodeHeader(payload));
+      }
       audit.append({ type: "payment.signed", origin: merchant.origin, payTo: merchant.payTo, payer: payer.address, amount, nonce: authorization.nonce });
 
-      const headers = new Headers(init.headers);
-      headers.set(HEADERS.signature, encodeHeader(payload));
       headers.set("Idempotency-Key", authorization.nonce);
       sent = true; // from here on the money is possibly spent: the reservation stays
 
-      return await settle({ input: payUrl, init, headers, merchant, amount, requirement, payer: payer.address, authorization, resourceKey });
+      return await settle({ input: payUrl, init, headers, version, merchant, amount, requirement, payer: payer.address, authorization, resourceKey });
     } finally {
       releaseReservation();
     }
@@ -251,6 +306,7 @@ export function createAgentPay(options: AgentPayOptions) {
     input: string;
     init: RequestInit;
     headers: Headers;
+    version: 1 | 2;
     merchant: Merchant;
     amount: bigint;
     requirement: PaymentRequired["accepts"][number];
@@ -268,7 +324,7 @@ export function createAgentPay(options: AgentPayOptions) {
         try {
           kill.assertAlive();
         } catch (e) {
-          unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, authorization: p.authorization });
+          unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, version: p.version, authorization: p.authorization });
           audit.append({ type: "payment.failed", origin: p.merchant.origin, amount: p.amount, reason: "killed during settlement retries" });
           throw e;
         }
@@ -287,10 +343,12 @@ export function createAgentPay(options: AgentPayOptions) {
         break; // resending to the same URL would only be redirected again
       }
       try {
-        settlement = decodeHeader(paid.headers.get(HEADERS.response) ?? paid.headers.get(HEADERS.legacyResponse), SettleResponse);
+        settlement = p.version === 1
+          ? decodeV1Receipt(paid.headers)
+          : decodeHeader(paid.headers.get(HEADERS.response) ?? paid.headers.get(HEADERS.legacyResponse), SettleResponse);
       } catch {
         settlement = undefined;
-        failure = `missing or invalid PAYMENT-RESPONSE (HTTP ${paid.status})`;
+        failure = `missing or invalid ${p.version === 1 ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"} (HTTP ${paid.status})`;
         // The resource was delivered without a readable receipt: the chain answers that better than a resend, which a
         // merchant that already settled can only refuse (CoinMarketCap answers it with a new 402), losing the resource.
         if (paid.ok && options.confirmAuthorization) break;
@@ -343,7 +401,7 @@ export function createAgentPay(options: AgentPayOptions) {
       }
     }
     if (!settlement || !settlement.success) {
-      unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, authorization: p.authorization });
+      unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, version: p.version, authorization: p.authorization });
       audit.append({ type: "payment.failed", origin: p.merchant.origin, amount: p.amount, status: paid?.status, reason: failure });
       throw new PaymentBlockedError(
         `settlement not confirmed (${failure}); the same authorization was retried, never re-signed, and is resent if this resource is requested again while it is valid`,
