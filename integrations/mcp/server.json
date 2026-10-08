@@ -7,12 +7,12 @@
     "source": "github",
     "subfolder": "integrations/mcp"
   },
-  "version": "0.1.6",
+  "version": "0.1.7",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@deepfirstsearch/agent-pay-mcp",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "transport": {
         "type": "stdio"
       },

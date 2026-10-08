@@ -93,6 +93,7 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | `merchants[].origin`, `payTo` | Who may be paid, and the only address the payment can go to |
 | `merchants[].price`, `tolerancePct` | Expected price per call; anything above `price × (1 + tolerance)` is refused |
 | `merchants[].maxPerTx`, `maxSpend` | Hard cap per call, and per merchant per plan window |
+| `merchants[].maxTimeoutSeconds` | Longest authorization this merchant may ask for, 10 to 86400 s (default 300 s). Only that merchant gets the longer window. |
 | `planWindowHours` | The plan is sealed from this file at start and renewed from it every window |
 | `periodBudget` | Total across merchants per period |
 | `approvalAbove` | Payments above this are refused (this server has no approval channel the model can't reach) |
