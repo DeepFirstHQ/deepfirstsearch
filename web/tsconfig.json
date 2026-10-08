@@ -12,5 +12,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src"]
+  "include": ["src", "../sdk/src/contracts/abi.ts", "../sdk/src/contracts/deployments.ts"]
 }

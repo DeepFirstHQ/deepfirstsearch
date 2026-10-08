@@ -100,6 +100,8 @@ npx @deepfirstsearch/agent-pay owner status --vault 0x…
 
 Budgets are signed by the owner and become active after a public timelock. Pausing and revoking are instant. Each merchant sees a different payer address.
 
+**See a vault:** [deepfirstsearch.com/dashboard.html?vault=0x…](https://deepfirstsearch.com/dashboard.html) shows, read-only and straight from Base's public RPC, a vault's balance, owner, pause state, every budget (caps, spend this period, activation) and the last 24 hours of activity. Add `&network=base-sepolia` for testnet vaults.
+
 ## How it works
 
 1. **The owner decides, in advance:** which merchants, their price, caps per payment and per day. That lives in code and in an owner-signed budget on-chain.

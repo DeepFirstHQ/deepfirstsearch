@@ -85,5 +85,7 @@ export default defineConfig({
   build: {
     // three.js lives in its own lazy chunk; ~530 kB raw / ~135 kB gzip is expected.
     chunkSizeWarningLimit: 600,
+    // The landing plus the read-only vault dashboard (its own bundle: viem never loads on the landing).
+    rollupOptions: { input: { main: resolve(__dirname, "index.html"), dashboard: resolve(__dirname, "dashboard.html") } },
   },
 });

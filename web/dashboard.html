@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Vault dashboard · Deep First Search</title>
+    <meta name="description" content="Read-only view of an Agent Safe vault on Base: balance, owner, budgets, spend this period and recent activity." />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <!-- Same policy as the rest of the site, plus read-only JSON-RPC to Base's public endpoints (also in public/_headers). -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://mainnet.base.org https://sepolia.base.org https://base-rpc.publicnode.com https://base-sepolia-rpc.publicnode.com; manifest-src 'self'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+  </head>
+  <body>
+    <header class="dash-nav"><a href="./index.html">← Deep First Search</a></header>
+    <main class="dash">
+      <h1>Vault dashboard</h1>
+      <p class="lede">
+        A read-only view of an Agent Safe vault, straight from Base's public RPC: no wallet, no account, nothing is signed.
+      </p>
+      <form id="form" class="dash-form" autocomplete="off">
+        <label class="field">
+          <span>Vault address</span>
+          <input id="vault" name="vault" placeholder="0x…" spellcheck="false" inputmode="text" />
+        </label>
+        <label class="field field--net">
+          <span>Network</span>
+          <select id="network" name="network">
+            <option value="base">Base</option>
+            <option value="base-sepolia">Base Sepolia</option>
+          </select>
+        </label>
+        <button type="submit">Show</button>
+      </form>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <section id="out" hidden>
+        <h2>Vault</h2>
+        <dl id="summary" class="kv"></dl>
+        <h2>Budgets</h2>
+        <p class="note">Each budget is an owner-signed intent: who the agent may pay, through which payer address, and how much.</p>
+        <div id="intents"></div>
+        <h2>Activity in the last 24 hours</h2>
+        <div id="events"></div>
+      </section>
+    </main>
+    <script type="module" src="./src/dashboard.ts"></script>
+  </body>
+</html>
