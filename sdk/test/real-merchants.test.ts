@@ -61,6 +61,13 @@ describe("real x402 merchants on Base", () => {
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, currency: "0x9999999999999999999999999999999999999999" }] })).toThrow(/currency/);
   });
 
+  it("accepts the v1 resource metadata some servers repeat in each option (Interzoid, 2026-10-08)", () => {
+    const meta = { url: "https://api.interzoid.com/getorgmatchscore", description: "Compare two organization names", mimeType: "application/json" };
+    const opt = { ...BLOCKRUN.accepts[0]!, resource: meta, description: meta.description, mimeType: meta.mimeType };
+    expect(PaymentRequired.parse({ ...BLOCKRUN, resource: meta, accepts: [opt] }).accepts[0]).toMatchObject({ payTo: BLOCKRUN.accepts[0]!.payTo });
+    expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, description: "x".repeat(2000) }] })).toThrow();
+  });
+
   it("still rejects unknown fields outside extra", () => {
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, surprise: 1 })).toThrow();
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...BLOCKRUN.accepts[0], payToOverride: "0x9999999999999999999999999999999999999999" }] })).toThrow();

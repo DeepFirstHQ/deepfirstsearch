@@ -53,6 +53,23 @@ describe("on-chain confirmation when the receipt is unusable (#16)", () => {
     await expect(pay.fetch(url, {}, { plan })).rejects.toBeInstanceOf(PaymentBlockedError);
   });
 
+  it("keeps asking the chain while the settlement transaction is not mined yet", async () => {
+    let calls = 0;
+    const { pay, plan, url } = await setup(robtex, async () => ++calls === 3);
+    const res = await pay.fetch(url, {}, { plan });
+    expect(res.payment?.confirmedOnChain).toBe(true);
+    expect(calls).toBe(3);
+  });
+
+  it("asks the chain instead of resending when the resource came without a readable receipt", async () => {
+    // CoinMarketCap: HTTP 200 with the data and a non-standard receipt; a resend of the spent authorization gets a 402.
+    const { pay, plan, url } = await setup({ ...robtex, rawReceipt: { success: true, txHash: "0xab", networkId: NETWORK } }, async () => true);
+    const res = await pay.fetch(url, {}, { plan });
+    expect(await res.text()).toBe('{"dns":"ok"}');
+    expect(res.payment?.confirmedOnChain).toBe(true);
+    expect(server!.received).toHaveLength(1); // sent once, not resent
+  });
+
   it("does not call the chain when the receipt is valid", async () => {
     let called = 0;
     const { pay, plan, url } = await setup({ price: 10_000n, payTo: MERCHANT }, async () => (called++, true));

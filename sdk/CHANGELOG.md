@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.3 (2026-10-08)
+
+Found by paying x402 merchants on Base mainnet (#33):
+- **Fix:** with `confirmAuthorization`, a paid request answered with 2xx but no readable receipt now goes straight to the on-chain check instead of resending the spent authorization. CoinMarketCap sends a non-standard receipt (`txHash`, `networkId`) and answers a resend with a new 402, so the delivered data was lost.
+- The on-chain check is asked up to 4 times, `settleRetryDelayMs` apart, because a merchant can answer before its settlement transaction is mined.
+- **Fix:** a 402 option that repeats the x402 v1 resource metadata (`resource`, `description`, `mimeType`, as Interzoid sends) was rejected. Those keys are accepted now, size-bounded and informational only.
+
 ## 0.6.2 (2026-10-08)
 
 - `viem` is now a range (`^2.38.0`) instead of an exact pin, so apps that also use Coinbase AgentKit (which pins viem 2.38) get a single viem and no type clashes. Tested against viem 2.38.3 and 2.57.3.

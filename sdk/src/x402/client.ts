@@ -47,6 +47,9 @@ export type AgentPayOptions = {
   settleRetryDelayMs?: number;
 };
 
+/** How many times the chain is asked about an authorization (settleRetryDelayMs apart) before it counts as unused. */
+const CONFIRM_CHECKS = 4;
+
 export type PaidResponse = Response & {
   payment?: { amount: bigint; payTo: string; settlement: SettleResponse; confirmedOnChain?: boolean };
 };
@@ -288,6 +291,9 @@ export function createAgentPay(options: AgentPayOptions) {
       } catch {
         settlement = undefined;
         failure = `missing or invalid PAYMENT-RESPONSE (HTTP ${paid.status})`;
+        // The resource was delivered without a readable receipt: the chain answers that better than a resend, which a
+        // merchant that already settled can only refuse (CoinMarketCap answers it with a new 402), losing the resource.
+        if (paid.ok && options.confirmAuthorization) break;
         continue;
       }
       if (!settlement.success) {
@@ -309,16 +315,20 @@ export function createAgentPay(options: AgentPayOptions) {
     }
     if ((!settlement || !settlement.success) && options.confirmAuthorization) {
       // The receipt didn't confirm it; the chain can. Only reached on this failure path (no extra calls otherwise).
+      // A merchant can answer before its settlement transaction is mined, so the chain is asked a few times.
       let used = false;
-      try {
-        used = await options.confirmAuthorization({
-          network: p.requirement.network,
-          asset: p.requirement.asset as Address,
-          authorizer: p.authorization.from as Address,
-          nonce: p.authorization.nonce as Hex,
-        });
-      } catch {
-        used = false; // an unreachable RPC leaves the payment unconfirmed
+      for (let check = 0; check < CONFIRM_CHECKS && !used; check++) {
+        if (check > 0) await new Promise((r) => setTimeout(r, backoff));
+        try {
+          used = await options.confirmAuthorization({
+            network: p.requirement.network,
+            asset: p.requirement.asset as Address,
+            authorizer: p.authorization.from as Address,
+            nonce: p.authorization.nonce as Hex,
+          });
+        } catch {
+          used = false; // an unreachable RPC leaves the payment unconfirmed
+        }
       }
       if (used) {
         audit.append({ type: "payment.settled_onchain", origin: p.merchant.origin, amount: p.amount, nonce: p.authorization.nonce, status: paid?.status, receipt: failure });

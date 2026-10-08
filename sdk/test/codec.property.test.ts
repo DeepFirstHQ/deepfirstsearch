@@ -64,7 +64,7 @@ describe("x402 header decoder (property tests)", () => {
   });
 
   it("rejects a valid 402 with any unknown top-level key or option key", () => {
-    const reserved = new Set(["x402Version", "error", "resource", "accepts", "extensions", "scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds", "extra", "currency", "maxAmountRequired", "recipient"]);
+    const reserved = new Set(["x402Version", "error", "resource", "accepts", "extensions", "scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds", "extra", "currency", "maxAmountRequired", "recipient", "description", "mimeType"]);
     const key = fc.string({ minLength: 1, maxLength: 20 }).filter((k) => !reserved.has(k) && k !== "__proto__");
     fc.assert(
       fc.property(required, key, fc.jsonValue({ maxDepth: 2 }), fc.boolean(), (r, k, v, top) => {

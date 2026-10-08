@@ -29,6 +29,11 @@ export const PaymentRequirements = z.strictObject({
   currency: chainAddress.optional(),
   maxAmountRequired: atomic.optional(),
   recipient: chainAddress.optional(),
+  // x402 v1 kept the resource's metadata in each requirement; some v2 servers still repeat it there (Interzoid).
+  // Informational only: no payment decision reads them; `accepted` echoes them back as received, like the rest.
+  resource: z.union([z.string().max(2048), ResourceInfo]).optional(),
+  description: z.string().max(1024).optional(),
+  mimeType: z.string().max(128).optional(),
   // `extra` is scheme-specific and free-form in the spec (merchants add pricing breakdowns, ids, gateway data), so
   // unknown keys are kept, not rejected. The fields we act on stay typed, and none of them is ever used to sign:
   // the EIP-712 domain comes from our own pins. The header size limit bounds what extra can carry.
