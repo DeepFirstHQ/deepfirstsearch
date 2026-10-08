@@ -1,0 +1,47 @@
+name: Site check
+# After a push that changes the site, wait for Cloudflare Pages and check that every integration guide is the real page
+# (its live-payment transaction is on it), not the homepage fallback. Also runs daily. On 2026-10-08 the site build was
+# broken for hours without anyone noticing.
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "docs/**"]
+  schedule:
+    - cron: "17 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guides:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every guide is deployed with its transaction
+        run: |
+          set -u
+          check() {
+            fail=0
+            for md in docs/integrations/*.md; do
+              slug=$(basename "$md" .md | tr '[:upper:]' '[:lower:]')
+              tx=$(grep -oE 'basescan\.org/tx/0x[0-9a-f]{64}' "$md" | head -1 | cut -d/ -f3)
+              [ -z "$tx" ] && continue
+              if ! curl -sfL --max-time 20 "https://deepfirstsearch.com/integrations/$slug.html" | grep -q "$tx"; then
+                echo "missing or stale: /integrations/$slug.html"; fail=1
+              fi
+            done
+            for path in / /developers.html /llms.txt /dashboard.html; do
+              code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 20 "https://deepfirstsearch.com$path")
+              [ "$code" = 200 ] || { echo "HTTP $code: $path"; fail=1; }
+            done
+            return $fail
+          }
+          # Cloudflare usually deploys within a few minutes of the push.
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if check; then echo "site OK (attempt $attempt)"; exit 0; fi
+            sleep 90
+          done
+          echo "::error::the deployed site does not match main (see the lines above); check the Cloudflare Pages build"
+          exit 1
