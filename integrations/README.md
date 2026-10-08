@@ -6,6 +6,7 @@ Available:
 - [`mcp/`](mcp/): MCP server for Claude Desktop, Claude Code, Cursor and any MCP client (`paid_fetch`, `list_merchants`, `budget_status`).
 - [`ai-sdk/`](ai-sdk/): `paidFetchTool` for the Vercel AI SDK (`generateText`, `streamText`, agents).
 - [`privy/`](privy/): `privyPayer`, a Privy server wallet as the payer (Privy's own viem adapter; signatures verified to recover to the wallet).
+- [`cdp/`](cdp/): `cdpPayer`, a Coinbase CDP Server Wallet account as the payer (typed-data signatures only; transactions and messages refused).
 - [`turnkey/`](turnkey/): `turnkeyPayer`, a Turnkey-held key as the payer (signs the EIP-712 digest inside Turnkey).
 - [`langchain/`](langchain/): `createPaidFetchTool` for LangChain.js and LangGraph (`ToolNode`, `createReactAgent`).
 - [`agentkit/`](agentkit/): `agentPayActionProvider({ pay, plan })` for Coinbase AgentKit: a `paid_fetch` action with no payee or amount arguments.

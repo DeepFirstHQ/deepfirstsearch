@@ -40,7 +40,7 @@ The integrations take the SDK as a peer dependency, so your app always uses a si
 
 Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm:
 
-- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [OpenClaw agents](guides/OPENCLAW.md)
+- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [Coinbase CDP](integrations/CDP.md) · [OpenClaw agents](guides/OPENCLAW.md)
 - **Search, web and AI:** [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Pocket Network](integrations/POCKET.md) · [Spraay](integrations/SPRAAY.md) · [Otto AI](integrations/OTTO.md) · [Brave Search](integrations/BRAVESEARCH.md) · [You.com](integrations/YOUCOM.md) · [Telnyx](integrations/TELNYX.md) · [OpenWeb Ninja](integrations/OPENWEBNINJA.md) · [Particle](integrations/PARTICLE.md)
 - **Market and onchain data:** [CoinGecko](integrations/COINGECKO.md) · [Nansen](integrations/NANSEN.md) · [Glassnode](integrations/GLASSNODE.md) · [Massive](integrations/MASSIVE.md) · [Stock Trends](integrations/STOCKTRENDS.md) · [Blockchain.com](integrations/BLOCKCHAINCOM.md) · [OneSource](integrations/ONESOURCE.md) · [Zerion](integrations/ZERION.md) · [Blockscout](integrations/BLOCKSCOUT.md) · [vaults.fyi](integrations/VAULTSFYI.md) · [CoinStats](integrations/COINSTATS.md) · [3Route](integrations/3ROUTE.md) · [Blocksize Capital](integrations/BLOCKSIZECAPITAL.md) · [CoinMarketCap](integrations/COINMARKETCAP.md) · [JustaName](integrations/JUSTANAME.md) · [Interzoid](integrations/INTERZOID.md)
 - **Commerce and storage:** [Bitrefill](integrations/BITREFILL.md) · [Pinata](integrations/PINATA.md)
