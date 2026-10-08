@@ -42,6 +42,42 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 The 402 is read from `PAYMENT-REQUIRED`, or from `X-PAYMENT-REQUIRED` when the standard header is absent.
 - Retrying a payment: one signature per request, recorded in a hash-chained audit log.
 
+## Refusal codes
+
+A refusal throws `PaymentDeniedError`. Its `reasons` are human-readable and may be reworded; its `codes` (one per reason) are stable and machine-readable, `code` is the primary one, and `action` says what the agent should do. The same codes are recorded in the `payment.denied` audit event.
+
+```ts
+try {
+  await pay.fetch(url, {}, { plan });
+} catch (e) {
+  if (e instanceof PaymentDeniedError && e.action === "report") alertOwner(e.code, e.reasons); // possible redirection: never retry
+}
+```
+
+| code | action | meaning |
+| --- | --- | --- |
+| `payee_mismatch` | report | the 402's `payTo` is not the merchant's registered address |
+| `network_mismatch` | report | an allowed network, but not the merchant's |
+| `asset_mismatch` | report | asset or EIP-712 domain is not the pinned USDC |
+| `scheme_unsupported` | report | a scheme or transfer method the SDK does not sign |
+| `sanctioned_payee` | report | the payee failed sanctions screening (or screening was unavailable) |
+| `invalid_402` | report | malformed or oversized 402, no options, a non-positive amount, or a cross-origin redirect |
+| `price_changed` | ask_owner | the price is above the owner's pin (plus tolerance) |
+| `human_refused` | ask_owner | a human declined the approval (or no approval channel exists) |
+| `policy_denied` | ask_owner | generic refusal (default when no specific code applies) |
+| `unknown_merchant` | fix_config | the origin is not in the registry (or is not https) |
+| `not_in_plan` | fix_config | the merchant is not in the sealed plan |
+| `network_not_allowed` | fix_config | a network outside `allowedNetworks` (or an unmapped x402 v1 network) |
+| `asset_not_pinned` | fix_config | no USDC pinned for the merchant's network |
+| `timeout_out_of_bounds` | fix_config | `maxTimeoutSeconds` outside the accepted bounds |
+| `version_not_allowed` | fix_config | an x402 version not enabled for that merchant |
+| `over_cap` | ask_owner | above the merchant's `maxPerTx` |
+| `plan_exhausted` | retry_later | not enough left in the sealed plan |
+| `plan_expired` | retry_later | the sealed plan expired; seal a new one |
+| `budget_exhausted` | retry_later | not enough left in the period budget |
+
+Actions: `report` (possible redirection or tampering: don't retry, report it), `ask_owner` (only the owner can decide), `fix_config` (the owner's configuration does not allow it), `retry_later` (a limit was reached: retry later or ask for a bigger plan). With several reasons, `code` is the most cautious one. `REFUSAL_CODES`, `RefusalCode` and `RefusalAction` are exported. Kill switch, rate limits and settlement problems are `PaymentBlockedError`, not refusals.
+
 ## x402 v1 merchants (opt-in per merchant)
 
 Some live merchants still speak x402 v1 (Heurist Mesh, for example): the 402 comes as a JSON body, networks have short names (`"base"`), the price is `maxAmountRequired`, and the payment goes in `X-PAYMENT`. v1 is off by default and there is no global switch. Allow it for one merchant in its registry entry:

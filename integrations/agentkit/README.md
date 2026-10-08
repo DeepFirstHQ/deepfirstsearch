@@ -58,7 +58,7 @@ With a real merchant, use its origin and `payTo` from its 402 (14 merchants with
 AgentKit's `x402ActionProvider` lets the model pick the payment option (`selectedPaymentOption` includes `payTo` and the amount) when it retries a 402. That is convenient, and it is also where a prompt injection can redirect a payment. This provider keeps the model out of money decisions:
 
 - The model only chooses a URL. Every 402 is checked against the owner's registry before anything is signed: payee, asset, network, price and timeout must match, and the sealed plan and period budget must have room.
-- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened.
+- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened. Since 0.2.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` or `[payee_mismatch → do not retry, report it]` (codes listed in the SDK README, "Refusal codes"). Older SDKs give the text without the tag.
 - Responses are fenced with a random tag and labeled as untrusted data.
 - On-chain budgets (optional): fund the payer from an Agent Safe vault with `vaultFunder`, so even a compromised machine can only spend inside the owner-signed caps. See the [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk).
 - The action is built without AgentKit's `@CreateAction` decorator, so invoking it sends no analytics event.

@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-langchain",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "LangChain.js / LangGraph tool: agents fetch x402 APIs while an owner-signed, on-chain budget decides every payment",
   "license": "MIT",
   "type": "module",

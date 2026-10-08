@@ -11,6 +11,7 @@ import {
   type SessionCapabilities,
 } from "../guard/controls.js";
 import { commitPlan, type PlanItem, type SealedPlan } from "../guard/plan.js";
+import type { RefusalCode } from "../guard/refusal.js";
 import { effectiveTimeoutBounds, evaluate, type PolicyConfig } from "../policy/engine.js";
 import { merchantVersions, type Merchant, type MerchantRegistry } from "../policy/registry.js";
 import type { SanctionsScreen } from "../policy/sanctions.js";
@@ -127,6 +128,12 @@ export function createAgentPay(options: AgentPayOptions) {
     return normalizeV1(parseV1(json));
   }
 
+  /** Every refusal is audited with its reasons and stable codes, then thrown. */
+  function refuse(url: string, reasons: string[], codes: RefusalCode[]): never {
+    audit.append({ type: "payment.denied", url, reasons, codes });
+    throw new PaymentDeniedError(reasons, codes);
+  }
+
   async function payingFetch(input: string, init: RequestInit = {}, ctx: { plan: SealedPlan }): Promise<PaidResponse> {
     kill.assertAlive();
     const first = await baseFetch(input, init);
@@ -134,8 +141,7 @@ export function createAgentPay(options: AgentPayOptions) {
     // A 402 reached through a redirect belongs to wherever we were redirected, not to the merchant we asked.
     if (first.redirected && (!first.url || new URL(first.url).origin !== new URL(input).origin)) {
       const reason = `402 came from a redirect to ${first.url ? new URL(first.url).origin : "an unknown origin"}`;
-      audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-      throw new PaymentDeniedError([reason]);
+      refuse(input, [reason], ["invalid_402"]);
     }
     // Pay the resource that actually asked for payment (after a same-origin redirect, that is the final URL).
     const payUrl = first.redirected ? first.url : input;
@@ -154,8 +160,7 @@ export function createAgentPay(options: AgentPayOptions) {
       }
     } catch (e) {
       const reason = e instanceof X402DecodeError ? e.message : "unreadable 402";
-      audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-      throw new PaymentDeniedError([reason]);
+      refuse(input, [reason], ["invalid_402"]);
     }
 
     let decision: ReturnType<typeof evaluate>;
@@ -170,15 +175,16 @@ export function createAgentPay(options: AgentPayOptions) {
     } catch (e) {
       // e.g. a non-https URL: refuse it like any other denial, and leave a trace in the audit log.
       const reason = String((e as Error)?.message ?? e).slice(0, 200);
-      audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-      throw new PaymentDeniedError([reason]);
+      refuse(input, [reason], [reason.startsWith("refusing non-https origin") ? "unknown_merchant" : "policy_denied"]);
     }
     if (decision.kind === "deny") {
       // A v1 402 whose every option was on a network outside the table: say which, not just "no payment options".
       const onlySkipped = skipped.length > 0 && decision.reasons.length === 1 && decision.reasons[0] === "server offered no payment options";
+      // Skipped v1 options were on networks outside the fixed table.
+      const skippedCodes = skipped.map((): RefusalCode => "network_not_allowed");
       const reasons = onlySkipped ? skipped : [...decision.reasons, ...skipped];
-      audit.append({ type: "payment.denied", url: input, reasons });
-      throw new PaymentDeniedError(reasons);
+      const codes = onlySkipped ? skippedCodes : [...decision.codes, ...skippedCodes];
+      refuse(input, reasons, codes);
     }
     const { merchant, asset, amount, requirement } = decision;
 
@@ -206,14 +212,10 @@ export function createAgentPay(options: AgentPayOptions) {
     }
     const periodCap = options.policy.periodBudget?.amount;
     if (periodCap !== undefined && spentInPeriod() + amount > periodCap) {
-      const reason = "period budget exhausted";
-      audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-      throw new PaymentDeniedError([reason]);
+      refuse(input, ["period budget exhausted"], ["budget_exhausted"]);
     }
     if (!ctx.plan.reserve(merchant.origin, amount)) {
-      const reason = "sealed plan budget exhausted";
-      audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-      throw new PaymentDeniedError([reason]);
+      refuse(input, ["sealed plan budget exhausted"], ["plan_exhausted"]);
     }
     const periodStart = periodLedger.start;
     periodLedger.spent += amount;
@@ -236,9 +238,7 @@ export function createAgentPay(options: AgentPayOptions) {
           screenError = ` (screen unavailable: ${String((e as Error)?.message ?? e).slice(0, 120)})`;
         }
         if (flagged) {
-          const reason = `payee ${merchant.payTo} failed sanctions screening${screenError}`;
-          audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-          throw new PaymentDeniedError([reason]);
+          refuse(input, [`payee ${merchant.payTo} failed sanctions screening${screenError}`], ["sanctioned_payee"]);
         }
       }
 
@@ -247,8 +247,9 @@ export function createAgentPay(options: AgentPayOptions) {
         audit.append({ type: "payment.approval_requested", origin: merchant.origin, amount, reasons });
         const ok = await approve({ origin: merchant.origin, payTo: merchant.payTo, amount, network: requirement.network, reasons });
         if (!ok) {
-          audit.append({ type: "payment.approval_refused", origin: merchant.origin, amount });
-          throw new PaymentDeniedError(["human approval refused", ...reasons]);
+          audit.append({ type: "payment.approval_refused", origin: merchant.origin, amount, codes: ["human_refused"] });
+          const refused = ["human approval refused", ...reasons];
+          throw new PaymentDeniedError(refused, refused.map((): RefusalCode => "human_refused"));
         }
       }
 
@@ -258,13 +259,11 @@ export function createAgentPay(options: AgentPayOptions) {
       // Re-check after the slow steps (SDK-L-1): the kill switch and the plan's expiry.
       kill.assertAlive();
       if (!ctx.plan.covers(merchant.origin, now())) {
-        const reason = "sealed plan expired before signing";
-        audit.append({ type: "payment.denied", url: input, reasons: [reason] });
-        throw new PaymentDeniedError([reason]);
+        refuse(input, ["sealed plan expired before signing"], ["plan_expired"]);
       }
 
       if (version === 1 && !caip2ToV1Network(requirement.network)) {
-        throw new PaymentDeniedError(["x402 v1 network is not supported"]); // unreachable: normalizeV1 maps only table entries
+        throw new PaymentDeniedError(["x402 v1 network is not supported"], ["network_not_allowed"]); // unreachable: normalizeV1 maps only table entries
       }
       const bounds = effectiveTimeoutBounds(options.policy.timeoutBounds, merchant);
       const validFor = Math.min(requirement.maxTimeoutSeconds, bounds.max);

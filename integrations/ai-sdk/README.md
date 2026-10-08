@@ -35,7 +35,7 @@ const { text } = await generateText({
 ```
 
 - The tool's input is only `url`, `method`, `body` and `contentType`. Merchants, price pins, caps and the plan live in `pay` and `plan`.
-- A paid response comes back as `{ ok: true, status, paid: { amount, payTo, transaction }, body }`, with the body fenced as untrusted data. A refusal comes back as `{ ok: false, refused: true, reason }`, so the model can tell the user why.
+- A paid response comes back as `{ ok: true, status, paid: { amount, payTo, transaction }, body }`, with the body fenced as untrusted data. A refusal comes back as `{ ok: false, refused: true, reason }`, so the model can tell the user why. Since 0.3.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, a policy refusal also carries `code` (stable, e.g. `price_changed`, `payee_mismatch`, `plan_exhausted`) and `action` (`report`, `ask_owner`, `fix_config` or `retry_later`); see "Refusal codes" in the SDK README. With older SDKs both are absent.
 - Create the vault and the per-merchant budgets with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands).
 
 - **Try it offline first:** use `payer: () => privateKeyToAccount(generatePrivateKey())`, drop `ensureFunded`, and point the registry at `startMockServer` from `@deepfirstsearch/agent-pay/testing` (see [Test without a chain](https://deepfirstsearch.com/developers.html#test-without-a-chain)). For a model without an API key, `MockLanguageModelV4` from `ai/test`.

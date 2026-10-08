@@ -38,6 +38,26 @@ export const PAID_FETCH_ACTION = "AgentPayActionProvider_paid_fetch";
 
 const usd = (v: bigint) => `${formatUnits(v, 6)} USDC`;
 
+/** What the agent should do, per refusal action (SDK >= 0.8.0). */
+const ACTION_TEXT: Record<string, string> = {
+  report: "do not retry, report it",
+  ask_owner: "ask the owner",
+  fix_config: "the owner must change the configuration",
+  retry_later: "retry later or ask for a bigger plan",
+};
+
+/**
+ * The refusal's stable code (SDK >= 0.8.0), e.g. " [price_changed → ask the owner]". Empty with older SDKs, which
+ * have no codes: read defensively, never assumed.
+ */
+export function refusalTag(e: unknown): string {
+  const code = (e as { code?: unknown } | undefined)?.code;
+  if (typeof code !== "string" || !/^[a-z0-9_]{1,40}$/.test(code)) return "";
+  const action = (e as { action?: unknown } | undefined)?.action;
+  const what = typeof action === "string" && Object.prototype.hasOwnProperty.call(ACTION_TEXT, action) ? ACTION_TEXT[action] : undefined;
+  return what ? ` [${code} → ${what}]` : ` [${code}]`;
+}
+
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
 function fence(origin: string, body: string): string {
   const tag = `untrusted_${randomBytes(6).toString("hex")}`;
@@ -95,7 +115,7 @@ export class AgentPayActionProvider extends ActionProvider<WalletProvider> {
     } catch (e) {
       // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
       const name = (e as Error)?.name;
-      const kind = name === "PaymentDeniedError" ? "Payment refused by policy" : name === "PaymentBlockedError" ? "Payment blocked" : "Request failed";
+      const kind = name === "PaymentDeniedError" ? `Payment refused by policy${refusalTag(e)}` : name === "PaymentBlockedError" ? "Payment blocked" : "Request failed";
       return `${kind}: ${(e as Error)?.message ?? String(e)}`;
     }
   }

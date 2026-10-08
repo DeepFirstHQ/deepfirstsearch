@@ -100,6 +100,8 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | `sessionHasSensitiveData` | If the agent can also read private data, every payment needs a human (Rule of Two), so all are refused |
 | `auditLog` | Hash-chained JSONL log of every decision |
 
+A refused payment comes back as an error result, `Payment refused by policy: …`. From 0.1.8, once the bundled `@deepfirstsearch/agent-pay` is 0.8.0 or later, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` (codes listed in the SDK README, "Refusal codes").
+
 ## Develop
 
 ```bash

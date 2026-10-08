@@ -4,7 +4,9 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { privateKeyToAccount } from "viem/accounts";
 import { createAgentPay, MerchantRegistry } from "@deepfirstsearch/agent-pay";
 import { startMockServer, type MockServer } from "../../../sdk/examples/mock-x402-server.js";
-import { createPaidFetchTool } from "../src/index.js";
+import { createPaidFetchTool, refusalCode } from "../src/index.js";
+// The SDK in this repository (>= 0.8.0, with refusal codes), next to the published one installed above.
+import * as localSdk from "../../../sdk/src/index.js";
 
 const MERCHANT = "0x1111111111111111111111111111111111111111";
 const ATTACKER = "0x9999999999999999999999999999999999999999";
@@ -70,5 +72,34 @@ describe("createPaidFetchTool", () => {
     expect(msg.tool_call_id).toBe("c1");
     expect(JSON.parse(msg.content as string)).toMatchObject({ ok: true, paid: { amount: "0.01" } });
     expect(mock.received).toHaveLength(1);
+  });
+});
+
+describe("refusal codes (SDK >= 0.8.0), tolerated when absent", () => {
+  it("returns the stable code and action of a real refusal: a 402 whose price moved above the pin, zero signatures", async () => {
+    mock = await startMockServer({ "/data": { price: 15_000n, payTo: MERCHANT } });
+    const pay = localSdk.createAgentPay({
+      registry: new localSdk.MerchantRegistry([{ origin: mock.url, payTo: MERCHANT, network: "eip155:84532", maxPerTx: 20_000n, pricePin: 10_000n }]),
+      policy: { allowedNetworks: ["eip155:84532"] },
+      payer: () => payer,
+      session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
+    });
+    const plan = pay.commitPlan([{ origin: mock.url, maxSpend: 30_000n }], 60_000);
+    const tool = createPaidFetchTool({ pay: pay as never, plan: plan as never });
+    expect(JSON.parse(await tool.invoke({ url: `${mock.url}/data` }))).toEqual({
+      ok: false,
+      refused: true,
+      reason: "payment denied: amount 15000 is above the pinned price 10000",
+      code: "price_changed",
+      action: "ask_owner",
+    });
+    expect(mock.received).toHaveLength(0);
+  });
+
+  it("omits code and action with an SDK that has no codes, and for non-refusals", () => {
+    expect(refusalCode(Object.assign(new Error("payment denied: x"), { name: "PaymentDeniedError" }))).toEqual({});
+    expect(refusalCode(Object.assign(new Error("boom"), { code: "econnrefused" }))).toEqual({});
+    expect(refusalCode(Object.assign(new Error("x"), { name: "PaymentDeniedError", code: "bad code!", action: "report" }))).toEqual({});
+    expect(refusalCode(Object.assign(new Error("x"), { name: "PaymentDeniedError", code: "payee_mismatch", action: "report" }))).toEqual({ code: "payee_mismatch", action: "report" });
   });
 });

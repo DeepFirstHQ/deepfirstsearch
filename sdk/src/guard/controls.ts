@@ -1,3 +1,5 @@
+import { isRefusalCode, primaryRefusalCode, refusalAction, type RefusalAction, type RefusalCode } from "./refusal.js";
+
 /**
  * Runtime controls that sit around the policy engine: kill switch, rate limiting, human approval and the
  * "Agents Rule of Two" session check.
@@ -81,9 +83,32 @@ export class PaymentBlockedError extends Error {
   override name = "PaymentBlockedError";
 }
 
+/**
+ * The policy refused to sign. `reasons` are human-readable (wording may change); `codes` are stable machine-readable
+ * codes, parallel to `reasons` (codes[i] classifies reasons[i]). `code` is the primary one and `action` says what the
+ * agent should do about it (see REFUSAL_CODES).
+ *
+ * `new PaymentDeniedError(reasons)` without codes still works: every reason gets `policy_denied`.
+ */
 export class PaymentDeniedError extends Error {
   override name = "PaymentDeniedError";
-  constructor(readonly reasons: string[]) {
+  readonly codes: readonly RefusalCode[];
+  constructor(
+    readonly reasons: string[],
+    codes?: readonly RefusalCode[],
+  ) {
     super(`payment denied: ${reasons.join("; ")}`);
+    // Parallel to reasons; anything missing or outside the closed set becomes the generic code.
+    this.codes = Object.freeze(reasons.map((_, i) => (isRefusalCode(codes?.[i]) ? codes![i]! : "policy_denied")));
+  }
+
+  /** The primary refusal code. */
+  get code(): RefusalCode {
+    return primaryRefusalCode(this.codes);
+  }
+
+  /** What the agent should do about the primary code. */
+  get action(): RefusalAction {
+    return refusalAction(this.code);
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-agentkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Coinbase AgentKit action provider: agents fetch x402 APIs while the owner's Agent Safe policy decides every payment (no payee or amount in the model's hands)",
   "license": "MIT",
   "type": "module",

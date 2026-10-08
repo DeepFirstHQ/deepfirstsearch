@@ -16,6 +16,20 @@ export type PaidFetchToolOptions = {
   maxResponseChars?: number;
 };
 
+const ACTIONS = new Set(["report", "ask_owner", "fix_config", "retry_later"]);
+
+/**
+ * The refusal's stable code and action (SDK >= 0.8.0), e.g. `{ code: "price_changed", action: "ask_owner" }`. Empty with
+ * older SDKs, which have no codes, and for anything that is not a policy refusal: read defensively, never assumed.
+ */
+export function refusalCode(e: unknown): { code?: string; action?: string } {
+  if ((e as Error | undefined)?.name !== "PaymentDeniedError") return {};
+  const code = (e as { code?: unknown }).code;
+  if (typeof code !== "string" || !/^[a-z0-9_]{1,40}$/.test(code)) return {};
+  const action = (e as { action?: unknown }).action;
+  return typeof action === "string" && ACTIONS.has(action) ? { code, action } : { code };
+}
+
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
 export function fence(origin: string, body: string): string {
   const tag = `untrusted_${randomBytes(6).toString("hex")}`;
@@ -50,7 +64,7 @@ export function createPaidFetchTool(opts: PaidFetchToolOptions) {
         // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
         const name = (e as Error)?.name;
         const refused = name === "PaymentDeniedError" || name === "PaymentBlockedError";
-        return JSON.stringify({ ok: false, refused, reason: (e as Error).message });
+        return JSON.stringify({ ok: false, refused, reason: (e as Error).message, ...refusalCode(e) });
       }
     },
     {

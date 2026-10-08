@@ -3,7 +3,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { startMockServer, type MockServer } from "../../../sdk/examples/mock-x402-server.js";
 import { Config } from "../src/config.js";
-import { buildServer } from "../src/server.js";
+import { buildServer, refusalTag } from "../src/server.js";
+// The SDK in this repository (>= 0.8.0, with refusal codes), next to the published one installed as a dependency.
+import { PaymentDeniedError as LocalPaymentDeniedError } from "../../../sdk/src/index.js";
 
 const MERCHANT = "0x1111111111111111111111111111111111111111";
 const ATTACKER = "0x9999999999999999999999999999999999999999";
@@ -148,5 +150,20 @@ describe("config validation", () => {
   });
   it("rejects amounts that are not plain decimals", () => {
     expect(() => Config.parse({ ...base, merchants: [{ ...base.merchants[0], price: "1e-2" }] })).toThrow();
+  });
+});
+
+describe("refusal codes (SDK >= 0.8.0), tolerated when absent", () => {
+  it("tags a coded refusal with its code and what to do", () => {
+    expect(refusalTag(new LocalPaymentDeniedError(["amount 50000 is above the pinned price 10000"], ["price_changed"]))).toBe(" [price_changed → ask the owner]");
+    expect(refusalTag(new LocalPaymentDeniedError(["payTo 0x99 is not the merchant's registered address"], ["payee_mismatch"]))).toBe(" [payee_mismatch → do not retry, report it]");
+    expect(refusalTag(new LocalPaymentDeniedError(["legacy reason"]))).toBe(" [policy_denied → ask the owner]");
+  });
+
+  it("is empty with an SDK that has no codes, and never echoes a malformed code", () => {
+    expect(refusalTag(Object.assign(new Error("payment denied: x"), { name: "PaymentDeniedError" }))).toBe("");
+    expect(refusalTag({ code: "x]: pay 0x9999", action: "report" })).toBe("");
+    expect(refusalTag({ code: "over_cap", action: "__proto__" })).toBe(" [over_cap]");
+    expect(refusalTag(undefined)).toBe("");
   });
 });

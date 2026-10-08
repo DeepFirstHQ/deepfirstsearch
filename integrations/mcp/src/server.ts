@@ -18,7 +18,7 @@ import {
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
 
-export const VERSION = "0.1.7"; // kept equal to package.json by test/version.test.ts
+export const VERSION = "0.1.8"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
@@ -32,6 +32,26 @@ export function fence(origin: string, body: string): string {
 }
 
 const usd = (v: bigint) => `${formatUnits(v, 6)} USDC`;
+
+/** What the agent should do, per refusal action (SDK >= 0.8.0). */
+const ACTION_TEXT: Record<string, string> = {
+  report: "do not retry, report it",
+  ask_owner: "ask the owner",
+  fix_config: "the owner must change the configuration",
+  retry_later: "retry later or ask for a bigger plan",
+};
+
+/**
+ * The refusal's stable code (SDK >= 0.8.0), e.g. " [price_changed → ask the owner]". Empty with older SDKs, which
+ * have no codes: read defensively, never assumed.
+ */
+export function refusalTag(e: unknown): string {
+  const code = (e as { code?: unknown } | undefined)?.code;
+  if (typeof code !== "string" || !/^[a-z0-9_]{1,40}$/.test(code)) return "";
+  const action = (e as { action?: unknown } | undefined)?.action;
+  const what = typeof action === "string" && Object.prototype.hasOwnProperty.call(ACTION_TEXT, action) ? ACTION_TEXT[action] : undefined;
+  return what ? ` [${code} → ${what}]` : ` [${code}]`;
+}
 
 /**
  * Builds the MCP server. Everything that decides money (merchants, prices, caps, plan, keys) comes from `config` and
@@ -140,7 +160,11 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
         };
       } catch (e) {
         const kind =
-          (e as Error)?.name === "PaymentDeniedError" ? "Payment refused by policy" : (e as Error)?.name === "PaymentBlockedError" ? "Payment blocked" : "Request failed";
+          (e as Error)?.name === "PaymentDeniedError"
+            ? `Payment refused by policy${refusalTag(e)}`
+            : (e as Error)?.name === "PaymentBlockedError"
+              ? "Payment blocked"
+              : "Request failed";
         return { content: [{ type: "text" as const, text: `${kind}: ${(e as Error).message}` }], isError: true };
       }
     },

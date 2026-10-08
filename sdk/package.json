@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Policy-gated x402 payments for AI agents: deterministic spend policy outside the model, prompt-injection guards, per-merchant payers and on-chain Agent Safe budgets on Base.",
   "license": "MIT",
   "author": "Nicolas Tursi <nicolas@deepfirstsearch.com>",

@@ -1,5 +1,6 @@
 import { getAddress } from "viem";
 import type { SealedPlan } from "../guard/plan.js";
+import type { RefusalCode } from "../guard/refusal.js";
 import type { PaymentRequired, PaymentRequirements } from "../x402/schemas.js";
 import { pinnedAsset, type PinnedAsset } from "./networks.js";
 import { merchantVersions, type Merchant, type MerchantRegistry } from "./registry.js";
@@ -27,7 +28,8 @@ export type Approved = {
 export type Decision =
   | ({ kind: "allow"; reasons: string[] } & Approved)
   | ({ kind: "needsApproval"; reasons: string[] } & Approved)
-  | { kind: "deny"; reasons: string[] };
+  /** codes[i] is the stable code for reasons[i]. */
+  | { kind: "deny"; reasons: string[]; codes: RefusalCode[] };
 
 export type EvaluateInput = {
   url: string;
@@ -56,23 +58,26 @@ export function effectiveTimeoutBounds(
  */
 export function evaluate(config: PolicyConfig, registry: MerchantRegistry, input: EvaluateInput): Decision {
   const { url, required, plan } = input;
-  if (required.x402Version !== 1 && required.x402Version !== 2) return deny(`unsupported x402 version ${show(required.x402Version)}`);
+  if (required.x402Version !== 1 && required.x402Version !== 2) return deny1("version_not_allowed", `unsupported x402 version ${show(required.x402Version)}`);
 
   const merchant = registry.forUrl(url);
-  if (!merchant) return deny(`origin ${new URL(url).origin} is not an approved merchant`);
+  if (!merchant) return deny1("unknown_merchant", `origin ${new URL(url).origin} is not an approved merchant`);
   // x402 v1 is opt-in per merchant, never a global fallback. A v1 402 reaches this point already normalized
   // (network mapped to CAIP-2 through the fixed table, maxAmountRequired as amount), so every check below applies.
   if (!merchantVersions(merchant).includes(required.x402Version)) {
-    return deny(
+    return deny1(
+      "version_not_allowed",
       required.x402Version === 1
         ? `merchant ${merchant.origin} sent an x402 v1 402; v1 is off for it (allow it with x402Versions: [1, 2] in its registry entry)`
         : `merchant ${merchant.origin} sent an x402 v2 402 but its registry entry allows only x402Versions [${merchantVersions(merchant).join(", ")}]`,
     );
   }
-  if (!plan.covers(merchant.origin, input.now)) return deny("merchant is not in the sealed plan, or the plan expired");
+  if (!plan.covers(merchant.origin, input.now)) {
+    return deny1(input.now >= plan.expiresAt ? "plan_expired" : "not_in_plan", "merchant is not in the sealed plan, or the plan expired");
+  }
 
   const bounds = config.timeoutBounds ?? DEFAULT_TIMEOUT;
-  const rejected: string[] = [];
+  const rejected: [RefusalCode, string][] = [];
   const candidates: { r: PaymentRequirements; asset: PinnedAsset; amount: bigint }[] = [];
 
   for (const r of required.accepts) {
@@ -83,21 +88,21 @@ export function evaluate(config: PolicyConfig, registry: MerchantRegistry, input
     }
     candidates.push({ r, asset: pinnedAsset(r.network, config.assets)!, amount: BigInt(r.amount) });
   }
-  if (candidates.length === 0) return deny(...(rejected.length ? rejected : ["server offered no payment options"]));
+  if (candidates.length === 0) return deny(...(rejected.length ? rejected : [["invalid_402", "server offered no payment options"] as [RefusalCode, string]]));
 
   const best = candidates.reduce((a, b) => (b.amount < a.amount ? b : a));
   const amount = best.amount;
   const reasons: string[] = [];
 
-  if (amount <= 0n) return deny("amount must be positive");
-  if (amount > merchant.maxPerTx) return deny(`amount ${amount} exceeds merchant cap ${merchant.maxPerTx}`);
+  if (amount <= 0n) return deny1("invalid_402", "amount must be positive");
+  if (amount > merchant.maxPerTx) return deny1("over_cap", `amount ${amount} exceeds merchant cap ${merchant.maxPerTx}`);
   if (merchant.pricePin !== undefined) {
     const ceiling = merchant.pricePin + (merchant.pricePin * BigInt(merchant.toleranceBps ?? 0)) / 10_000n;
-    if (amount > ceiling) return deny(`amount ${amount} is above the pinned price ${merchant.pricePin}`);
+    if (amount > ceiling) return deny1("price_changed", `amount ${amount} is above the pinned price ${merchant.pricePin}`);
   }
-  if (amount > plan.remaining(merchant.origin)) return deny("amount exceeds what is left in the sealed plan");
+  if (amount > plan.remaining(merchant.origin)) return deny1("plan_exhausted", "amount exceeds what is left in the sealed plan");
   if (config.periodBudget && input.spentInPeriod + amount > config.periodBudget.amount) {
-    return deny("amount exceeds the period budget");
+    return deny1("budget_exhausted", "amount exceeds the period budget");
   }
 
   const approved = { requirement: best.r, merchant, asset: best.asset, amount };
@@ -119,28 +124,32 @@ function checkRequirement(
   merchant: Merchant,
   config: PolicyConfig,
   bounds: { min: number; max: number },
-): string | undefined {
-  if (r.scheme !== "exact") return `scheme ${show(r.scheme)} is not supported`;
-  if (!config.allowedNetworks.includes(r.network)) return `network ${show(r.network)} is not allowed`;
-  if (r.network !== merchant.network) return `network ${show(r.network)} does not match the merchant's network`;
+): [RefusalCode, string] | undefined {
+  if (r.scheme !== "exact") return ["scheme_unsupported", `scheme ${show(r.scheme)} is not supported`];
+  if (!config.allowedNetworks.includes(r.network)) return ["network_not_allowed", `network ${show(r.network)} is not allowed`];
+  if (r.network !== merchant.network) return ["network_mismatch", `network ${show(r.network)} does not match the merchant's network`];
   const pinned = pinnedAsset(r.network, config.assets);
-  if (!pinned) return `no pinned asset for ${show(r.network)}`;
-  if (r.asset.toLowerCase() !== pinned.asset.toLowerCase()) return `asset ${show(r.asset)} is not the pinned USDC`;
+  if (!pinned) return ["asset_not_pinned", `no pinned asset for ${show(r.network)}`];
+  if (r.asset.toLowerCase() !== pinned.asset.toLowerCase()) return ["asset_mismatch", `asset ${show(r.asset)} is not the pinned USDC`];
   const method = r.extra?.assetTransferMethod ?? "eip3009";
-  if (method !== "eip3009") return `transfer method ${show(method)} is not supported`;
-  if (r.extra?.name !== undefined && r.extra.name !== pinned.domain.name) return "EIP-712 domain name does not match the pin";
+  if (method !== "eip3009") return ["scheme_unsupported", `transfer method ${show(method)} is not supported`];
+  if (r.extra?.name !== undefined && r.extra.name !== pinned.domain.name) return ["asset_mismatch", "EIP-712 domain name does not match the pin"];
   if (r.extra?.version !== undefined && r.extra.version !== pinned.domain.version) {
-    return "EIP-712 domain version does not match the pin";
+    return ["asset_mismatch", "EIP-712 domain version does not match the pin"];
   }
-  if (getAddress(r.payTo) !== merchant.payTo) return `payTo ${show(r.payTo)} is not the merchant's registered address`;
+  if (getAddress(r.payTo) !== merchant.payTo) return ["payee_mismatch", `payTo ${show(r.payTo)} is not the merchant's registered address`];
 
   const mBounds = effectiveTimeoutBounds(bounds, merchant);
   if (r.maxTimeoutSeconds < mBounds.min || r.maxTimeoutSeconds > mBounds.max) {
-    return `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${mBounds.min}, ${mBounds.max}]`;
+    return ["timeout_out_of_bounds", `maxTimeoutSeconds ${r.maxTimeoutSeconds} is outside [${mBounds.min}, ${mBounds.max}]`];
   }
   return undefined;
 }
 
-function deny(...reasons: string[]): Decision {
-  return { kind: "deny", reasons };
+function deny(...refusals: [RefusalCode, string][]): Decision {
+  return { kind: "deny", reasons: refusals.map(([, reason]) => reason), codes: refusals.map(([code]) => code) };
+}
+
+function deny1(code: RefusalCode, reason: string): Decision {
+  return deny([code, reason]);
 }

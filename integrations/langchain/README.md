@@ -31,7 +31,7 @@ await graph.invoke({ messages: [{ role: "user", content: "Get today's price inde
 ```
 
 - The tool's schema is only `url`, `method`, `body`, `contentType`. Merchants, price pins, caps and the plan live in `pay` and `plan`, which the model can't reach.
-- It returns a JSON string: `{ ok: true, status, paid, body }` with the body fenced as untrusted data, or `{ ok: false, refused: true, reason }`.
+- It returns a JSON string: `{ ok: true, status, paid, body }` with the body fenced as untrusted data, or `{ ok: false, refused: true, reason }`. Since 0.3.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, a policy refusal also carries `code` (stable, e.g. `price_changed`, `payee_mismatch`, `plan_exhausted`) and `action` (`report`, `ask_owner`, `fix_config` or `retry_later`); see "Refusal codes" in the SDK README. With older SDKs both are absent.
 - **Try it offline first:** use `payer: () => privateKeyToAccount(generatePrivateKey())`, drop `ensureFunded`, and point the registry at `startMockServer` from `@deepfirstsearch/agent-pay/testing` (see [Test without a chain](https://deepfirstsearch.com/developers.html#test-without-a-chain)).
 - Create the vault and budgets with the [owner CLI](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#owner-cli-vault-and-budgets-in-three-commands).
 
