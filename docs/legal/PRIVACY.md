@@ -5,7 +5,7 @@
 We build privacy tools, so this website is designed to collect as little as possible.
 
 ## What this website collects
-- **No cookies, no analytics, no trackers, no third-party scripts, no third-party fonts.** Every file is served from our own origin.
+- **No cookies, no trackers, no third-party fonts.** Every file is served from our own origin, except one script: **Cloudflare Web Analytics**, which is cookieless, is loaded from `static.cloudflareinsights.com` and counts page views without identifying visitors. It is the only third-party script on the site.
 - **No forms.** We do not ask for your name or email address on this website.
 - **Server logs.** Our hosting provider may keep standard access logs (IP address, time, requested page, user agent) for security and abuse prevention, for a short retention period. We do not combine them with any other data.
 

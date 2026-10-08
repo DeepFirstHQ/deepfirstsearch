@@ -9,8 +9,11 @@
 - `@deepfirstsearch/agent-pay-ai-sdk`: `paidFetchTool({ pay, plan })` for the Vercel AI SDK.
 - `@deepfirstsearch/agent-pay-langchain`: `createPaidFetchTool({ pay, plan })` for LangChain.js / LangGraph.
 - `@deepfirstsearch/agent-pay-turnkey`: `turnkeyPayer({ client, address })`, a Turnkey-held key as the payer.
+- `@deepfirstsearch/agent-pay-privy`: `privyPayer({ privy, walletId, address, authorizationContext? })`, a Privy server wallet as the payer (returns a viem `LocalAccount`).
+- `@deepfirstsearch/agent-pay-cdp`: `await cdpPayer({ cdp, name })` or `cdpPayer({ cdp, address })`, a Coinbase CDP Server Wallet account as the payer; signs only EIP-712 typed data, refuses transactions and messages.
+- `@deepfirstsearch/agent-pay-agentkit`: `agentPayActionProvider({ pay, plan })` for Coinbase AgentKit (action `AgentPayActionProvider_paid_fetch`, exported as `PAID_FETCH_ACTION`; input is only a URL), and `agentKitPayer(walletProvider)` to use an AgentKit EVM wallet provider as the payer. Install with `@coinbase/agentkit viem@2.38.3 zod@3`.
 - `@deepfirstsearch/order-guard`: `createOrderGuard(policy, backend)` returns `{ preview, submit, spentToday, audit }`; throws `OrderRefusedError`. Owner-set limits for agents that place real orders (approved stores, pinned delivery address, order/tip caps, daily budget, single-use previews). `/testing` exports `createMockDelivery`, `MOCK_STORES`.
-- The tool packages take `@deepfirstsearch/agent-pay` (and `ai`/`zod`, `@langchain/core`) as peer dependencies: install them alongside.
+- The tool packages take `@deepfirstsearch/agent-pay` (and `ai`/`zod`, `@langchain/core`, `@coinbase/agentkit`, the wallet SDKs, `viem`) as peer dependencies: install them alongside.
 
 ## Key rules when integrating
 
@@ -22,15 +25,18 @@
 - Per-merchant `maxTimeoutSeconds` (10 to 86400) overrides the default 300 s authorization window for that merchant only.
 - Optional: `screen` (sanctions, fails closed), `confirmAuthorization: usdcAuthorizationCheck({ network: publicClient })` (on-chain confirmation when a receipt is unusable), `approve`, `settleRetries`.
 - On-chain budgets: each top-up must be <= the intent's `maxPerTx` and `trancheCap`.
-- Refusals throw `PaymentDeniedError` (policy) or `PaymentBlockedError` (kill switch, settlement); integrations return them as data.
+- Refusals throw `PaymentDeniedError` (policy) or `PaymentBlockedError` (kill switch, rate limit, settlement); integrations return them as data. Branch on codes, never on reason text (agent-pay >= 0.8.0): `PaymentDeniedError` has `codes`, `code` and `action` (`report`: possible redirection such as `payee_mismatch`, never retry; `ask_owner`: e.g. `price_changed`, `over_cap`; `fix_config`: e.g. `unknown_merchant`, `version_not_allowed`; `retry_later`: e.g. `plan_exhausted`, `budget_exhausted`), closed set `REFUSAL_CODES`. `PaymentBlockedError` has `code` and `action` (`BLOCK_CODES`): `settlement_pending` → `resend_same` (request the same resource again; the SDK resends the same proof and never re-signs), `settled_not_delivered` → `report` (never pay again), `rate_limited` → `retry_later`, `kill_switch` → `ask_owner`.
+- x402 v2 by default. x402 v1 only for merchants whose registry entry sets `x402Versions: [1, 2]` (or `[1]`); there is no global switch and no automatic downgrade; a v1 402 from any other merchant is refused (`version_not_allowed`).
+- `paid_fetch` (MCP, AI SDK, LangChain, AgentKit) fetches any URL; only payments are restricted to registered merchants. Non-402 responses from other origins come back as fenced, untrusted data.
 
 ## Docs
 
 - Developers: https://deepfirstsearch.com/developers.html
 - Partners: https://deepfirstsearch.com/partners.html
 - Merchant guides (each tested with a real payment on Base mainnet): https://deepfirstsearch.com/integrations/{exa,blockrun,coingecko,nansen,glassnode,massive,stocktrends,blockchaincom,onesource,pocket,spraay,otto,bitrefill,pinata,zerion,telnyx,bravesearch,youcom,blockscout,vaultsfyi,coinstats,openwebninja,3route,blocksizecapital,particle,coinmarketcap,justaname,interzoid,heyelsa,heurist}.html
-- Wallet guide: https://deepfirstsearch.com/integrations/turnkey.html
+- Wallet guides: https://deepfirstsearch.com/integrations/{turnkey,privy,cdp}.html
 - SDK: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk
 - MCP server: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp
+- AgentKit action provider: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit
 - Deployments: https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/DEPLOYMENTS.md
 - Repository: https://github.com/DeepFirstHQ/deepfirstsearch

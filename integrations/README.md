@@ -15,4 +15,4 @@ Available:
 
 The tool integrations take `@deepfirstsearch/agent-pay` as a peer dependency, so an app always runs a single copy of the SDK.
 
-Wanted (see the [`integration`](https://github.com/DeepFirstHQ/deepfirstsearch/labels/integration) issues): Coinbase AgentKit action provider, ElizaOS plugin. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first.
+Wanted (see the [`integration`](https://github.com/DeepFirstHQ/deepfirstsearch/labels/integration) issues): ElizaOS plugin. Read [CONTRIBUTING.md](../CONTRIBUTING.md) first.

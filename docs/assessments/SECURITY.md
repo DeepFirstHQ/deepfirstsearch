@@ -97,7 +97,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 ```
 - `frame-ancestors` solo funciona como header HTTP, no en el meta. Va en `public/_headers`.
 - **Trusted Types `'none'`:** el navegador bloquea cualquier asignación de HTML como string. Si alguien reintroduce `innerHTML`, falla en el acto.
-- **Sin cookies, sin analytics, sin formularios.** El sitio no guarda datos personales.
+- **Sin cookies, sin formularios.** El sitio no guarda datos personales. *(Actualización: desde entonces el sitio carga Cloudflare Web Analytics, sin cookies, desde `static.cloudflareinsights.com`; es el único script de terceros y la CSP vigente en `web/public/_headers` lo permite solo a él.)*
 
 **Pendiente antes de un dominio público:**
 - [ ] **Dominio:** registrar el `.com` y variantes típicas de typosquatting; activar registrar lock, DNSSEC, un registro CAA (`0 issue "letsencrypt.org"`) y 2FA con llave de hardware en el registrador.

@@ -21,7 +21,10 @@ npx @deepfirstsearch/agent-pay demo
 | Claude Desktop, Claude Code, Cursor, any MCP client | `npx @deepfirstsearch/agent-pay-mcp` | [integrations/mcp](integrations/mcp/README.md) |
 | Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk` | [integrations/ai-sdk](integrations/ai-sdk/README.md) |
 | LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain` | [integrations/langchain](integrations/langchain/README.md) |
-| Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [sdk](sdk/README.md) |
+| Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [integrations/agentkit](integrations/agentkit/README.md) |
+| Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay viem` | [sdk](sdk/README.md) |
+| A Turnkey, Privy or Coinbase CDP wallet as the payer | `npm i @deepfirstsearch/agent-pay-turnkey` (or `-privy`, `-cdp`) plus `@deepfirstsearch/agent-pay viem` and the wallet's SDK | [Turnkey](integrations/turnkey/README.md) · [Privy](integrations/privy/README.md) · [CDP](integrations/cdp/README.md) |
+| Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [integrations/order-guard](integrations/order-guard/README.md) |
 | On-chain budgets on Base | `npx @deepfirstsearch/agent-pay owner help` | [owner CLI](sdk/README.md#owner-cli-vault-and-budgets-in-three-commands) |
 
 Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)** · building a wallet, framework or platform? **[Partners](https://deepfirstsearch.com/partners.html)**.
@@ -32,10 +35,10 @@ Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch
 |---|---|---|
 | **MCP server** (`integrations/mcp/`) | Model Context Protocol server: Claude Desktop, Claude Code, Cursor and any MCP client get `paid_fetch`, `list_merchants` and `budget_status` tools that pay x402 APIs inside the owner's budget | ✅ `npx @deepfirstsearch/agent-pay-mcp` · tested with a real Claude session on Base Sepolia |
 | **Agent Safe** (`contracts/`) | On-chain vault: owner-signed, timelocked, per-merchant budgets; the agent key can spend but never widen | ✅ 98 tests (fuzzing, invariants, properties, regressions, Base mainnet fork with real USDC), two internal reviews · live on Base mainnet (beta) |
-| **agent-pay SDK** (`sdk/`) | x402 v2 client with a policy engine outside the model, prompt-injection guards, per-merchant payers, owner CLI | ✅ 162 tests incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
-| **Framework tools** (`integrations/`) | Vercel AI SDK `paidFetchTool`, LangChain/LangGraph `createPaidFetchTool` | ✅ on npm |
+| **agent-pay SDK** (`sdk/`) | x402 v2 client (v1 opt-in per merchant) with a policy engine outside the model, prompt-injection guards, stable refusal codes, per-merchant payers, owner CLI | ✅ 284 tests (274 run offline; 10 need a Base mainnet fork or RPC) incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
+| **Framework tools** (`integrations/`) | Vercel AI SDK `paidFetchTool`, LangChain/LangGraph `createPaidFetchTool`, Coinbase AgentKit `agentPayActionProvider`; wallet payers `turnkeyPayer`, `privyPayer`, `cdpPayer`; `order-guard` for agents that place real orders | ✅ on npm |
 | **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · not launched |
-| **Website** (`web/`) | Site, whitepaper, tokenomics, partner kit, legal pages; strict CSP, zero third parties | ✅ |
+| **Website** (`web/`) | Site, whitepaper, tokenomics, partner kit, legal pages; strict CSP, no cookies; only third party is cookieless Cloudflare Web Analytics | ✅ |
 
 ## MCP server: let Claude or Cursor pay x402 APIs safely
 
@@ -78,7 +81,7 @@ cd ../web && npm ci && npm run dev
 | [Whitepaper](docs/WHITEPAPER.md) | Formal design, privacy model, risks (EN; structured for MiCA Annex I) |
 | [Tokenomics](docs/TOKENOMICS.md) | Supply, allocation, Firepit burn, vesting (EN) |
 | [Decisions](docs/DECISIONS.md) | ADRs: ticker, chain, burn, vesting, stand… (ES) |
-| [Deployments](docs/DEPLOYMENTS.md) | Base Sepolia contract addresses and the live demo vault |
+| [Deployments](docs/DEPLOYMENTS.md) | Contract addresses on Base mainnet (unaudited beta) and Base Sepolia, plus the live demo vault |
 | [Audit scope](docs/audit/SCOPE.md) | Scope, nSLOC, roles, known issues and questions for reviewers |
 | [Airdrop tool](tools/airdrop/build.mjs) | Builds the airdrop Merkle tree and proofs; tested against the contract |
 | [Mainnet runbook](docs/MAINNET.md) | Safes, rehearsal, deploy, checks, guarded launch, monitoring |

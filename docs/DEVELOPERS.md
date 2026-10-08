@@ -28,12 +28,13 @@ Result  spent 0.03 USDC of 0.03 USDC · signatures sent to attackers: 0 · audit
 | You use | Install | Guide |
 |---|---|---|
 | Claude Desktop, Claude Code, Cursor, OpenClaw, any MCP client | `npx @deepfirstsearch/agent-pay-mcp ./config.json` | [MCP server](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) |
-| Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk @deepfirstsearch/agent-pay ai zod` | [AI SDK tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/ai-sdk) |
-| LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain @deepfirstsearch/agent-pay @langchain/core` | [LangChain tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain) |
-| Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk) |
-| A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey` | [Turnkey guide](integrations/TURNKEY.md) |
-| A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @privy-io/node` | [Privy guide](integrations/PRIVY.md) |
-| Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @coinbase/agentkit` | [AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit) |
+| Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk @deepfirstsearch/agent-pay ai zod viem` | [AI SDK tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/ai-sdk) |
+| LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain @deepfirstsearch/agent-pay @langchain/core @langchain/langgraph viem` | [LangChain tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain) |
+| Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay viem` | [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk) |
+| A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey @deepfirstsearch/agent-pay @turnkey/sdk-server viem` | [Turnkey guide](integrations/TURNKEY.md) |
+| A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @deepfirstsearch/agent-pay @privy-io/node viem` | [Privy guide](integrations/PRIVY.md) |
+| A Coinbase CDP Server Wallet | `npm i @deepfirstsearch/agent-pay-cdp @deepfirstsearch/agent-pay @coinbase/cdp-sdk viem` | [CDP guide](integrations/CDP.md) |
+| Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit) |
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [order-guard](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/order-guard) |
 
 The integrations take the SDK as a peer dependency, so your app always uses a single copy of it.
@@ -58,6 +59,8 @@ The agent gets `paid_fetch`, `list_merchants` and `budget_status`, and nothing t
 
 ### Your own agent
 
+**Project setup.** The samples on this page are ESM with top-level `await`: run `npm pkg set type=module` in your project (or name the file `.ts` and run it with `npx tsx file.ts`). Node 20 or later. Keep `viem` in the install line whenever a sample imports it (pnpm doesn't hoist it for you).
+
 ```ts
 import { createAgentPay, MerchantRegistry } from "@deepfirstsearch/agent-pay";
 
@@ -67,7 +70,7 @@ const pay = createAgentPay({
     network: "eip155:8453", maxPerTx: 50_000n, pricePin: 10_000n,
   }]),
   policy: { allowedNetworks: ["eip155:8453"] },
-  payer: () => yourWalletAccount, // any viem LocalAccount: a local key, or Turnkey, Privy, CDP, KMS via toAccount
+  payer: () => yourWallet, // any viem LocalAccount: a local key, or a Turnkey, Privy or CDP payer (see the wallet guides above)
   session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
 });
 
@@ -112,6 +115,10 @@ Budgets are signed by the owner and become active after a public timelock. Pausi
 4. **The vault enforces it again on-chain:** the agent key can top up only the signed payer, within the caps.
 5. **Everything is logged** in a hash-chained audit log.
 
+`paid_fetch` (MCP server, AI SDK, LangChain, AgentKit) fetches any URL the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned to the model as data, fenced as untrusted.
+
+Refusals carry stable codes (`PaymentDeniedError.code`, e.g. `payee_mismatch`, `price_changed`, `plan_exhausted`) and an `action` (`report`, `ask_owner`, `fix_config`, `retry_later`); blocks (`PaymentBlockedError`) carry codes too, and `settlement_pending` means `resend_same`: request the same resource again, the SDK resends the same proof and never signs a new one. Full tables: [Refusal codes](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#refusal-codes).
+
 ## Test without a chain
 
 The package ships the mock merchant used in the demo, so you can try everything offline: no keys to fund, no chain. This runs as is:
@@ -142,8 +149,15 @@ await merchant.close();
 
 Requires `@deepfirstsearch/agent-pay` 0.6.1 or later (the `network` option).
 
+Complete offline scripts with a framework, each run from npm before publishing: [Vercel AI SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/ai-sdk#try-it-offline-no-keys-no-chain) (a scripted model, no API key) · [LangChain / LangGraph](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain#try-it-offline-no-keys-no-chain) (a `ToolNode`, no LLM) · [Coinbase AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit#try-it-offline-no-keys-to-fund-no-chain).
+
 ## What's new
 
+- **0.8.0:** refusals carry stable codes and an action: `PaymentDeniedError` gains `codes`, `code` and `action` (`report`, `ask_owner`, `fix_config`, `retry_later`), exported as `REFUSAL_CODES`. `PaymentBlockedError` carries a code too (`BLOCK_CODES`): `settlement_pending` means resend the same proof (request the same resource again; the SDK never re-signs), `settled_not_delivered` means never pay again and report it, plus `rate_limited` and `kill_switch`. Reasons are unchanged; nothing about checks or signing changed.
+- **0.7.0:** x402 v1, opt-in per merchant: set `x402Versions: [1, 2]` on that merchant's registry entry (default `[2]`, no global switch, no automatic downgrade). v1 networks map to CAIP-2 through a fixed table (`base`, `base-sepolia`) and every policy check applies unchanged.
+- **0.6.3:** with `confirmAuthorization`, a 2xx with no readable receipt goes straight to the on-chain check instead of resending the spent authorization (CoinMarketCap); the check is retried up to 4 times. 402 options that repeat x402 v1 resource metadata (Interzoid) are accepted.
+- **0.6.2:** `viem` is a range (`^2.38.0`) instead of an exact pin, so apps that also use Coinbase AgentKit (viem 2.38) get a single viem.
+- **0.6.1:** `startMockServer(routes, { network })`: the offline mock merchant can speak Base mainnet as well as Base Sepolia.
 - **0.6.0:** `confirmAuthorization` + `usdcAuthorizationCheck`: when a merchant's receipt is unusable, the SDK can confirm the payment on-chain.
 - **0.5.5:** per-merchant `maxTimeoutSeconds` (10 to 86400) for merchants that ask for long authorizations.
 - **0.5.4:** the 402 is also read from `X-PAYMENT-REQUIRED`.

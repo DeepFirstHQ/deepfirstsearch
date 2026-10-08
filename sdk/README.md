@@ -3,14 +3,19 @@
 x402 payments for AI agents (v2, plus v1 for merchants you opt in) where **the model proposes and the owner's policy decides**.
 
 ```bash
-npm install @deepfirstsearch/agent-pay
+npm install @deepfirstsearch/agent-pay viem
 npx @deepfirstsearch/agent-pay demo   # 10-second offline tour: one honest payment, four attacks refused
 ```
 
 > **Beta, unaudited.** Agent Safe is live on Base Sepolia and in a capped mainnet beta; an independent audit is being arranged. Use small amounts and at your own risk.
 
+**Project setup.** The samples are ESM with top-level `await`: run `npm pkg set type=module` in your project (or name the file `.ts` and run it with `npx tsx file.ts`). Node 20 or later. Install `viem` next to the SDK whenever a sample imports it (pnpm doesn't hoist it for you).
+
 ```ts
+import { hexToBytes, type Hex } from "viem";
 import { createAgentPay, MerchantRegistry, burnerPayers } from "@deepfirstsearch/agent-pay";
+
+const ownerSeed = hexToBytes(process.env.AGENT_PAY_BURNER_SEED as Hex); // 32 random bytes, never the owner key
 
 const registry = new MerchantRegistry([
   { origin: "https://api.pricing-intel.io", payTo: "0x…", network: "eip155:8453", maxPerTx: 50_000n, pricePin: 10_000n },
@@ -47,6 +52,8 @@ The 402 is read from `PAYMENT-REQUIRED`, or from `X-PAYMENT-REQUIRED` when the s
 A refusal throws `PaymentDeniedError`. Its `reasons` are human-readable and may be reworded; its `codes` (one per reason) are stable and machine-readable, `code` is the primary one, and `action` says what the agent should do. The same codes are recorded in the `payment.denied` audit event.
 
 ```ts
+import { PaymentDeniedError } from "@deepfirstsearch/agent-pay";
+
 try {
   await pay.fetch(url, {}, { plan });
 } catch (e) {
@@ -76,7 +83,19 @@ try {
 | `plan_expired` | retry_later | the sealed plan expired; seal a new one |
 | `budget_exhausted` | retry_later | not enough left in the period budget |
 
-Actions: `report` (possible redirection or tampering: don't retry, report it), `ask_owner` (only the owner can decide), `fix_config` (the owner's configuration does not allow it), `retry_later` (a limit was reached: retry later or ask for a bigger plan). With several reasons, `code` is the most cautious one. `REFUSAL_CODES`, `RefusalCode` and `RefusalAction` are exported. Kill switch, rate limits and settlement problems are `PaymentBlockedError`, not refusals.
+Actions: `report` (possible redirection or tampering: don't retry, report it), `ask_owner` (only the owner can decide), `fix_config` (the owner's configuration does not allow it), `retry_later` (a limit was reached: retry later or ask for a bigger plan), and, for blocks only, `resend_same` (request the same resource again: the SDK resends the same signed authorization and never signs a new one). With several reasons, `code` is the most cautious one. `REFUSAL_CODES`, `RefusalCode` and `RefusalAction` are exported.
+
+### Block codes
+
+Kill switch, rate limits and settlement problems are not refusals: they throw `PaymentBlockedError`, which carries a `code` and an `action` too (`BLOCK_CODES`, `BlockCode`, `BlockAction` are exported).
+
+| code | action | meaning |
+| --- | --- | --- |
+| `settlement_pending` | resend_same | no receipt confirmed the payment; it may still settle. Request the same resource again: the same authorization is resent, nothing new is signed. Never re-sign |
+| `settled_not_delivered` | report | the payment settled on-chain but the merchant did not deliver: never pay again, report it |
+| `rate_limited` | retry_later | the payment rate limit was reached |
+| `kill_switch` | ask_owner | payments are stopped by the owner's kill switch |
+| `blocked` | ask_owner | generic block (default when no specific code applies) |
 
 ## x402 v1 merchants (opt-in per merchant)
 
@@ -113,9 +132,10 @@ new MerchantRegistry([
 ```ts
 import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
 
+const payTo = "0x1111111111111111111111111111111111111111";
 const merchant = await startMockServer({
-  "/data": { price: 10_000n, payTo: "0x1111…", body: '{"ok":true}' },
-  "/evil": { price: 10_000n, payTo: "0x1111…", tamper: (r) => ({ ...r, payTo: "0x9999…" }) },
+  "/data": { price: 10_000n, payTo, body: '{"ok":true}' },
+  "/evil": { price: 10_000n, payTo, tamper: (r) => ({ ...r, payTo: "0x9999999999999999999999999999999999999999" }) },
 });
 // merchant.url, merchant.received (payloads it got), await merchant.close()
 ```
@@ -135,7 +155,7 @@ npx @deepfirstsearch/agent-pay owner status --vault 0x…
 
 - `--network base-sepolia` (default) or `--network base`. On Base mainnet every transaction asks for confirmation and warns that this is an unaudited beta.
 - The owner key comes from a Foundry/geth keystore (`--keystore`, password prompted) or `AGENT_PAY_OWNER_KEY`; never from arguments.
-- `budget` derives the merchant's payer address from `AGENT_PAY_BURNER_SEED`, signs the budget, proposes it, and prints the `intentId` plus a ready-to-paste entry for the [MCP server](../integrations/mcp) config.
+- `budget` derives the merchant's payer address from `AGENT_PAY_BURNER_SEED`, signs the budget, proposes it, and prints the `intentId` plus a ready-to-paste entry for the [MCP server](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) config.
 - Also: `pause`, `unpause`, `revoke --intent`, `withdraw --amount`, `flush-fees`, and `--json` for scripts.
 
 The official addresses and ABIs are exported too: `AGENT_SAFE.base.factory`, `BUDGET_VAULT_FULL_ABI`, `BUDGET_VAULT_FACTORY_ABI`, `FEE_JAR_ABI`.
@@ -167,7 +187,7 @@ git clone https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/s
 PAYER_KEY=0x… npx tsx examples/real-merchants.ts   # a throwaway key, never a wallet that matters
 ```
 
-Fourteen merchants, each tested with a real payment, have a step-by-step guide at [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html).
+Thirty merchants, each tested with a real payment, have a step-by-step guide at [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html).
 
 ## Try the whole loop on Base Sepolia (free, about 1 hour)
 
@@ -202,7 +222,10 @@ Full list and transactions: [docs/DEPLOYMENTS.md](https://github.com/DeepFirstHQ
 The owner, never the agent, signs one budget per merchant. The budget names the agent key, the merchant and the only payer address the vault may top up:
 
 ```ts
+import { hexToBytes, type Hex } from "viem";
 import { burnerAddress, signIntent } from "@deepfirstsearch/agent-pay";
+
+const ownerSeed = hexToBytes(process.env.AGENT_PAY_BURNER_SEED as Hex); // the same seed the agent's payment process uses
 
 const intent = {
   agent: agentAddress,

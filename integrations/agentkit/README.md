@@ -10,9 +10,14 @@ npm install @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coin
 
 (AgentKit pins viem 2.38.3; using the same version keeps one copy of viem's types.)
 
+Before you install: `@coinbase/agentkit` pulls in about 1,000 packages, and `npm audit` reports upstream warnings in that tree (from `@coinbase/agentkit` and the viem version it pins, not from this package, which has no dependencies of its own beyond its peers). AgentKit also makes an outbound analytics call when a wallet provider is created; see the note below.
+
+**Project setup.** The example is ESM with top-level `await`: run `npm pkg set type=module` (or name the file `.ts` and run it with `npx tsx file.ts`). Node 20 or later.
+
 ## Try it offline (no keys to fund, no chain)
 
 ```ts
+process.on("unhandledRejection", () => {}); // AgentKit's wallet providers send an analytics event; see the note below
 import { AgentKit, ViemWalletProvider } from "@coinbase/agentkit";
 import { createAgentPay, MerchantRegistry } from "@deepfirstsearch/agent-pay";
 import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
@@ -51,19 +56,20 @@ console.log(await paidFetch.invoke({ url: `${merchant.url}/evil` })); // Payment
 await merchant.close();
 ```
 
-With a real merchant, use its origin and `payTo` from its 402 (14 merchants with tested values: [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)). The actions plug into AgentKit's framework extensions (LangChain, Vercel AI SDK, OpenAI Agents) like any other provider.
+With a real merchant, use its origin and `payTo` from its 402 (30 merchants with tested values: [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)). The actions plug into AgentKit's framework extensions (LangChain, Vercel AI SDK, OpenAI Agents) like any other provider.
 
 ## What's different from AgentKit's built-in x402 actions
 
 AgentKit's `x402ActionProvider` lets the model pick the payment option (`selectedPaymentOption` includes `payTo` and the amount) when it retries a 402. That is convenient, and it is also where a prompt injection can redirect a payment. This provider keeps the model out of money decisions:
 
 - The model only chooses a URL. Every 402 is checked against the owner's registry before anything is signed: payee, asset, network, price and timeout must match, and the sealed plan and period budget must have room.
-- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened. Since 0.2.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` or `[payee_mismatch → do not retry, report it]` (codes listed in the SDK README, "Refusal codes"). Older SDKs give the text without the tag.
+- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened. Since 0.2.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` or `[payee_mismatch → do not retry, report it]` (codes listed in the SDK README, "Refusal codes"). Older SDKs give the text without the tag. Blocks carry codes too (`Payment blocked [settlement_pending → …]`; also `settled_not_delivered`, `rate_limited`, `kill_switch`), with the extra action `resend_same`: fetch the same URL again, and the SDK resends the same signed authorization without signing a new one.
 - Responses are fenced with a random tag and labeled as untrusted data.
+- `paid_fetch` fetches any URL the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned as data (fenced as untrusted), so treat it like any fetch action you give a model.
 - On-chain budgets (optional): fund the payer from an Agent Safe vault with `vaultFunder`, so even a compromised machine can only spend inside the owner-signed caps. See the [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk).
 - The action is built without AgentKit's `@CreateAction` decorator, so invoking it sends no analytics event.
 
-Note: AgentKit's wallet providers send an initialization event to Coinbase's analytics endpoint. In AgentKit 0.10.4 that call isn't awaited, so if the endpoint answers with an error the rejection is unhandled and Node exits. Until that's fixed upstream, a `process.on("unhandledRejection", …)` handler in your agent keeps it running.
+Note: AgentKit makes an outbound analytics call. Its wallet providers send an initialization event to Coinbase's analytics endpoint when they are created, including in the offline example above (this package's action sends none). In AgentKit 0.10.4 that call isn't awaited, so if the endpoint answers with an error the rejection is unhandled and Node exits. Until that's fixed upstream, the `process.on("unhandledRejection", …)` handler at the top of the example keeps it running; in a real agent, log those rejections rather than ignoring them.
 
 `agentKitPayer(walletProvider)` works with any AgentKit EVM wallet provider (`ViemWalletProvider`, `CdpEvmWalletProvider`, …): it signs EIP-712 payment authorizations and refuses to sign transactions. Any viem `LocalAccount` works as the payer too.
 

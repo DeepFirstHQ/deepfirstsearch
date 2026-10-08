@@ -6,7 +6,7 @@
     <title>Deep First Search: safe x402 payments for AI agents</title>
     <meta
       name="description"
-      content="Safe x402 payments for AI agents on Base: owner-signed, on-chain budgets the model can't change. MCP server for Claude and Cursor, Vercel AI SDK and LangChain tools, any wallet. Open source, live on Base."
+      content="Safe x402 payments for AI agents on Base: owner-signed, on-chain budgets the model can't change. MCP server for Claude and Cursor, Vercel AI SDK, LangChain and Coinbase AgentKit tools, any wallet. Open source, unaudited beta live on Base."
     />
     <meta name="theme-color" content="#000000" />
     <meta property="og:type" content="website" />
@@ -61,7 +61,7 @@
               AI agents are starting to pay for things, and anyone can talk them into paying the wrong
               party. We keep every payment inside limits you signed, and expose less of your business.
             </p>
-            <p class="hero__live"><span class="hero__dot" aria-hidden="true"></span>Live on Base · beta · <a href="./developers.html"><code>npx @deepfirstsearch/agent-pay demo</code></a></p>
+            <p class="hero__live"><span class="hero__dot" aria-hidden="true"></span>Live on Base · unaudited beta · <a href="./developers.html"><code>npx @deepfirstsearch/agent-pay demo</code></a></p>
           </div>
           <div class="hero__after" aria-hidden="true">
             <p class="hero__after-line">Search deep.</p>
@@ -83,7 +83,7 @@
           <div class="stats">
             <article class="stat" data-reveal>
               <p class="stat__num">18M+</p>
-              <p class="stat__label">x402 payments audited on-chain. Payer, payee, amount and timing are public for every one.</p>
+              <p class="stat__label">x402 payments visible on-chain. Payer, payee, amount and timing are public for every one.</p>
             </article>
             <article class="stat" data-reveal>
               <p class="stat__num">$150K+</p>
@@ -245,8 +245,8 @@
               <p><code>npx @deepfirstsearch/agent-pay-mcp</code>. Listed in the official MCP registry and on Glama. The model gets <code>paid_fetch</code>, never a payee or a limit.</p>
             </article>
             <article class="card" data-reveal>
-              <h3>Vercel AI SDK and LangChain</h3>
-              <p>One tool for <code>generateText</code>, one for LangGraph. Refusals come back as data, so the agent can explain them.</p>
+              <h3>Vercel AI SDK, LangChain and AgentKit</h3>
+              <p>One tool for <code>generateText</code>, one for LangGraph, one action provider for Coinbase AgentKit. Refusals come back as data, so the agent can explain them.</p>
             </article>
             <article class="card" data-reveal>
               <h3>Your wallet, unchanged</h3>
@@ -358,12 +358,12 @@
             <li class="step is-done">
               <p class="step__phase">Phase 1 · Done</p>
               <h3>SDK, integrations, testnet</h3>
-              <p>x402 client with a policy engine outside the model, Agent Safe vaults, per-merchant payers, an owner CLI, an MCP server (official MCP registry), Vercel AI SDK and LangChain tools. <a href="https://base-sepolia.blockscout.com/address/0xF245D3CB8700a804432Ea50b253a923B4b32C0c7" rel="noopener">Verified on Base Sepolia</a>.</p>
+              <p>x402 client with a policy engine outside the model, Agent Safe vaults, per-merchant payers, an owner CLI, an MCP server (official MCP registry), Vercel AI SDK and LangChain tools, a Coinbase AgentKit action provider, and Turnkey, Privy and CDP wallet payers. <a href="https://base-sepolia.blockscout.com/address/0xF245D3CB8700a804432Ea50b253a923B4b32C0c7" rel="noopener">Verified on Base Sepolia</a>.</p>
             </li>
             <li class="step">
               <p class="step__phase">Phase 2 · Now</p>
               <h3>Mainnet beta on Base</h3>
-              <p>Live since October 6, 2026, with the <a href="https://basescan.org/tx/0xf38e3a73b733ab7c44ec5bc542d4baeb60679cb79c305a10fa2f0b705ac06526" rel="noopener">first real payments</a> settled (unaudited, small amounts, <a href="https://base.blockscout.com/address/0xDe17e1B889efa4671852e0b268e100967A7a257E" rel="noopener">verified factory</a>). Next: design partners and wallet integrations, an independent review, then the public launch.</p>
+              <p>Live since October 6, 2026, with the <a href="https://basescan.org/tx/0xf38e3a73b733ab7c44ec5bc542d4baeb60679cb79c305a10fa2f0b705ac06526" rel="noopener">first real payments</a> settled (unaudited, small amounts, <a href="https://base.blockscout.com/address/0xDe17e1B889efa4671852e0b268e100967A7a257E" rel="noopener">verified factory</a>). Next: design partners, an independent review, then the public launch.</p>
             </li>
             <li class="step">
               <p class="step__phase">Phase 3</p>
@@ -410,7 +410,7 @@
         <p class="footer__legal">
           Beta. No token exists yet and nothing on this page is an offer to sell or a solicitation to
           buy any asset. Figures marked as illustrative are simulations, not projections. This site sets no
-          cookies and loads nothing from third parties.
+          cookies; the only third-party script is cookieless Cloudflare Web Analytics.
         </p>
       </div>
     </footer>

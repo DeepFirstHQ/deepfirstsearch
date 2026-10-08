@@ -34,7 +34,7 @@ claude mcp add agent-pay \
 ### OpenClaw
 
 ```bash
-npm install -g @deepfirstsearch/agent-pay-mcp
+npm install -g @deepfirstsearch/agent-pay-mcp   # or use "command":"npx","args":["-y","@deepfirstsearch/agent-pay-mcp","/absolute/path/config.json"]
 openclaw mcp set agent-pay '{"command":"agent-pay-mcp","args":["/absolute/path/config.json"],"env":{"AGENT_PAY_AGENT_KEY":"${AGENT_PAY_AGENT_KEY}","AGENT_PAY_BURNER_SEED":"${AGENT_PAY_BURNER_SEED}"}}'
 openclaw mcp probe agent-pay   # - agent-pay: 3 tools
 ```
@@ -64,7 +64,7 @@ From source instead of npm: `cd integrations/mcp && npm ci && npm run build`, th
 No keys to fund, no chain: run a local mock merchant from the SDK and point the server at it.
 
 ```bash
-npm install -g @deepfirstsearch/agent-pay-mcp
+npm install -g @deepfirstsearch/agent-pay-mcp   # or skip this and use `npx -y @deepfirstsearch/agent-pay-mcp` below
 mkdir mock && cd mock && npm init -y >/dev/null && npm install @deepfirstsearch/agent-pay
 node --input-type=module -e '
 import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
@@ -72,7 +72,7 @@ const m = await startMockServer({ "/data": { price: 10000n, payTo: "0x1111111111
 console.log("origin:", m.url);'
 ```
 
-Leave it running. In `offline.json`, use the printed origin: `{ "network": "eip155:84532", "merchants": [{ "origin": "<printed origin>", "payTo": "0x1111111111111111111111111111111111111111", "price": "0.01", "maxPerTx": "0.05", "maxSpend": "0.50" }] }`. Then start the server with `AGENT_PAY_BURNER_SEED=0x$(openssl rand -hex 32) agent-pay-mcp ./offline.json` (or add it to your MCP client) and call `paid_fetch` with `<printed origin>/data`. The mock verifies signatures locally, so the payer needs no funds.
+Leave it running. In `offline.json`, use the printed origin: `{ "network": "eip155:84532", "merchants": [{ "origin": "<printed origin>", "payTo": "0x1111111111111111111111111111111111111111", "price": "0.01", "maxPerTx": "0.05", "maxSpend": "0.50" }] }`. Then start the server with `AGENT_PAY_BURNER_SEED=0x$(openssl rand -hex 32) agent-pay-mcp ./offline.json` (without a global install: `AGENT_PAY_BURNER_SEED=0x$(openssl rand -hex 32) npx -y @deepfirstsearch/agent-pay-mcp ./offline.json`), or add it to your MCP client, and call `paid_fetch` with `<printed origin>/data`. The mock verifies signatures locally, so the payer needs no funds.
 
 ## See it work in 5 minutes (Base Sepolia)
 
@@ -89,18 +89,26 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | Field | Meaning |
 |---|---|
 | `network` | `eip155:84532` (Base Sepolia) or `eip155:8453` (Base) |
+| `rpcUrl` | Optional RPC URL for that network (vault top-ups and balance reads); defaults to viem's public RPC |
 | `vault`, `tranche` | Agent Safe vault that tops up each merchant's payer, and the top-up size |
 | `merchants[].origin`, `payTo` | Who may be paid, and the only address the payment can go to |
+| `merchants[].intentId` | The owner-signed budget (intent) for this merchant, as printed by `owner budget`; required for every merchant when `vault` is set |
+| `merchants[].label` | Optional display name (up to 80 characters) shown by `list_merchants` |
 | `merchants[].price`, `tolerancePct` | Expected price per call; anything above `price × (1 + tolerance)` is refused |
 | `merchants[].maxPerTx`, `maxSpend` | Hard cap per call, and per merchant per plan window |
 | `merchants[].maxTimeoutSeconds` | Longest authorization this merchant may ask for, 10 to 86400 s (default 300 s). Only that merchant gets the longer window. |
 | `planWindowHours` | The plan is sealed from this file at start and renewed from it every window |
-| `periodBudget` | Total across merchants per period |
+| `periodBudget` | Total across merchants per period: `{ "amount": "1.00", "hours": 24 }` |
 | `approvalAbove` | Payments above this are refused (this server has no approval channel the model can't reach) |
 | `sessionHasSensitiveData` | If the agent can also read private data, every payment needs a human (Rule of Two), so all are refused |
 | `auditLog` | Hash-chained JSONL log of every decision |
+| `maxResponseChars` | Longest response body returned to the model, in characters (default 20000, max 1000000); longer bodies are truncated and say so |
 
-A refused payment comes back as an error result, `Payment refused by policy: …`. From 0.1.8, once the bundled `@deepfirstsearch/agent-pay` is 0.8.0 or later, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` (codes listed in the SDK README, "Refusal codes").
+The MCP config has no `x402Versions` or `confirmAuthorization` option yet, so merchants that need them are SDK-only for now: Heurist Mesh (x402 v1) and CoinMarketCap and JustaName (non-standard receipts). Their guides use the SDK directly.
+
+A refused payment comes back as an error result, `Payment refused by policy: …`. From 0.1.8, once the bundled `@deepfirstsearch/agent-pay` is 0.8.0 or later, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` (codes listed in the SDK README, "Refusal codes"). Blocks carry codes too (`Payment blocked [settlement_pending → …]: …`; also `settled_not_delivered`, `rate_limited`, `kill_switch`), with the extra action `resend_same`: call `paid_fetch` on the same URL again, and the SDK resends the same signed authorization without signing a new one.
+
+`paid_fetch` fetches any URL the model asks for; only **payments** are restricted to the merchants in your config. A non-402 response from an unregistered origin is returned as data (fenced as untrusted), so treat it like any fetch tool you give a model.
 
 ## Develop
 

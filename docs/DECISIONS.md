@@ -85,6 +85,7 @@ Formato: contexto → decisión → consecuencias. Fecha de todas: 2026-10-05, s
   - Fuentes servidas desde el propio sitio.
   - CSP estricta con Trusted Types.
   - Cero cookies, analytics y scripts externos.
+  - *Enmienda:* se agregó Cloudflare Web Analytics (sin cookies, no identifica visitantes) como único script de terceros; Cloudflare ya sirve el sitio.
   - Hosting en Cloudflare Pages o Netlify por los headers de seguridad (GitLab Pages no permite configurarlos).
 
 ## ADR-011 · Integrar un pool de privacidad de terceros, no operar uno propio (2026-10-05)

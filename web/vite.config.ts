@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { marked } from "marked";
+import { Marked } from "marked";
 import { defineConfig, type Plugin } from "vite";
 
 const DOCS = resolve(__dirname, "../docs");
@@ -27,13 +27,33 @@ for (const f of readdirSync(resolve(DOCS, "integrations")).filter((f) => f.endsW
 const CSP =
   "default-src 'none'; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'";
 
+// Headings get GitHub-style ids so links like developers.html#test-without-a-chain work.
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/<[^>]*>/g, "").replace(/&[a-z0-9#]+;/g, "").trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
+function markdown(): Marked {
+  const seen = new Map<string, number>();
+  return new Marked({
+    renderer: {
+      heading({ tokens, depth, text }) {
+        const base = slugify(text);
+        const n = seen.get(base) ?? 0;
+        seen.set(base, n + 1);
+        const id = n ? `${base}-${n}` : base;
+        return `<h${depth}${id ? ` id="${id}"` : ""}>${this.parser.parseInline(tokens)}</h${depth}>\n`;
+      },
+    },
+  });
+}
+
 function render(out: string): string {
   const page = PAGES[out];
   const up = "../".repeat(out.split("/").length - 1) || "./";
   const sourceDir = page.src.includes("/") ? page.src.slice(0, page.src.lastIndexOf("/") + 1) : "";
   const pageFor = (md: string) => Object.entries(PAGES).find(([, p]) => p.src === md)?.[0];
 
-  const body = marked.parse(readFileSync(resolve(DOCS, page.src), "utf8"), { async: false }) as string;
+  const body = markdown().parse(readFileSync(resolve(DOCS, page.src), "utf8"), { async: false }) as string;
   // Links between docs point at their published page when there is one, otherwise at the repository.
   const html = body.replace(/href="(\.\/|\.\.\/)?([^"#:]+\.md)(#[^"]*)?"/g, (_m, rel = "", file, hash = "") => {
     const path = new URL(rel + file, "https://x/" + sourceDir).pathname.slice(1);

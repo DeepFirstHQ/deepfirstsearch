@@ -4,6 +4,10 @@ Use a key held in [Turnkey](https://www.turnkey.com) as an Agent Safe payer: you
 
 > Beta, unaudited. Not affiliated with Turnkey.
 
+```bash
+npm install @deepfirstsearch/agent-pay-turnkey @deepfirstsearch/agent-pay @turnkey/sdk-server viem
+```
+
 ```ts
 import { Turnkey } from "@turnkey/sdk-server";
 import { createAgentPay, MerchantRegistry } from "@deepfirstsearch/agent-pay";
