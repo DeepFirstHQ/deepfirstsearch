@@ -1,0 +1,58 @@
+{
+  "name": "@deepfirstsearch/agent-pay-agentkit",
+  "version": "0.1.0",
+  "description": "Coinbase AgentKit action provider: agents fetch x402 APIs while the owner's Agent Safe policy decides every payment (no payee or amount in the model's hands)",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
+    "directory": "integrations/agentkit"
+  },
+  "keywords": [
+    "agentkit",
+    "coinbase",
+    "x402",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@coinbase/agentkit": ">=0.10.0 <1",
+    "@deepfirstsearch/agent-pay": ">=0.5.3 <1",
+    "viem": "^2",
+    "zod": "^3.23.8"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@coinbase/agentkit": "0.10.4",
+    "@deepfirstsearch/agent-pay": "0.6.1",
+    "@types/node": "26.6.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "viem": "2.38.3",
+    "vitest": "4.1.11",
+    "zod": "3.25.76"
+  }
+}

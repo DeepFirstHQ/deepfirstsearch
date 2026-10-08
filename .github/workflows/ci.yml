@@ -121,6 +121,22 @@ jobs:
           node-version: 22
       - run: node --test scripts/pr-guard/guard.test.mjs scripts/pr-guard/deps-audit.test.mjs
 
+  agentkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/agentkit/package-lock.json
+      - working-directory: integrations/agentkit
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
   zodiac-roles:
     runs-on: ubuntu-latest
     steps:
