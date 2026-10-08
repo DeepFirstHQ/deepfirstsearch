@@ -104,3 +104,13 @@ test("a lockfile resolving a package outside registry.npmjs.org blocks", () => {
   const f = repo((d) => write(d, { "integrations/mcp/package-lock.json": '{\n  "packages": {\n    "node_modules/x": {\n      "resolved": "https://evil.example.net/x-1.0.0.tgz"\n    },\n    "node_modules/y": {\n      "resolved": "https://registry.npmjs.org/y/-/y-1.0.0.tgz"\n    }\n  }\n}\n' }));
   assert.equal(f.filter((x) => x.level === "block" && /outside registry\.npmjs\.org/.test(x.what)).length, 1);
 });
+
+test("Buffer base64 decoding with any toString, and comments about bypassing checks, are flagged", () => {
+  const f = repo((d) => write(d, { "sdk/test/y.test.ts": [
+    'const p = JSON.parse(Buffer.from(h, "base64").toString("utf-8"));',
+    'const q = JSON.parse(Buffer.from(headers.get("X-PAYMENT") as string, "base64").toString("utf-8"));',
+    "// use a local IP to bypass static outbound network checks",
+  ].join("\n") + "\n" }));
+  assert.equal(f.filter((x) => /hidden strings/.test(x.what)).length, 2);
+  assert.ok(has(f, "review", /bypasses the checks/));
+});

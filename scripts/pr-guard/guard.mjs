@@ -43,7 +43,9 @@ const DANGEROUS = [
   [/\bnode:(net|dgram|tls|dns|http2?|https)\b|\brequire\(\s*["'`](net|dgram|tls|dns|http2?|https)["'`]\)|\bnew\s+WebSocket\s*\(/, "raw network or socket access"],
   [/\bos\.homedir\b|\bhomedir\s*\(|process\.env\.HOME\b|["'`]~\/|\.ssh\b|\bid_rsa\b|\bid_ed25519\b|\bkeystores?\b|\.npmrc\b|\.netrc\b|\.aws\/|\.config\/gcloud|Library\/Keychains|\.foundry\b|\bprivate\//i, "access to home directory, credentials or keys"],
   [/process\.env(?!\.(NODE_ENV|CI|AGENT_PAY_[A-Z_]+|RPC_URL|PAYER_KEY|OWNER_PK|AGENT_PK|MERCHANT|BURNER_SEED|FACTORY|STATE_FILE|FEE_JAR|FROM_BLOCK|LOOKBACK_BLOCKS|LARGE_USDC|LOG_PAUSE_MS|TELEGRAM_[A-Z_]+|DISCORD_WEBHOOK_URL)\b)/, "environment variable access"],
-  [/\b(atob|btoa)\s*\(|Buffer\.from\([^)]*["'`](base64|hex)["'`]\s*\)\s*\.toString\(\)|String\.fromCharCode\s*\(\s*\.\.\.|\\x[0-9a-f]{2}\\x[0-9a-f]{2}\\x[0-9a-f]{2}/i, "decoding hidden strings"],
+  [/\b(atob|btoa)\s*\(|Buffer\.from\(.{0,160}?["'`](base64|base64url|hex|latin1|binary)["'`]|String\.fromCharCode\s*\(\s*\.\.\.|\\x[0-9a-f]{2}\\x[0-9a-f]{2}\\x[0-9a-f]{2}|TextDecoder\s*\(/i, "decoding hidden strings"],
+  // Anything that talks about getting around the checks is reviewed as an attempt to do so.
+  [/\b(bypass|evade|evading|circumvent|get around|sneak past|avoid detection|fool)\b.{0,40}\b(guard|check|checks|scan|scanner|static analysis|review|CI|detector|filter)/i, "says it bypasses the checks"],
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(mnemonic|seed phrase)\b/i, "key material"],
   [/\b(fs|fsp|promises)\.(rm|rmdir|unlink|writeFile|appendFile|chmod|chown|symlink|rename|cp)\w*\s*\(/, "filesystem writes or deletes"],
   [/\bsetTimeout\s*\(\s*["'`]|\bsetInterval\s*\(\s*["'`]/, "string-evaluated timer"],
