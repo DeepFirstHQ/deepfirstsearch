@@ -1,4 +1,4 @@
-import { isRefusalCode, primaryRefusalCode, refusalAction, type RefusalAction, type RefusalCode } from "./refusal.js";
+import { BLOCK_CODES, isBlockCode, isRefusalCode, primaryRefusalCode, refusalAction, type BlockAction, type BlockCode, type RefusalAction, type RefusalCode } from "./refusal.js";
 
 /**
  * Runtime controls that sit around the policy engine: kill switch, rate limiting, human approval and the
@@ -17,7 +17,7 @@ export class KillSwitch {
   }
 
   assertAlive(): void {
-    if (this.killedReason !== undefined) throw new PaymentBlockedError(`kill switch: ${this.killedReason}`);
+    if (this.killedReason !== undefined) throw new PaymentBlockedError(`kill switch: ${this.killedReason}`, "kill_switch");
   }
 }
 
@@ -32,8 +32,8 @@ export class RateLimiter {
   ) {}
 
   check(origin: string, now: number): void {
-    if (this.count(origin, now) >= this.max) throw new PaymentBlockedError(`rate limit for ${origin}`);
-    if (this.count("*", now) >= this.globalMax) throw new PaymentBlockedError("global payment rate limit");
+    if (this.count(origin, now) >= this.max) throw new PaymentBlockedError(`rate limit for ${origin}`, "rate_limited");
+    if (this.count("*", now) >= this.globalMax) throw new PaymentBlockedError("global payment rate limit", "rate_limited");
   }
 
   record(origin: string, now: number): void {
@@ -79,8 +79,22 @@ export function requiresHumanForEveryPayment(s: SessionCapabilities): boolean {
   return s.readsUntrustedInput && s.accessesSensitiveData && s.canPay;
 }
 
+/**
+ * The payment was stopped, or may already have happened without confirmation. `code` and `action` say what the agent
+ * should do (see BLOCK_CODES). `new PaymentBlockedError(message)` without a code still works (`blocked`).
+ */
 export class PaymentBlockedError extends Error {
   override name = "PaymentBlockedError";
+  readonly code: BlockCode;
+  constructor(message: string, code?: BlockCode) {
+    super(message);
+    this.code = isBlockCode(code) ? code : "blocked";
+  }
+
+  /** What the agent should do about this code. */
+  get action(): BlockAction {
+    return BLOCK_CODES[this.code].action;
+  }
 }
 
 /**

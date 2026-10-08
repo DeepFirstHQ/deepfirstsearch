@@ -39,6 +39,7 @@ const ACTION_TEXT: Record<string, string> = {
   ask_owner: "ask the owner",
   fix_config: "the owner must change the configuration",
   retry_later: "retry later or ask for a bigger plan",
+  resend_same: "request the same URL again; the same payment proof is resent, nothing new is signed",
 };
 
 /**
@@ -163,7 +164,7 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
           (e as Error)?.name === "PaymentDeniedError"
             ? `Payment refused by policy${refusalTag(e)}`
             : (e as Error)?.name === "PaymentBlockedError"
-              ? "Payment blocked"
+              ? `Payment blocked${refusalTag(e)}`
               : "Request failed";
         return { content: [{ type: "text" as const, text: `${kind}: ${(e as Error).message}` }], isError: true };
       }

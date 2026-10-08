@@ -17,7 +17,7 @@ export {
   type ApprovalRequest,
   type SessionCapabilities,
 } from "./guard/controls.js";
-export { REFUSAL_CODES, isRefusalCode, refusalAction, primaryRefusalCode, type RefusalCode, type RefusalAction } from "./guard/refusal.js";
+export { REFUSAL_CODES, isRefusalCode, refusalAction, primaryRefusalCode, type RefusalCode, type RefusalAction, BLOCK_CODES, isBlockCode, type BlockCode, type BlockAction } from "./guard/refusal.js";
 export { AuditLog, verifyChain, parseJsonl, type AuditEntry, type AuditEvent } from "./guard/audit.js";
 export { deriveBurnerKey, burnerAddress, burnerPayers } from "./wallet/burner.js";
 export { vaultFunder, BUDGET_VAULT_ABI, type VaultFunderOptions } from "./wallet/vault.js";

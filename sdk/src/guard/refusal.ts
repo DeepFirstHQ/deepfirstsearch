@@ -82,3 +82,33 @@ export function primaryRefusalCode(codes: readonly RefusalCode[]): RefusalCode {
   }
   return best ?? "policy_denied";
 }
+
+/**
+ * Codes for PaymentBlockedError: the payment was not refused by policy, it was stopped (or may already have happened).
+ * The actions differ from refusals: after `settlement_pending` the agent should request the same resource again (the
+ * SDK resends the same signed authorization and never signs a new one); after `settled_not_delivered` it must never pay
+ * again. Suggested in coinbase/agentkit#1544.
+ */
+export type BlockAction = "resend_same" | "report" | "retry_later" | "ask_owner";
+
+export const BLOCK_CODES = {
+  /** No receipt confirmed the payment (missing, unreadable or failed settlement). It may still settle. */
+  settlement_pending: {
+    action: "resend_same",
+    description: "the payment may have settled but nothing confirmed it; request the same resource again (the same authorization is resent, nothing new is signed)",
+  },
+  /** The authorization was used on-chain but the merchant did not deliver the resource. */
+  settled_not_delivered: { action: "report", description: "the payment settled on-chain but the merchant did not deliver; never pay again, report it" },
+  /** Too many payments in the rate-limit window (per merchant or global). */
+  rate_limited: { action: "retry_later", description: "the payment rate limit was reached" },
+  /** The owner's kill switch is on. */
+  kill_switch: { action: "ask_owner", description: "payments are stopped by the owner's kill switch" },
+  /** Generic (the default when no specific code was given). */
+  blocked: { action: "ask_owner", description: "the payment was blocked" },
+} as const satisfies Record<string, { action: BlockAction; description: string }>;
+
+export type BlockCode = keyof typeof BLOCK_CODES;
+
+export function isBlockCode(v: unknown): v is BlockCode {
+  return typeof v === "string" && Object.prototype.hasOwnProperty.call(BLOCK_CODES, v);
+}

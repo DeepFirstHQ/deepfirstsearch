@@ -354,3 +354,25 @@ describe("coverage", () => {
     expect([...reached].sort()).toEqual(Object.keys(REFUSAL_CODES).sort());
   });
 });
+
+describe("block codes (PaymentBlockedError)", () => {
+  it("default to blocked, keep the message, and expose an action", async () => {
+    const { PaymentBlockedError, BLOCK_CODES } = await import("../src/index.js");
+    const e = new PaymentBlockedError("x");
+    expect(e.code).toBe("blocked");
+    expect(e.action).toBe("ask_owner");
+    expect(new PaymentBlockedError("y", "bogus" as never).code).toBe("blocked");
+    expect(new PaymentBlockedError("z", "settlement_pending").action).toBe("resend_same");
+    for (const [k, v] of Object.entries(BLOCK_CODES)) expect(v.description.length, k).toBeGreaterThan(10);
+  });
+
+  it("rate limits and the kill switch carry their codes", async () => {
+    const { RateLimiter, KillSwitch } = await import("../src/guard/controls.js");
+    const ks = new KillSwitch(); ks.kill("test");
+    expect(() => ks.assertAlive()).toThrow(expect.objectContaining({ code: "kill_switch", action: "ask_owner" }));
+    const rl = new RateLimiter(1, 60_000);
+    rl.check("https://a.example", 0);
+    rl.record("https://a.example", 0);
+    expect(() => rl.check("https://a.example", 1)).toThrow(expect.objectContaining({ code: "rate_limited", action: "retry_later" }));
+  });
+});

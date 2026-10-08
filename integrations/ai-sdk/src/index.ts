@@ -21,14 +21,14 @@ export type PaidFetchResult =
    * `retry_later`), present for policy refusals with @deepfirstsearch/agent-pay >= 0.8.0. */
   | { ok: false; refused: boolean; reason: string; code?: string; action?: string };
 
-const ACTIONS = new Set(["report", "ask_owner", "fix_config", "retry_later"]);
+const ACTIONS = new Set(["report", "ask_owner", "fix_config", "retry_later", "resend_same"]);
 
 /**
  * The refusal's stable code and action (SDK >= 0.8.0), e.g. `{ code: "price_changed", action: "ask_owner" }`. Empty with
  * older SDKs, which have no codes, and for anything that is not a policy refusal: read defensively, never assumed.
  */
 export function refusalCode(e: unknown): { code?: string; action?: string } {
-  if ((e as Error | undefined)?.name !== "PaymentDeniedError") return {};
+  { const n = (e as Error | undefined)?.name; if (n !== "PaymentDeniedError" && n !== "PaymentBlockedError") return {}; }
   const code = (e as { code?: unknown }).code;
   if (typeof code !== "string" || !/^[a-z0-9_]{1,40}$/.test(code)) return {};
   const action = (e as { action?: unknown }).action;

@@ -393,6 +393,7 @@ export function createAgentPay(options: AgentPayOptions) {
           // The money moved but the merchant didn't deliver: never resend (the authorization is spent), say so plainly.
           throw new PaymentBlockedError(
             `the authorization was used on-chain (the payment settled) but the merchant answered HTTP ${paid?.status ?? "none"} instead of the resource`,
+            "settled_not_delivered",
           );
         }
         paid.payment = { amount: p.amount, payTo: p.merchant.payTo, settlement: { success: true, transaction: "", network: p.requirement.network, payer: p.payer }, confirmedOnChain: true };
@@ -404,6 +405,7 @@ export function createAgentPay(options: AgentPayOptions) {
       audit.append({ type: "payment.failed", origin: p.merchant.origin, amount: p.amount, status: paid?.status, reason: failure });
       throw new PaymentBlockedError(
         `settlement not confirmed (${failure}); the same authorization was retried, never re-signed, and is resent if this resource is requested again while it is valid`,
+        "settlement_pending",
       );
     }
     audit.append({ type: "payment.settled", origin: p.merchant.origin, amount: p.amount, tx: settlement.transaction, network: settlement.network });

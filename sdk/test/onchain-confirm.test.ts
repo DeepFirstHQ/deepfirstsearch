@@ -48,6 +48,17 @@ describe("on-chain confirmation when the receipt is unusable (#16)", () => {
     await expect(pay.fetch(url, {}, { plan })).rejects.toThrow(/settlement not confirmed/);
   });
 
+  it("marks an unconfirmed payment settlement_pending: request again, the same authorization is resent (#1544)", async () => {
+    const { pay, plan, url } = await setup(robtex, async () => false);
+    const e = await pay.fetch(url, {}, { plan }).catch((x) => x);
+    expect(e).toBeInstanceOf(PaymentBlockedError);
+    expect(e.code).toBe("settlement_pending");
+    expect(e.action).toBe("resend_same");
+    // Requesting the resource again resends the very same signed authorization, never a new one.
+    await pay.fetch(url, {}, { plan }).catch(() => {});
+    expect(new Set(server!.received.map((r) => r.payload.signature)).size).toBe(1);
+  });
+
   it("stays unconfirmed when the check itself fails (fails closed)", async () => {
     const { pay, plan, url } = await setup(robtex, async () => { throw new Error("rpc down"); });
     await expect(pay.fetch(url, {}, { plan })).rejects.toBeInstanceOf(PaymentBlockedError);
@@ -84,7 +95,10 @@ describe("on-chain confirmation when the receipt is unusable (#16)", () => {
       return new Headers(init?.headers).get("PAYMENT-SIGNATURE") ? new Response("oops", { status: 500 }) : r;
     };
     const { pay, plan, url } = await setup({ price: 10_000n, payTo: MERCHANT }, async () => true, broken);
-    await expect(pay.fetch(url, {}, { plan })).rejects.toThrow(/used on-chain .* HTTP 500/);
+    const e = await pay.fetch(url, {}, { plan }).catch((x) => x);
+    expect(e.message).toMatch(/used on-chain .* HTTP 500/);
+    expect(e.code).toBe("settled_not_delivered");
+    expect(e.action).toBe("report");
   });
 });
 

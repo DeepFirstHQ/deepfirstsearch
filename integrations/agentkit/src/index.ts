@@ -44,6 +44,7 @@ const ACTION_TEXT: Record<string, string> = {
   ask_owner: "ask the owner",
   fix_config: "the owner must change the configuration",
   retry_later: "retry later or ask for a bigger plan",
+  resend_same: "request the same URL again; the same payment proof is resent, nothing new is signed",
 };
 
 /**
@@ -115,7 +116,7 @@ export class AgentPayActionProvider extends ActionProvider<WalletProvider> {
     } catch (e) {
       // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
       const name = (e as Error)?.name;
-      const kind = name === "PaymentDeniedError" ? `Payment refused by policy${refusalTag(e)}` : name === "PaymentBlockedError" ? "Payment blocked" : "Request failed";
+      const kind = name === "PaymentDeniedError" ? `Payment refused by policy${refusalTag(e)}` : name === "PaymentBlockedError" ? `Payment blocked${refusalTag(e)}` : "Request failed";
       return `${kind}: ${(e as Error)?.message ?? String(e)}`;
     }
   }

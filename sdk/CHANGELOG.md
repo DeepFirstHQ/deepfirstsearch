@@ -7,6 +7,7 @@ Refusals carry stable reason codes (suggested in coinbase/agentkit#1544):
 - Every refusal path in the policy engine and the client maps to a code, for x402 v1 and v2 alike: e.g. `payee_mismatch` / `network_mismatch` / `asset_mismatch` (possible redirection: don't retry, report it), `price_changed` (the 402's price moved above the owner's pin: ask the owner), `over_cap` (above the per-payment cap: ask the owner), `plan_exhausted` / `budget_exhausted` (retry later or ask for a bigger plan).
 - The `payment.denied` audit event records `codes` next to `reasons`; `payment.approval_refused` records `codes: ["human_refused"]`. A denied `evaluate` decision carries `codes` parallel to `reasons`.
 - Backwards compatible: the human-readable reasons are unchanged, and `new PaymentDeniedError(reasons)` still works (every reason gets `policy_denied`). Unknown codes passed to the constructor become `policy_denied`. No check, order or signing behaviour changed.
+- `PaymentBlockedError` carries a code and action too (`BLOCK_CODES`): `settlement_pending` (the payment may have settled; request the same resource again, the same authorization is resent and nothing new is signed), `settled_not_delivered` (paid on-chain, not delivered: never pay again, report it), `rate_limited`, `kill_switch`. Also suggested in coinbase/agentkit#1544.
 
 ## 0.7.0 (2026-10-08)
 
