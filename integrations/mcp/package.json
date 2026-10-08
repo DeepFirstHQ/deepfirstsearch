@@ -28,7 +28,7 @@
     "prepublishOnly": "npm run typecheck && npm run build"
   },
   "dependencies": {
-    "@deepfirstsearch/agent-pay": "0.6.2",
+    "@deepfirstsearch/agent-pay": "0.8.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "viem": "2.57.3",
     "zod": "4.6.5"
