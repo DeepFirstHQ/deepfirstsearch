@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2 (2026-10-08)
+
+- `viem` is now a range (`^2.38.0`) instead of an exact pin, so apps that also use Coinbase AgentKit (which pins viem 2.38) get a single viem and no type clashes. Tested against viem 2.38.3 and 2.57.3.
+
 ## 0.6.1 (2026-10-07)
 
 - `startMockServer(routes, { network })`: the offline mock merchant can speak Base mainnet (`eip155:8453`) as well as Base Sepolia (the default), so code written for mainnet runs against it unchanged. Found by a newcomer walkthrough of the docs.

@@ -244,7 +244,7 @@ export async function ownerCli(argv: string[], env: NodeJS.ProcessEnv, io: Io): 
           `  expires in ${days} days; active ${delay / 3600} h after it is proposed`,
       );
       const signature = await signIntent(owner!, vault, ctx.chain.id, intent);
-      const { result: id, request } = await ctx.pub.simulateContract({ address: vault, abi: BUDGET_VAULT_FULL_ABI, functionName: "proposeIntent", args: [intent, signature], account: owner! });
+      const { result: id, request } = await ctx.pub.simulateContract({ address: vault, abi: BUDGET_VAULT_FULL_ABI, functionName: "proposeIntent", args: [intent, signature] as never, account: owner! }); // older viem (e.g. 2.38, pulled in by AgentKit) infers this tuple arg as never
       const tx = await send(request);
       const st = await ctx.pub.readContract({ address: vault, abi: BUDGET_VAULT_FULL_ABI, functionName: "getIntent", args: [id] });
       saveIntent(env, ctx.chain.id, vault, id);
