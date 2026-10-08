@@ -28,7 +28,7 @@
 
 - Developers: https://deepfirstsearch.com/developers.html
 - Partners: https://deepfirstsearch.com/partners.html
-- Merchant guides (each tested with a real payment on Base mainnet): https://deepfirstsearch.com/integrations/{exa,blockrun,coingecko,nansen,glassnode,massive,stocktrends,blockchaincom,onesource,pocket,spraay,otto,bitrefill,pinata,zerion,telnyx,bravesearch,youcom,blockscout,vaultsfyi,coinstats,openwebninja,3route,blocksizecapital,particle,coinmarketcap,justaname,interzoid,heyelsa}.html
+- Merchant guides (each tested with a real payment on Base mainnet): https://deepfirstsearch.com/integrations/{exa,blockrun,coingecko,nansen,glassnode,massive,stocktrends,blockchaincom,onesource,pocket,spraay,otto,bitrefill,pinata,zerion,telnyx,bravesearch,youcom,blockscout,vaultsfyi,coinstats,openwebninja,3route,blocksizecapital,particle,coinmarketcap,justaname,interzoid,heyelsa,heurist}.html
 - Wallet guide: https://deepfirstsearch.com/integrations/turnkey.html
 - SDK: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk
 - MCP server: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp
