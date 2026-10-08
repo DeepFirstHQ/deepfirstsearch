@@ -27,7 +27,7 @@ const ORACLE_ABI = [
  * Oracles can lag the official list, so combine with `staticListScreen`. If the oracle cannot be reached,
  * the payment is blocked (fail closed).
  */
-export function oracleScreen(client: PublicClient, oracle: Address): SanctionsScreen {
+export function oracleScreen(client: Pick<PublicClient, "readContract">, oracle: Address): SanctionsScreen {
   return async (address) => {
     try {
       return await client.readContract({ address: oracle, abi: ORACLE_ABI, functionName: "isSanctioned", args: [address] });

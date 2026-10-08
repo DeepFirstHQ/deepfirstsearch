@@ -30,7 +30,8 @@ export const BUDGET_VAULT_ABI = [
 export type VaultFunderOptions = {
   /** Wallet client holding the agent's session key (the intent's `agent`). */
   agent: WalletClient;
-  publicClient: PublicClient;
+  /** Only `readContract` and `waitForTransactionReceipt` are used, so a chain-specific (e.g. Base) client fits. */
+  publicClient: Pick<PublicClient, "readContract" | "waitForTransactionReceipt">;
   vault: Address;
   usdc: Address;
   /** Owner-signed intent id for each merchant payee. A merchant without an intent cannot be funded. */

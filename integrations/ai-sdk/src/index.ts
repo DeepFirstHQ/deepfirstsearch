@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { tool } from "ai";
+import { tool, type Tool } from "ai";
 import { z } from "zod";
 import type { createAgentPay, SealedPlan } from "@deepfirstsearch/agent-pay";
 
@@ -46,7 +46,17 @@ export function fence(origin: string, body: string): string {
  * URL, method and body: payee, price, caps and plan are fixed in code by `pay` and `plan`, and the vault enforces the
  * owner's signed budget on-chain. Refusals come back as `{ ok: false, reason }` so the model can explain them.
  */
-export function paidFetchTool(opts: PaidFetchToolOptions) {
+/** The tool's input as the model sends it. */
+const paidFetchInput = z.object({
+  url: z.string().url().max(2048),
+  method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
+  body: z.string().max(100_000).optional(),
+  contentType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).optional(),
+});
+export type PaidFetchInput = z.infer<typeof paidFetchInput>;
+
+// Explicit return type: the inferred one expands the zod schema and fails `exactOptionalPropertyTypes` in user projects.
+export function paidFetchTool(opts: PaidFetchToolOptions): Tool<PaidFetchInput, PaidFetchResult> {
   const max = opts.maxResponseChars ?? 20_000;
   const currentPlan = typeof opts.plan === "function" ? opts.plan : () => opts.plan as SealedPlan;
   return tool({
@@ -54,12 +64,7 @@ export function paidFetchTool(opts: PaidFetchToolOptions) {
       opts.description ??
       "Fetch a URL. If it requires an x402 payment, it is paid in USDC only when the merchant, price and budget " +
         "match the owner's configuration; otherwise it is refused. You cannot choose payees, prices or limits.",
-    inputSchema: z.object({
-      url: z.string().url().max(2048),
-      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
-      body: z.string().max(100_000).optional(),
-      contentType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).optional(),
-    }),
+    inputSchema: paidFetchInput,
     execute: async ({ url, method, body, contentType }): Promise<PaidFetchResult> => {
       try {
         const init: RequestInit = { method, ...(body !== undefined ? { body } : {}) };

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.1 (2026-10-08)
+
+- **Fix (types):** `usdcAuthorizationCheck`, `oracleScreen` and `vaultFunder` take only the client methods they use (`Pick<PublicClient, …>`, exported as `ReadClient` for the first), so a chain-specific client such as `createPublicClient({ chain: base, transport: http() })` typechecks under `strict`. Found by typechecking every documented sample against the published packages.
+
 ## 0.8.0 (2026-10-08)
 
 Refusals carry stable reason codes (suggested in coinbase/agentkit#1544):

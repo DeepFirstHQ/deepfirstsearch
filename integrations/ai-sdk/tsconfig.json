@@ -9,7 +9,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": false,
+    "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
     "types": ["node"]
   },

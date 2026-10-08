@@ -21,7 +21,10 @@ const AUTHORIZATION_STATE_ABI = [
  * per CAIP-2 network, e.g. `{ "eip155:8453": createPublicClient({ chain: base, transport: http() }) }`.
  * A network without a client answers "not used", so the payment stays unconfirmed (fails closed).
  */
-export function usdcAuthorizationCheck(clients: Record<string, PublicClient>): AuthorizationCheck {
+/** The only client method used; a Pick so a chain-specific client (e.g. Base, with OP-stack formatters) fits. */
+export type ReadClient = Pick<PublicClient, "readContract">;
+
+export function usdcAuthorizationCheck(clients: Record<string, ReadClient>): AuthorizationCheck {
   return async ({ network, asset, authorizer, nonce }) => {
     const client = clients[network];
     if (!client) return false;
