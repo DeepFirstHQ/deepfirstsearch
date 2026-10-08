@@ -130,6 +130,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: integrations/agentkit/package-lock.json
+      # The lockfile is written by npm 11; npm 10's ci also wants ws's optional peers listed. Use the same npm.
+      - run: npm install -g npm@11.6.2
       - working-directory: integrations/agentkit
         run: |
           npm ci
