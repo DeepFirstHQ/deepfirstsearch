@@ -10,7 +10,9 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    // The dashboard reuses the SDK's ABI and deployments; their viem types resolve to web's copy (CI has no sdk/node_modules).
+    "paths": { "viem": ["./node_modules/viem"], "viem/*": ["./node_modules/viem/*"] }
   },
   "include": ["src", "../sdk/src/contracts/abi.ts", "../sdk/src/contracts/deployments.ts"]
 }
