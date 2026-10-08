@@ -23,7 +23,7 @@
     <!-- Defense in depth: the same policy is also sent as an HTTP header (public/_headers), which adds frame-ancestors. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'"
+      content="default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; manifest-src 'self'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'"
     />
     <meta name="referrer" content="no-referrer" />
   </head>
@@ -416,5 +416,6 @@
     </footer>
 
     <script type="module" src="/src/main.ts"></script>
+    <!-- Cloudflare Web Analytics (cookieless) --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "d600e91559984529a7b730d23a891c89"}'></script>
   </body>
 </html>

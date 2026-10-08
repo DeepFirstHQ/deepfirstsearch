@@ -25,7 +25,7 @@ for (const f of readdirSync(resolve(DOCS, "integrations")).filter((f) => f.endsW
 }
 
 const CSP =
-  "default-src 'none'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'";
+  "default-src 'none'; script-src https://static.cloudflareinsights.com; connect-src https://cloudflareinsights.com; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types 'none'";
 
 function render(out: string): string {
   const page = PAGES[out];
@@ -55,6 +55,7 @@ function render(out: string): string {
 <body>
 <header class="doc-nav"><a href="${up}index.html">← Deep First Search</a></header>
 <main class="doc">${html}</main>
+<!-- Cloudflare Web Analytics (cookieless) --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "d600e91559984529a7b730d23a891c89"}'></script>
 </body>
 </html>`;
 }
