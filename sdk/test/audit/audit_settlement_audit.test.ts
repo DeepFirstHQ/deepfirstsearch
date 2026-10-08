@@ -43,7 +43,7 @@ describe("SDK-L-3 server-controlled text never reaches the agent verbatim throug
 });
 
 describe("SDK-L-4 a caller retry after an unconfirmed settlement resends the same authorization", () => {
-  it("the same resource reuses the pending authorization while valid; a new one is signed only after it expires", async () => {
+  it("the same resource reuses the pending authorization while valid; nothing new is signed while it may still settle", async () => {
     let t = 1_000_000_000;
     const net = fakeNet({ onPaid: (u) => resp(200, {}, u) }); // server settles but omits PAYMENT-RESPONSE
     const { pay, plan } = mkPay(net, { now: () => t });
@@ -56,13 +56,87 @@ describe("SDK-L-4 a caller retry after an unconfirmed settlement resends the sam
     expect(plan.remaining(ORIGIN)).toBe(20_000n); // reserved once
     expect(pay.audit.entries.filter((e) => e.event.type === "payment.signed")).toHaveLength(1);
 
-    t += 20_000; // 10s left: below the 15s margin, the old authorization is dropped
+    t += 20_000; // 10s left: too close to expiry to resend, but it could still execute
     const before = net.signed.length;
+    const e1 = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((e) => e);
+    expect(e1).toMatchObject({ code: "settlement_pending", action: "resend_same" });
+    expect(net.signed.length).toBe(before); // nothing sent, nothing signed
+
+    t += 75_000; // expired (past the clock margin) and nobody can tell whether it executed: never sign blind
+    const e2 = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((e) => e);
+    expect(e2).toMatchObject({ code: "settlement_unknown", action: "ask_owner" });
+    expect(net.signed.length).toBe(before);
+    expect(pay.audit.entries.filter((e) => e.event.type === "payment.signed")).toHaveLength(1);
+    expect(plan.remaining(ORIGIN)).toBe(20_000n);
+
+    // The owner checked and clears it: the next request may sign a new authorization.
+    expect(pay.forgetUnsettled(`${ORIGIN}/a`)).toBe(1);
     await expect(pay.fetch(`${ORIGIN}/a`, {}, { plan })).rejects.toBeInstanceOf(PaymentBlockedError);
     const fresh = net.signed.slice(before);
     expect(new Set(fresh.map((s) => s.payload.authorization.nonce)).size).toBe(1);
     expect(fresh[0]!.payload.authorization.nonce).not.toBe(net.signed[0]!.payload.authorization.nonce);
     expect(plan.remaining(ORIGIN)).toBe(10_000n);
+  });
+
+  it("after expiry, the chain decides: unused -> a new authorization; used -> paid but not delivered, never pay again", async () => {
+    for (const used of [false, true]) {
+      let t = 1_000_000_000;
+      const net = fakeNet({ onPaid: (u) => resp(200, {}, u) });
+      const checks: string[] = [];
+      const { pay, plan } = mkPay(net, { now: () => t, confirmAuthorization: async (q: { nonce: string }) => (checks.push(q.nonce), t > 1_000_100_000 ? used : false) } as never);
+      await expect(pay.fetch(`${ORIGIN}/a`, {}, { plan })).rejects.toBeInstanceOf(PaymentBlockedError);
+      const firstNonce = net.signed[0]!.payload.authorization.nonce;
+      t += 200_000; // long expired
+      const before = net.signed.length;
+      const checksBefore = checks.length;
+      const r = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((e) => e);
+      expect(checks[checksBefore]).toBe(firstNonce); // the chain was asked about the OLD authorization first
+      if (used) {
+        expect(r).toMatchObject({ code: "settled_not_delivered", action: "report" });
+        expect(net.signed.length).toBe(before); // nothing new signed or sent
+        const again = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((e) => e);
+        expect(again).toMatchObject({ code: "settled_not_delivered" }); // and it stays that way
+        expect(net.signed.length).toBe(before);
+      } else {
+        expect(net.signed.length).toBeGreaterThan(before);
+        expect(net.signed.at(-1)!.payload.authorization.nonce).not.toBe(firstNonce);
+        expect(pay.audit.entries.map((e) => e.event.type)).toContain("payment.expired_unused");
+      }
+    }
+  });
+
+  it("a resend answered 'already used' (402 payment_invalid / tx_already_used) is paid-not-delivered, never re-signed", async () => {
+    let n = 0;
+    const net = fakeNet({
+      onPaid: (u) => (++n === 1 ? resp(200, {}, u) : new Response(JSON.stringify({ error: "payment_invalid", reason: "tx_already_used" }), { status: 402, headers: { "content-type": "application/json" } })),
+    });
+    const { pay, plan } = mkPay(net);
+    const e = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((x) => x);
+    expect(e).toMatchObject({ code: "settled_not_delivered", action: "report" });
+    expect(new Set(net.signed.map((s) => s.payload.authorization.nonce)).size).toBe(1);
+    const again = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((x) => x);
+    expect(again).toMatchObject({ code: "settled_not_delivered" });
+    expect(new Set(net.signed.map((s) => s.payload.authorization.nonce)).size).toBe(1); // still one authorization ever
+  });
+
+  it("X-Payment-Settled: true | queued on a 200 without a receipt is accepted once (no resend, no RPC)", async () => {
+    for (const state of ["true", "queued"] as const) {
+      const net = fakeNet({ onPaid: (u) => resp(200, { "X-Payment-Settled": state }, u) });
+      let rpc = 0;
+      const { pay, plan } = mkPay(net, { confirmAuthorization: async () => (rpc++, false) } as never);
+      const res = await pay.fetch(`${ORIGIN}/a`, {}, { plan });
+      expect(res.status).toBe(200);
+      expect(res.payment?.merchantSettled).toBe(state);
+      expect(net.signed).toHaveLength(1);
+      expect(rpc).toBe(0);
+    }
+  });
+
+  it("X-Payment-Settled is ignored on a non-2xx answer", async () => {
+    const net = fakeNet({ onPaid: (u) => resp(500, { "X-Payment-Settled": "true" }, u) });
+    const { pay, plan } = mkPay(net);
+    const e = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).catch((x) => x);
+    expect(e).toMatchObject({ code: "settlement_pending" });
   });
 
   it("a different resource does not reuse the pending authorization", async () => {

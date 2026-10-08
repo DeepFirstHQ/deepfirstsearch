@@ -9,6 +9,9 @@ export type AuditEvent = {
     | "payment.signed"
     | "payment.settled"
     | "payment.settled_onchain"
+    | "payment.settled_by_merchant"
+    | "payment.expired_unused"
+    | "payment.forgotten"
     | "payment.failed"
     | "payment.retry"
     | "plan.sealed";

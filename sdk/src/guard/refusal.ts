@@ -97,6 +97,11 @@ export const BLOCK_CODES = {
     action: "resend_same",
     description: "the payment may have settled but nothing confirmed it; request the same resource again (the same authorization is resent, nothing new is signed)",
   },
+  /**
+   * An earlier authorization for this resource expired without confirmation, and nothing can tell whether it was paid
+   * (no on-chain check configured, or the RPC failed). Signing another could pay twice, so nothing is signed.
+   */
+  settlement_unknown: { action: "ask_owner", description: "an earlier payment may have been paid; enable the on-chain check or ask the owner before paying again" },
   /** The authorization was used on-chain but the merchant did not deliver the resource. */
   settled_not_delivered: { action: "report", description: "the payment settled on-chain but the merchant did not deliver; never pay again, report it" },
   /** Too many payments in the rate-limit window (per merchant or global). */

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 (2026-10-08)
+
+Never a second signature while the first might have paid (raised in coinbase/agentkit#1544):
+- **Fix:** an unconfirmed authorization that expired used to be dropped and a new one signed. If the first had executed before expiring (only the receipt was unreadable), that could pay twice. Now, past expiry plus a 60 s clock margin, the chain decides through `confirmAuthorization` (unused → sign a new one; used → `settled_not_delivered`, never paid again). Without an on-chain check the payment is blocked with the new code `settlement_unknown` (ask the owner) until `pay.forgetUnsettled(url)`. Close to expiry nothing is sent or signed (`settlement_pending`).
+- A merchant answering a resend with "already used" (e.g. `402 payment_invalid / reason: tx_already_used`, or "nonce already used") is classified `settled_not_delivered` without an RPC call, and that resource is not paid again.
+- `X-Payment-Settled: true | queued` on a 2xx without a standard receipt is accepted once (no resend, no RPC) and surfaced as `res.payment.merchantSettled`.
+- New audit events: `payment.settled_by_merchant`, `payment.expired_unused`, `payment.forgotten`.
+
 ## 0.8.1 (2026-10-08)
 
 - **Fix (types):** `usdcAuthorizationCheck`, `oracleScreen` and `vaultFunder` take only the client methods they use (`Pick<PublicClient, …>`, exported as `ReadClient` for the first), so a chain-specific client such as `createPublicClient({ chain: base, transport: http() })` typechecks under `strict`. Found by typechecking every documented sample against the published packages.

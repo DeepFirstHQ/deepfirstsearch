@@ -92,10 +92,28 @@ Kill switch, rate limits and settlement problems are not refusals: they throw `P
 | code | action | meaning |
 | --- | --- | --- |
 | `settlement_pending` | resend_same | no receipt confirmed the payment; it may still settle. Request the same resource again: the same authorization is resent, nothing new is signed. Never re-sign |
-| `settled_not_delivered` | report | the payment settled on-chain but the merchant did not deliver: never pay again, report it |
+| `settled_not_delivered` | report | it was paid (found on-chain, or the merchant answered a resend with "already used", e.g. `402 payment_invalid / tx_already_used`) but the resource was not delivered: never pay again, report it |
+| `settlement_unknown` | ask_owner | an earlier authorization for this resource expired unconfirmed and nothing can tell whether it executed (no `confirmAuthorization`, or the RPC failed): nothing new is signed, since that could pay twice. Enable `confirmAuthorization`, or call `pay.forgetUnsettled(url)` after checking yourself |
 | `rate_limited` | retry_later | the payment rate limit was reached |
 | `kill_switch` | ask_owner | payments are stopped by the owner's kill switch |
 | `blocked` | ask_owner | generic block (default when no specific code applies) |
+
+#### When a payment is unconfirmed
+
+One signed authorization per resource, and never a second one while the first could still have paid:
+
+1. While the authorization is valid, asking for the resource again resends **the same** proof (`settlement_pending` → `resend_same`). Resends are bounded by its validity window (the 402's `maxTimeoutSeconds`, capped by your timeout bounds).
+2. Near or just past expiry (until 60 s after `validBefore`, to cover chain clock skew) nothing is sent or signed: `settlement_pending`.
+3. After that, the chain decides (with `confirmAuthorization`): never used → a new authorization is signed; used → `settled_not_delivered`, and that resource is not paid again. Without an on-chain check: `settlement_unknown`, until the owner clears it with `pay.forgetUnsettled(url)`.
+
+Merchants without a standard receipt can say how settlement went with `X-Payment-Settled` on a 2xx: `true` (settled) or `queued` (in flight). The SDK accepts the delivered resource once, without resending or calling the chain, and reports it as `res.payment.merchantSettled`. The mapping, shared with sellers that render it:
+
+| seller says | buyer state |
+| --- | --- |
+| 402, no payment yet | challenge (unpaid) |
+| 2xx + `X-Payment-Settled: queued` | delivered, settlement pending (`merchantSettled: "queued"`) |
+| 2xx + `X-Payment-Settled: true` | delivered (`merchantSettled: "true"`) |
+| refusal to a resend saying the proof was already used | `settled_not_delivered` (report, never re-sign) |
 
 ## x402 v1 merchants (opt-in per merchant)
 

@@ -52,8 +52,27 @@ export type AgentPayOptions = {
 /** How many times the chain is asked about an authorization (settleRetryDelayMs apart) before it counts as unused. */
 const CONFIRM_CHECKS = 4;
 
+/**
+ * An unconfirmed authorization is treated as expired only this long after its validBefore, so the chain's clock (block
+ * timestamps) has certainly passed it too. Until then it could still settle, and nothing new is signed.
+ */
+const EXPIRY_MARGIN_SECONDS = 60;
+
+/** A merchant's answer to a resent payment that says the authorization was already consumed (e.g. tx_already_used). */
+const ALREADY_USED = /\b(?:tx_)?already[_ -]?(?:used|consumed|settled)\b|already been used|nonce (?:has been |already |was )?used/i;
+
 export type PaidResponse = Response & {
-  payment?: { amount: bigint; payTo: string; settlement: SettleResponse; confirmedOnChain?: boolean };
+  payment?: {
+    amount: bigint;
+    payTo: string;
+    settlement: SettleResponse;
+    confirmedOnChain?: boolean;
+    /**
+     * Set when the merchant had no readable receipt but said so in `X-Payment-Settled` (`true`: settled, `queued`:
+     * settlement in flight). The resource was delivered either way; the authorization was sent once.
+     */
+    merchantSettled?: "true" | "queued";
+  };
 };
 
 /**
@@ -81,7 +100,17 @@ export function createAgentPay(options: AgentPayOptions) {
   const periodLedger: { start: number; spent: bigint } = { start: now(), spent: 0n };
   // Signed payments whose settlement was never confirmed, by resource. The server may still have settled them, so if
   // the agent asks for the same resource again we resend that authorization instead of signing a second one (SDK-L-4).
-  const unsettled = new Map<string, { headers: Headers; payer: string; version: 1 | 2; authorization: { from: string; nonce: string; validBefore: string } }>();
+  const unsettled = new Map<
+    string,
+    {
+      headers: Headers;
+      payer: string;
+      version: 1 | 2;
+      authorization: { from: string; nonce: string; validBefore: string };
+      /** Known to be paid (on-chain, or the merchant said the proof was already used) but not delivered. */
+      settled?: true;
+    }
+  >();
   // Validated up front, so a bad value can never surface after an authorization has been signed.
   const retries = options.settleRetries ?? 3;
   const backoff = options.settleRetryDelayMs ?? 3_000;
@@ -191,15 +220,56 @@ export function createAgentPay(options: AgentPayOptions) {
     const resourceKey = JSON.stringify([payUrl, (init.method ?? "GET").toUpperCase(), merchant.payTo, asset.asset, amount.toString(), requirement.network]);
     const pendingPayment = unsettled.get(resourceKey);
     if (pendingPayment) {
-      unsettled.delete(resourceKey);
-      // Its budget was reserved when it was signed. Reuse it while it is comfortably valid; once it has expired it can
-      // never execute, so signing a new one below is safe.
-      if (Number(pendingPayment.authorization.validBefore) - Math.floor(now() / 1000) >= 15) {
+      const left = Number(pendingPayment.authorization.validBefore) - Math.floor(now() / 1000);
+      const nonce = pendingPayment.authorization.nonce;
+      if (pendingPayment.settled) {
+        throw new PaymentBlockedError(
+          "this resource was already paid (the authorization was used) but not delivered; not paying again. Report it, or clear it with forgetUnsettled(url) once resolved",
+          "settled_not_delivered",
+        );
+      }
+      if (left >= 15) {
+        // Its budget was reserved when it was signed. Reuse it while it is comfortably valid.
+        unsettled.delete(resourceKey);
         kill.assertAlive();
-        audit.append({ type: "payment.retry", origin: merchant.origin, amount, attempt: 0, reason: "agent retried an unconfirmed payment", nonce: pendingPayment.authorization.nonce });
+        audit.append({ type: "payment.retry", origin: merchant.origin, amount, attempt: 0, reason: "agent retried an unconfirmed payment", nonce });
         // Resent exactly as first sent (same header, same version), whatever this 402 says.
         return await settle({ input: payUrl, init, headers: pendingPayment.headers, version: pendingPayment.version, merchant, amount, requirement, payer: pendingPayment.payer, authorization: pendingPayment.authorization, resourceKey });
       }
+      if (left > -EXPIRY_MARGIN_SECONDS) {
+        // Too close to expiry to resend, but it may still execute: signing another now could pay twice.
+        throw new PaymentBlockedError(
+          `an unconfirmed payment for this resource may still settle until its authorization expires (in about ${Math.max(0, left) + EXPIRY_MARGIN_SECONDS}s); nothing new is signed before then`,
+          "settlement_pending",
+        );
+      }
+      // Expired. It can no longer execute, but it may have executed before expiring (an unreadable receipt does not
+      // mean unpaid). Sign a new one only when the chain says the old one was never used.
+      let used: boolean | undefined;
+      if (options.confirmAuthorization) {
+        try {
+          used = await options.confirmAuthorization({ network: requirement.network, asset: asset.asset as Address, authorizer: pendingPayment.authorization.from as Address, nonce: nonce as Hex });
+        } catch {
+          used = undefined; // unreachable RPC: unknown
+        }
+      }
+      if (used === true) {
+        unsettled.set(resourceKey, { ...pendingPayment, settled: true });
+        audit.append({ type: "payment.settled_onchain", origin: merchant.origin, amount, nonce, receipt: "found on-chain after the authorization expired" });
+        throw new PaymentBlockedError(
+          "the earlier authorization for this resource was used on-chain (it was paid) but the resource was not delivered; not paying again",
+          "settled_not_delivered",
+        );
+      }
+      if (used === undefined) {
+        throw new PaymentBlockedError(
+          "an earlier payment for this resource expired without confirmation and may have been paid; signing another could pay twice. " +
+            "Enable confirmAuthorization so the chain can tell, or call forgetUnsettled(url) after checking it yourself",
+          "settlement_unknown",
+        );
+      }
+      unsettled.delete(resourceKey); // expired and never used: it can never execute, so a new authorization is safe
+      audit.append({ type: "payment.expired_unused", origin: merchant.origin, amount, nonce });
     }
 
     // Reserve plan, period and rate-limit budget synchronously, right after the decision and before any await, so
@@ -336,6 +406,16 @@ export function createAgentPay(options: AgentPayOptions) {
         failure = "network error";
         continue;
       }
+      // The merchant says the authorization was already consumed: it was paid. Resending can't help and nothing may be
+      // re-signed; the resource was not delivered.
+      if (!paid.ok && (await saysAlreadyUsed(paid))) {
+        unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, version: p.version, authorization: p.authorization, settled: true });
+        audit.append({ type: "payment.failed", origin: p.merchant.origin, amount: p.amount, status: paid.status, reason: "merchant says the authorization was already used" });
+        throw new PaymentBlockedError(
+          `the merchant answered HTTP ${paid.status} saying this authorization was already used: it was paid but the resource was not delivered; not paying again`,
+          "settled_not_delivered",
+        );
+      }
       if (paid.status >= 300 && paid.status < 400) {
         settlement = undefined;
         failure = `redirect (HTTP ${paid.status}) refused for a paid request`;
@@ -350,6 +430,13 @@ export function createAgentPay(options: AgentPayOptions) {
         failure = `missing or invalid ${p.version === 1 ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"} (HTTP ${paid.status})`;
         // The resource was delivered without a readable receipt: the chain answers that better than a resend, which a
         // merchant that already settled can only refuse (CoinMarketCap answers it with a new 402), losing the resource.
+        // A merchant without a standard receipt may still say it settled (X-Payment-Settled: true | queued).
+        const said = paid.ok ? paid.headers.get("X-Payment-Settled")?.trim().toLowerCase() : undefined;
+        if (said === "true" || said === "queued") {
+          audit.append({ type: "payment.settled_by_merchant", origin: p.merchant.origin, amount: p.amount, nonce: p.authorization.nonce, state: said });
+          paid.payment = { amount: p.amount, payTo: p.merchant.payTo, settlement: { success: true, transaction: "", network: p.requirement.network, payer: p.payer }, merchantSettled: said };
+          return paid;
+        }
         if (paid.ok && options.confirmAuthorization) break;
         continue;
       }
@@ -391,6 +478,7 @@ export function createAgentPay(options: AgentPayOptions) {
         audit.append({ type: "payment.settled_onchain", origin: p.merchant.origin, amount: p.amount, nonce: p.authorization.nonce, status: paid?.status, receipt: failure });
         if (!paid?.ok) {
           // The money moved but the merchant didn't deliver: never resend (the authorization is spent), say so plainly.
+          unsettled.set(p.resourceKey, { headers: p.headers, payer: p.payer, version: p.version, authorization: p.authorization, settled: true });
           throw new PaymentBlockedError(
             `the authorization was used on-chain (the payment settled) but the merchant answered HTTP ${paid?.status ?? "none"} instead of the resource`,
             "settled_not_delivered",
@@ -413,7 +501,39 @@ export function createAgentPay(options: AgentPayOptions) {
     return paid;
   }
 
+  async function saysAlreadyUsed(res: Response): Promise<boolean> {
+    if (res.status !== 402 && res.status !== 409 && res.status !== 400) return false;
+    let text = "";
+    try {
+      const h = res.headers.get(HEADERS.required) ?? res.headers.get("X-PAYMENT-REQUIRED");
+      if (h) text += Buffer.from(h, "base64").toString("utf8").slice(0, 4096);
+    } catch {
+      /* not base64: ignore */
+    }
+    try {
+      text += " " + (await readBodyCapped(res.clone(), 8192) ?? "");
+    } catch {
+      /* unreadable body */
+    }
+    return ALREADY_USED.test(text);
+  }
+
   return {
+    /**
+     * Owner action: forget unconfirmed or paid-but-undelivered payments for a URL, so the next request may sign a new
+     * authorization. Use it only after checking the earlier payment yourself. Returns how many entries were cleared.
+     */
+    forgetUnsettled(url: string): number {
+      let n = 0;
+      for (const key of [...unsettled.keys()]) {
+        if ((JSON.parse(key) as unknown[])[0] === url) {
+          unsettled.delete(key);
+          n++;
+        }
+      }
+      if (n) audit.append({ type: "payment.forgotten", url, entries: n });
+      return n;
+    },
     /** Seal the spending plan. Call this before the agent reads any untrusted content. */
     commitPlan(items: PlanItem[], ttlMs: number): SealedPlan {
       const plan = commitPlan(options.registry, items, ttlMs, now());
