@@ -32,13 +32,15 @@ Result  spent 0.03 USDC of 0.03 USDC · signatures sent to attackers: 0 · audit
 | LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain @deepfirstsearch/agent-pay @langchain/core` | [LangChain tool](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/langchain) |
 | Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay` | [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk) |
 | A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey` | [Turnkey guide](integrations/TURNKEY.md) |
+| A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @privy-io/node` | [Privy guide](integrations/PRIVY.md) |
+| Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @coinbase/agentkit` | [AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit) |
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [order-guard](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/order-guard) |
 
 The integrations take the SDK as a peer dependency, so your app always uses a single copy of it.
 
 Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm:
 
-- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [OpenClaw agents](guides/OPENCLAW.md)
+- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [OpenClaw agents](guides/OPENCLAW.md)
 - **Search, web and AI:** [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Pocket Network](integrations/POCKET.md) · [Spraay](integrations/SPRAAY.md) · [Otto AI](integrations/OTTO.md)
 - **Market and onchain data:** [CoinGecko](integrations/COINGECKO.md) · [Nansen](integrations/NANSEN.md) · [Glassnode](integrations/GLASSNODE.md) · [Massive](integrations/MASSIVE.md) · [Stock Trends](integrations/STOCKTRENDS.md) · [Blockchain.com](integrations/BLOCKCHAINCOM.md) · [OneSource](integrations/ONESOURCE.md)
 - **Commerce and storage:** [Bitrefill](integrations/BITREFILL.md) · [Pinata](integrations/PINATA.md)

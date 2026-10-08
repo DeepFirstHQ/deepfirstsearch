@@ -121,6 +121,23 @@ jobs:
           node-version: 22
       - run: node --test scripts/pr-guard/guard.test.mjs scripts/pr-guard/deps-audit.test.mjs
 
+  privy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/privy/package-lock.json
+      - run: npm install -g npm@11.6.2
+      - working-directory: integrations/privy
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
   agentkit:
     runs-on: ubuntu-latest
     steps:
