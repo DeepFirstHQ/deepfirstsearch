@@ -185,5 +185,6 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 ## Get involved
 
 - Questions and ideas: [GitHub Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions)
+- Using it in a project? Tell us in [discussion #39](https://github.com/DeepFirstHQ/deepfirstsearch/discussions/39).
 - Good first issues and wanted integrations: [issues](https://github.com/DeepFirstHQ/deepfirstsearch/issues)
 - Building a wallet, framework or platform? See [Partners](PARTNERS.md).

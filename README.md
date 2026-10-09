@@ -100,6 +100,10 @@ cd ../web && npm ci && npm run dev
 - **No conference booth** until there are users; hackathons instead.
 - **No own privacy pool:** integrate a third-party compliant one (ADR-011). Sales geo-blocked for the US and Argentina (ADR-012).
 
+## Using it? Tell us
+
+There's no telemetry in the packages, so we only know who uses them if you say so. If your agent pays with Agent Safe, even once on testnet, tell us in [this discussion](https://github.com/DeepFirstHQ/deepfirstsearch/discussions/39): what it pays for, what got refused that shouldn't have, and what's missing. We'll test your sellers live and write a verified guide for any that's missing.
+
 ## Security
 See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
