@@ -35,12 +35,12 @@ console.log(res.status, res.payment?.settlement.transaction);
 ```
 
 - **Look up, never create:** `openfortPayer({ openfort, id })` or `openfortPayer({ openfort, address })` fetches an existing backend wallet with `openfort.accounts.evm.backend.get`. Create it once with `openfort.accounts.evm.backend.create()`.
-- **What Openfort signs:** x402 payments are EIP-3009 authorizations (EIP-712 typed data). `openfortPayer` wraps the wallet's own `signTypedData` with viem's `toAccount`; the address is returned checksummed (Openfort sends it in lowercase). Verified live on Base mainnet: [this payment](https://basescan.org/tx/0xaea677ea05bcf160eafa51f6813332d7e893c17462a32eabcfdba7cab62d1818) to CoinStats was signed by an Openfort backend wallet with the snippet above, run verbatim.
+- **What Openfort signs:** x402 payments are EIP-3009 authorizations (EIP-712 typed data). `openfortPayer` wraps the wallet's own `signTypedData` with viem's `toAccount`; the address is returned checksummed (Openfort sends it in lowercase). Verified live on Base mainnet: [this payment](https://basescan.org/tx/0x1fa3662c4aedd4309f3b1610eb5ccf6011d906fbe6810ccbe77ca79f2cb06af0) to CoinStats was signed by an Openfort backend wallet with the snippet above, run verbatim against the packages installed from npm.
 - **Openfort's server-side policies can't see the payment:** `@openfort/openfort-node` 0.13.1 hashes the typed data locally and sends only the hash, and Openfort evaluates it as `signEvmHash`. We tested both cases on a backend wallet:
   - with a policy that accepts `signEvmTypedData` only for USDC's verifying contract, every payment was refused, USDC included;
   - with a policy that accepts `signEvmHash`, any typed data was signed.
 
-  So the payee, price and asset checks that Agent Safe makes before signing are the only checks that see the payment's content. Use Openfort's policies for what they can see, such as turning a wallet off.
+  So the payee, price and asset checks that Agent Safe makes before signing are the only checks that see the payment's content. Use Openfort's policies for what they can see, such as turning a wallet off. Reported upstream as [openfort-xyz/openfort-node#160](https://github.com/openfort-xyz/openfort-node/issues/160).
 - **Only typed data:** `signTransaction` and `signMessage` throw, and there is no raw-hash `sign`. A compromised agent can't use this signer to send transactions or sign arbitrary hashes.
 - **Attacks never reach Openfort:** a 402 with a different payee, a higher price or an unknown origin is refused before any signature is requested.
 - **Keep the keys out of the model's process:** the API key and the wallet secret belong in the payment service, never where the model runs.

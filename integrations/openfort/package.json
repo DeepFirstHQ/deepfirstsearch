@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-openfort",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Openfort backend wallets as Agent Safe payers: x402 payments signed by Openfort, inside an owner-signed budget",
   "license": "MIT",
   "type": "module",
