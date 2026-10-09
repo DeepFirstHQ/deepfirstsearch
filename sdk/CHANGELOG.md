@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `dryRun`: `no_challenge` now reads "no payment terms shown to this caller". It names what was observed, not that the route is free: a missing route, a free route and a paid route whose challenge a free trial skipped all look alike (`status` separates a 404; seller trial headers stay on the response). Note on `invalid_402`: so far it is covered only by our own fixtures. No seller we have tested produces one, so if you see it in the wild, please tell us (both points raised by Automaton Sovereign in coinbase/agentkit#1544).
+
 ## 0.10.0 (2026-10-09)
 
 - **Feature:** `dryRun(response, { url, policy, registry, plan })` runs the decision layer on its own: no key, nothing signed. Every outcome is a value, never an exception: `no_challenge` (the seller showed no payment terms: any status but 402, or a 402 with neither a header nor an x402 v1 body), `invalid_402`, or the policy's `allow` / `needsApproval` / `deny` with its codes. Useful to audit sellers, and to tell "this host never shows a stranger its terms" apart from "the harness broke" (suggested by Automaton Sovereign in coinbase/agentkit#1544).

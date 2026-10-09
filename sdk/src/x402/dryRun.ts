@@ -8,8 +8,10 @@ import { looksLikeV1, normalizeV1, parseV1, readBodyCapped } from "./v1.js";
 /**
  * What the policy would do with a seller's answer, without a key: every outcome is a value, never an exception.
  *
- * - `no_challenge`: the seller showed no payment terms (any status but 402, or a 402 with neither a
- *   PAYMENT-REQUIRED header nor an x402 v1 body). Nothing to decide.
+ * - `no_challenge`: no payment terms were shown to this caller, at this moment (any status but 402, or a 402 with
+ *   neither a PAYMENT-REQUIRED header nor an x402 v1 body). It does not mean the route is free: a missing route, a free
+ *   route, and a paid route whose challenge a free trial skipped for this caller all look like this. `status` tells a
+ *   404 apart; anything a seller announces about trials is in the response headers, which the caller still has.
  * - `invalid_402`: a 402 whose terms could not be read (malformed, oversized, or failing the strict schema).
  * - `allow`, `needsApproval`, `deny`: the policy's decision, exactly as `evaluate` returns it.
  */
@@ -33,7 +35,7 @@ export type DryRunContext = {
  * is signed and no key is needed. Reads the response body when it has to look for an x402 v1 402 (capped).
  */
 export async function dryRun(res: Response, ctx: DryRunContext): Promise<DryRunVerdict> {
-  if (res.status !== 402) return { kind: "no_challenge", status: res.status, reason: `HTTP ${res.status}: no payment terms` };
+  if (res.status !== 402) return { kind: "no_challenge", status: res.status, reason: `HTTP ${res.status}: no payment terms shown to this caller` };
 
   let required: PaymentRequired;
   let version: 1 | 2 = 2;

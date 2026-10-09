@@ -175,7 +175,7 @@ const registry = new MerchantRegistry([{ origin: "https://api.example.com", payT
 const plan = commitPlan(registry, [{ origin: "https://api.example.com", maxSpend: 100_000n }], 3_600_000);
 const url = "https://api.example.com/v1/data";
 const verdict = await dryRun(await fetch(url), { url, policy: { allowedNetworks: ["eip155:8453"] }, registry, plan });
-// verdict.kind: "no_challenge" | "invalid_402" | "allow" | "needsApproval" | "deny"
+// verdict.kind: "no_challenge" (no terms shown to this caller; not the same as free) | "invalid_402" | "allow" | "needsApproval" | "deny"
 ```
 
 ## Echoing a merchant's extensions (builder codes)

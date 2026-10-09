@@ -34,6 +34,7 @@ Result  spent 0.03 USDC of 0.03 USDC · signatures sent to attackers: 0 · audit
 | A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey @deepfirstsearch/agent-pay @turnkey/sdk-server viem` | [Turnkey guide](integrations/TURNKEY.md) |
 | A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @deepfirstsearch/agent-pay @privy-io/node viem` | [Privy guide](integrations/PRIVY.md) |
 | A Coinbase CDP Server Wallet | `npm i @deepfirstsearch/agent-pay-cdp @deepfirstsearch/agent-pay @coinbase/cdp-sdk viem` | [CDP guide](integrations/CDP.md) |
+| An Openfort backend wallet | `npm i @deepfirstsearch/agent-pay-openfort @deepfirstsearch/agent-pay @openfort/openfort-node viem` | [Openfort](../integrations/openfort/README.md) |
 | Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit) |
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [order-guard](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/order-guard) |
 
@@ -41,7 +42,7 @@ The integrations take the SDK as a peer dependency, so your app always uses a si
 
 Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm (34 merchants, 3 wallets):
 
-- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [Coinbase CDP](integrations/CDP.md) · [OpenClaw agents](guides/OPENCLAW.md)
+- **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [Coinbase CDP](integrations/CDP.md) · [Openfort](../integrations/openfort/README.md) · [OpenClaw agents](guides/OPENCLAW.md)
 - **Search, web and AI:** [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Pocket Network](integrations/POCKET.md) · [Spraay](integrations/SPRAAY.md) · [Otto AI](integrations/OTTO.md) · [Brave Search](integrations/BRAVESEARCH.md) · [You.com](integrations/YOUCOM.md) · [Telnyx](integrations/TELNYX.md) · [OpenWeb Ninja](integrations/OPENWEBNINJA.md) · [Particle](integrations/PARTICLE.md)
 - **Market and onchain data:** [CoinGecko](integrations/COINGECKO.md) · [Nansen](integrations/NANSEN.md) · [Glassnode](integrations/GLASSNODE.md) · [Massive](integrations/MASSIVE.md) · [Stock Trends](integrations/STOCKTRENDS.md) · [Blockchain.com](integrations/BLOCKCHAINCOM.md) · [OneSource](integrations/ONESOURCE.md) · [Zerion](integrations/ZERION.md) · [Blockscout](integrations/BLOCKSCOUT.md) · [vaults.fyi](integrations/VAULTSFYI.md) · [CoinStats](integrations/COINSTATS.md) · [3Route](integrations/3ROUTE.md) · [Blocksize Capital](integrations/BLOCKSIZECAPITAL.md) · [CoinMarketCap](integrations/COINMARKETCAP.md) · [JustaName](integrations/JUSTANAME.md) · [Interzoid](integrations/INTERZOID.md) · [Hey Elsa](integrations/HEYELSA.md) · [Heurist Mesh](integrations/HEURIST.md) · [AgentCash APIs (stableenrich)](integrations/STABLEENRICH.md) · [Glim (Cascade)](integrations/GLIM.md) · [Agently (A2A agents)](integrations/AGENTLY.md) · [Automaton Sovereign](integrations/AUTOMATON.md)
 - **Commerce and storage:** [Bitrefill](integrations/BITREFILL.md) · [Pinata](integrations/PINATA.md)

@@ -13,7 +13,7 @@ const res = (status: number, headers: Record<string, string> = {}, body = "") =>
 
 describe("dryRun: the decision layer alone, every outcome a value", () => {
   it("a seller that shows no terms (200, 404) is no_challenge, not an exception", async () => {
-    expect(await dryRun(res(200), ctx)).toMatchObject({ kind: "no_challenge", status: 200 });
+    expect(await dryRun(res(200), ctx)).toMatchObject({ kind: "no_challenge", status: 200, reason: "HTTP 200: no payment terms shown to this caller" });
     expect(await dryRun(res(404), ctx)).toMatchObject({ kind: "no_challenge", status: 404 });
   });
 
