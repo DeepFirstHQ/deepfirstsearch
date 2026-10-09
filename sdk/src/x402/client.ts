@@ -60,9 +60,10 @@ const EXPIRY_MARGIN_SECONDS = 60;
 
 /**
  * A merchant's answer to a resent payment that says the authorization was already consumed. Seen live: tx_already_used,
- * nonce_already_used_locally (Automaton Sovereign), "nonce already used" (CoinMarketCap).
+ * nonce_already_used_locally / _on_chain, nonce_replayed_local, nonce_already_used(_onchain) (the Automaton Sovereign family,
+ * one per settlement path), "nonce already used" (CoinMarketCap). Matched as a family, never as one exact string.
  */
-const ALREADY_USED = /already[_ -]?(?:been[_ -]?)?(?:used|consumed|settled|spent)|nonce[_ -](?:has[_ -]been[_ -]|was[_ -])?used/i;
+const ALREADY_USED = /already[_ -]?(?:been[_ -]?)?(?:used|consumed|settled|spent)|nonce[_ -](?:has[_ -]been[_ -]|was[_ -])?(?:used|replayed)|replayed/i;
 
 export type PaidResponse = Response & {
   payment?: {

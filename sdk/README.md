@@ -113,7 +113,7 @@ Merchants without a standard receipt can say how settlement went with `X-Payment
 | 402, no payment yet | challenge (unpaid) |
 | 2xx + `X-Payment-Settled: queued` | delivered, settlement pending (`merchantSettled: "queued"`) |
 | 2xx + `X-Payment-Settled: true` | delivered (`merchantSettled: "true"`) |
-| refusal to a resend saying the proof was already used | `settled_not_delivered` (report, never re-sign) |
+| any replay refusal on the payment's own scheme (e.g. `402 payment_invalid` with `tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`) | `settled_not_delivered` (report, never re-sign) |
 
 ## x402 v1 merchants (opt-in per merchant)
 

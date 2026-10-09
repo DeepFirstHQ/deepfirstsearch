@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.4 (2026-10-09)
+
+- **Fix:** replay refusals are matched as a family, keyed by meaning rather than one string: `nonce_replayed_local` (and the rest of Automaton Sovereign's per-path variants, read from its code by its maintainer) now classify as `settled_not_delivered` too. Never re-signed either way.
+
 ## 0.8.3 (2026-10-09)
 
 Found paying Automaton Sovereign (x402 v2 on Base) live, with its maintainer verifying from the seller side:

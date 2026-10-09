@@ -120,7 +120,7 @@ describe("SDK-L-4 a caller retry after an unconfirmed settlement resends the sam
   });
 
   it("recognises the live 'already used' variants (tx_already_used, nonce_already_used_locally, nonce already used)", async () => {
-    for (const reason of ["tx_already_used", "nonce_already_used_locally", "nonce already used or payment signature already used"]) {
+    for (const reason of ["tx_already_used", "nonce_already_used_locally", "nonce_already_used_on_chain", "nonce_replayed_local", "nonce_already_used", "nonce_already_used_onchain", "nonce already used or payment signature already used"]) {
       let n = 0;
       const net = fakeNet({
         onPaid: (u) => (++n === 1 ? resp(200, {}, u) : new Response(JSON.stringify({ error: "payment_invalid", reason }), { status: 402 })),
