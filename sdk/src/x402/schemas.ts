@@ -121,7 +121,9 @@ export const SettleResponse = z.object({
   success: z.boolean(),
   payer: hexAddress.nullish(),
   transaction: z.string().max(256),
-  network: caip2,
+  // CAIP-2, or a v1 short name from the fixed table (some v2 servers still write "base" here, e.g. Automaton
+  // Sovereign's origin): normalised to CAIP-2, so the "settled on the network we signed" check still applies.
+  network: z.union([caip2, z.string().max(32).refine((n) => v1NetworkToCaip2(n) !== undefined, "unknown network")]).transform((n) => v1NetworkToCaip2(n) ?? n),
   amount: atomic.nullish(),
   errorReason: z.string().max(512).nullish(), // some facilitators send null on success
 });

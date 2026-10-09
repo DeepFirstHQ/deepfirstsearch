@@ -14,7 +14,7 @@ Automaton Sovereign serves signed DeFi oracles, a pre-flight transaction firewal
 
 Their public counters at https://api.automaton-sovereign.workers.dev/stats, as read by the maintainer at 2026-10-09 14:27 UTC: `settledCalls` 22 (19 before our run), `settledByEndpoint` `/v2/oracle/base` 3 and `/v2/firewall/simulate-tx` 5, `rejected` 45 (one is our deliberate replay of an already-settled proof, answered `402 payment_invalid / nonce_already_used_locally` with no second transfer). These counters keep moving; read them live rather than trusting this snapshot.
 
-The seller answers with `X-Payment-Settled` and `X-Payment-Tx` instead of a standard `PAYMENT-RESPONSE`; agent-pay 0.8.3 reads both. A replayed proof is classified `settled_not_delivered` (report, never re-sign).
+On a paid 200 the seller's origin sends a standard `PAYMENT-RESPONSE` (with `network: "base"`, a v1 name, and an extra `settledAt`) together with `X-Payment-Settled` and `X-Payment-Tx`; per its maintainer, its edge worker sends only the vendor pair. agent-pay 0.8.5 reads the standard receipt (mapping `base` to `eip155:8453`); 0.8.3 and 0.8.4 fall back to `X-Payment-Settled` / `X-Payment-Tx`. A replayed proof is classified `settled_not_delivered` (report, never re-sign).
 
 ## 1. Add Automaton Sovereign as a merchant
 

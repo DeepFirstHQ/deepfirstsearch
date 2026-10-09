@@ -23,3 +23,16 @@ describe("402 options with informational chainId / networkV1 / outputSchema (Aut
     }
   });
 });
+
+describe("v2 receipt with a v1 network name (Automaton Sovereign's origin, 2026-10-09)", () => {
+  it("reads it as eip155:8453 and ignores informational keys such as settledAt", async () => {
+    const { SettleResponse } = await import("../src/x402/schemas.js");
+    const live = "eyJzdWNjZXNzIjp0cnVlLCJ0cmFuc2FjdGlvbiI6IjB4MmRhODFjNGU0NThmNTcxMTY1NWQ5YzY5OTAyNGIyMzU3Yzg0ZjY5YjkwZGM1NDRhMjRkMTBkNGE5MzdmNTI0MyIsIm5ldHdvcmsiOiJiYXNlIiwicGF5ZXIiOiIweDk1MDY3OEY2NENmMTBBODAzQzVjMDM1NWE2MTgwMjlBRmYwRDFhNTgiLCJzZXR0bGVkQXQiOiIyMDI2LTEwLTA5VDE1OjQ5OjQxLjg4MVoifQ==";
+    const r = decodeHeader(live, SettleResponse);
+    expect(r.network).toBe("eip155:8453");
+    expect(r.transaction).toBe("0x2da81c4e458f5711655d9c699024b2357c84f69b90dc544a24d10d4a937f5243");
+    for (const network of ["ethereum", "solana", "eip155"]) {
+      expect(() => decodeHeader(Buffer.from(JSON.stringify({ success: true, transaction: "0x1", network })).toString("base64"), SettleResponse)).toThrow();
+    }
+  });
+});

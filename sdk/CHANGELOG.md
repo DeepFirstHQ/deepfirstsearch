@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.5 (2026-10-09)
+
+- **Fix:** a v2 `PAYMENT-RESPONSE` whose `network` is a v1 short name (`"base"`), as Automaton Sovereign's origin sends, was treated as unreadable and the client fell back to `X-Payment-Settled`. Known short names are now mapped through the fixed table to CAIP-2 (unknown ones are still rejected), so the standard receipt is read and the "settled on the network we signed" check applies to it.
+
 ## 0.8.4 (2026-10-09)
 
 - **Fix:** replay refusals are matched as a family, keyed by meaning rather than one string: `nonce_replayed_local` (and the rest of Automaton Sovereign's per-path variants, read from its code by its maintainer) now classify as `settled_not_delivered` too. Never re-signed either way.
