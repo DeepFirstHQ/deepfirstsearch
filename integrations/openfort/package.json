@@ -1,0 +1,59 @@
+{
+  "name": "@deepfirstsearch/agent-pay-openfort",
+  "version": "0.1.0",
+  "description": "Openfort backend wallets as Agent Safe payers: x402 payments signed by Openfort, inside an owner-signed budget",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
+    "directory": "integrations/openfort"
+  },
+  "keywords": [
+    "openfort",
+    "x402",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepfirstsearch/agent-pay": ">=0.5.3 <1",
+    "@openfort/openfort-node": ">=0.13.0 <1",
+    "viem": "^2"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@deepfirstsearch/agent-pay": "0.10.0",
+    "@openfort/openfort-node": "0.13.1",
+    "@types/node": "26.6.4",
+    "jose": "6.2.12",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "viem": "2.57.3",
+    "vitest": "4.1.11"
+  },
+  "overrides": {
+    "axios": "1.20.0"
+  }
+}

@@ -1,0 +1,33 @@
+# Publishes the Openfort integration to npm when a tag like `openfort-v0.1.1` is pushed. The tag must match integrations/openfort/package.json.
+# Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
+name: Publish Openfort integration
+
+on:
+  push:
+    tags: ["openfort-v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm trusted publishing and provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Tag matches package version
+        working-directory: integrations/openfort
+        run: test "openfort-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm install -g npm@11.6.2
+      - working-directory: integrations/openfort
+        run: |
+          npm ci --ignore-scripts
+          npm test
+          npm run typecheck
+          npm run build
+          npm publish --provenance --access public --ignore-scripts

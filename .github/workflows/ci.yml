@@ -173,6 +173,23 @@ jobs:
           npm test
           npm run build
 
+  openfort:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/openfort/package-lock.json
+      - run: npm install -g npm@11.6.2
+      - working-directory: integrations/openfort
+        run: |
+          npm ci --ignore-scripts # @openfort/openfort-node runs `npx only-allow pnpm` on preinstall
+          npm run typecheck
+          npm test
+          npm run build
+
   agentkit:
     runs-on: ubuntu-latest
     steps:
