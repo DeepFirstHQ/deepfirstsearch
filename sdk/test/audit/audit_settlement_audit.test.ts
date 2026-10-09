@@ -257,3 +257,39 @@ describe("SDK-I-9 request body that cannot be replayed: the sent authorization i
     expect(plan.remaining(ORIGIN)).toBe(20_000n);
   });
 });
+
+describe("the 402's declared resource is a claim, logged but never trusted", () => {
+  const signedEvent = (pay: ReturnType<typeof mkPay>["pay"]) => pay.audit.entries.map((e) => e.event).find((e) => e.type === "payment.signed")!;
+
+  it("a resource.url on another host is logged as declaredOrigin; the merchant stays the contacted origin", async () => {
+    const net = fakeNet({
+      onFirst: (u) => resp(402, { "PAYMENT-REQUIRED": encodeHeader({ ...required(), resource: { url: "https://copy.trycloudflare.com/tool" } }) }, u),
+    });
+    const { pay, plan } = mkPay(net);
+    await pay.fetch(`${ORIGIN}/a`, {}, { plan });
+    const e = signedEvent(pay);
+    expect(e.origin).toBe(ORIGIN);
+    expect(e.declaredOrigin).toBe("https://copy.trycloudflare.com");
+  });
+
+  it("nothing extra is logged when the declared resource is the contacted origin, or absent", async () => {
+    for (const resource of [{ url: `${ORIGIN}/a` }, undefined]) {
+      const net = fakeNet({
+        onFirst: (u) => resp(402, { "PAYMENT-REQUIRED": encodeHeader({ ...required(), ...(resource ? { resource } : {}) }) }, u),
+      });
+      const { pay, plan } = mkPay(net);
+      await pay.fetch(`${ORIGIN}/a`, {}, { plan });
+      expect(signedEvent(pay)).not.toHaveProperty("declaredOrigin");
+    }
+  });
+
+  it("an unparseable resource.url is logged as such, and the payment is decided as usual", async () => {
+    const net = fakeNet({
+      onFirst: (u) => resp(402, { "PAYMENT-REQUIRED": encodeHeader({ ...required(), resource: { url: "not a url" } }) }, u),
+    });
+    const { pay, plan } = mkPay(net);
+    const res = await pay.fetch(`${ORIGIN}/a`, {}, { plan });
+    expect(res.status).toBe(200);
+    expect(signedEvent(pay).declaredOrigin).toBe("unparseable");
+  });
+});

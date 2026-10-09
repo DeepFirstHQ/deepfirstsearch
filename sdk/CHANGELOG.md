@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Audit:** `payment.signed` now records `declaredOrigin` when the 402's own resource URL (v2 `resource.url`, or v1's per-option `resource`) names a different origin from the one the agent contacted. It is the server's self-description, so it is logged and never used for a decision: the merchant is always the contacted origin (suggested by Automaton Sovereign in cloudflare/agents#2544).
+
 ## 0.8.5 (2026-10-09)
 
 - **Fix:** a v2 `PAYMENT-RESPONSE` whose `network` is a v1 short name (`"base"`), as Automaton Sovereign's origin sends, was treated as unreadable and the client fell back to `X-Payment-Settled`. Known short names are now mapped through the fixed table to CAIP-2 (unknown ones are still rejected), so the standard receipt is read and the "settled on the network we signed" check applies to it.

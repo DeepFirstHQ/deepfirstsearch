@@ -18,7 +18,7 @@ import type { SanctionsScreen } from "../policy/sanctions.js";
 import { decodeHeader, encodeHeader, X402DecodeError } from "./codec.js";
 import { signExactAuthorization } from "./exactEvm.js";
 import type { AuthorizationCheck } from "./onchain.js";
-import { caip2ToV1Network, HEADERS, PaymentRequired, SettleResponse, type PaymentPayload } from "./schemas.js";
+import { caip2ToV1Network, HEADERS, PaymentRequired, SettleResponse, type PaymentPayload, type PaymentRequirements } from "./schemas.js";
 import { decodeV1Receipt, looksLikeV1, normalizeV1, parseV1, readBodyCapped, v1Payload } from "./v1.js";
 
 export type PayerProvider = (merchant: Merchant, chainId: number) => LocalAccount | Promise<LocalAccount>;
@@ -359,7 +359,18 @@ export function createAgentPay(options: AgentPayOptions) {
         const payload: PaymentPayload = { x402Version: 2, ...(required.resource ? { resource: required.resource } : {}), accepted: requirement, payload: { signature, authorization } };
         headers.set(HEADERS.signature, encodeHeader(payload));
       }
-      audit.append({ type: "payment.signed", origin: merchant.origin, payTo: merchant.payTo, payer: payer.address, amount, nonce: authorization.nonce });
+      // The 402's own resource URL is the server's description of itself: logged when it names another origin, never
+      // used for a decision. The merchant is always the origin the agent actually contacted.
+      const declared = declaredOrigin(required, requirement);
+      audit.append({
+        type: "payment.signed",
+        origin: merchant.origin,
+        payTo: merchant.payTo,
+        payer: payer.address,
+        amount,
+        nonce: authorization.nonce,
+        ...(declared !== undefined && declared !== merchant.origin ? { declaredOrigin: declared } : {}),
+      });
 
       headers.set("Idempotency-Key", authorization.nonce);
       sent = true; // from here on the money is possibly spent: the reservation stays
@@ -551,4 +562,16 @@ export function createAgentPay(options: AgentPayOptions) {
     kill: (reason?: string) => kill.kill(reason),
     audit,
   };
+}
+
+/** The origin a 402 says it is for (v2 `resource.url`, or v1's per-option `resource`). A claim, not a key. */
+function declaredOrigin(required: PaymentRequired, requirement: PaymentRequirements): string | undefined {
+  const r = required.resource ?? requirement.resource;
+  const url = typeof r === "string" ? r : r?.url;
+  if (!url) return undefined;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "unparseable";
+  }
 }
