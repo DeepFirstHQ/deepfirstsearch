@@ -34,6 +34,12 @@ export const PaymentRequirements = z.strictObject({
   resource: z.union([z.string().max(2048), ResourceInfo]).optional(),
   description: z.string().max(1024).optional(),
   mimeType: z.string().max(128).optional(),
+  // More informational fields some v2 servers repeat per option (Automaton Sovereign): Bazaar's outputSchema, and the
+  // network again as a chain id and as a v1 name. Never read for a decision; chainId and networkV1 must agree with
+  // `network` or the whole 402 is rejected, so they can't be used to confuse anyone downstream.
+  outputSchema: z.unknown().optional(),
+  chainId: z.number().int().positive().optional(),
+  networkV1: z.string().max(32).optional(),
   // `extra` is scheme-specific and free-form in the spec (merchants add pricing breakdowns, ids, gateway data), so
   // unknown keys are kept, not rejected. The fields we act on stay typed, and none of them is ever used to sign:
   // the EIP-712 domain comes from our own pins. The header size limit bounds what extra can carry.
@@ -48,6 +54,9 @@ export const PaymentRequirements = z.strictObject({
   const same = (a: string | undefined, b: string) => a === undefined || a.toLowerCase() === b.toLowerCase();
   if (!same(r.currency, r.asset)) ctx.addIssue({ code: "custom", path: ["currency"], message: "legacy currency disagrees with asset" });
   if (!same(r.recipient, r.payTo)) ctx.addIssue({ code: "custom", path: ["recipient"], message: "legacy recipient disagrees with payTo" });
+  const chainOf = (caip: string) => (/^eip155:(\d+)$/.exec(caip)?.[1] ?? "");
+  if (r.chainId !== undefined && String(r.chainId) !== chainOf(r.network)) ctx.addIssue({ code: "custom", path: ["chainId"], message: "chainId disagrees with network" });
+  if (r.networkV1 !== undefined && v1NetworkToCaip2(r.networkV1) !== r.network) ctx.addIssue({ code: "custom", path: ["networkV1"], message: "networkV1 disagrees with network" });
   if (r.maxAmountRequired !== undefined && r.maxAmountRequired !== r.amount) ctx.addIssue({ code: "custom", path: ["maxAmountRequired"], message: "legacy maxAmountRequired disagrees with amount" });
   if (!r.network.startsWith("eip155:")) return;
   for (const k of ["asset", "payTo"] as const) {
@@ -56,14 +65,32 @@ export const PaymentRequirements = z.strictObject({
 });
 export type PaymentRequirements = z.infer<typeof PaymentRequirements>;
 
-export const PaymentRequired = z.strictObject({
-  x402Version: z.number().int(),
-  error: z.string().max(1024).optional(),
-  resource: ResourceInfo.optional(),
-  accepts: z.array(PaymentRequirements).max(16),
-  // Extensions (e.g. Bazaar) are accepted on input but never echoed back: they only leak metadata. The resource is.
-  extensions: z.record(z.string(), z.unknown()).optional(),
-});
+// Top level: vendor keys (instructions, trial info, legacy copies, e.g. Automaton Sovereign) are dropped, never read or
+// echoed. Keys that look like payment terms are still rejected, so a stray top-level payTo or amount can't confuse
+// anyone reading the 402. Each payment option below stays strict, since that is where every decision is made. The
+// header size limit bounds what a 402 can carry.
+const PAYMENT_TERM_KEYS = ["payTo", "pay_to", "to", "recipient", "amount", "maxAmountRequired", "asset", "currency", "network", "scheme", "price", "value"];
+export const PaymentRequired = z
+  .looseObject({
+    x402Version: z.number().int(),
+    error: z.string().max(1024).optional(),
+    resource: ResourceInfo.optional(),
+    accepts: z.array(PaymentRequirements).max(16),
+    // Extensions (e.g. Bazaar) are accepted on input but never echoed back: they only leak metadata. The resource is.
+    extensions: z.record(z.string(), z.unknown()).optional(),
+  })
+  .superRefine((r, ctx) => {
+    for (const k of PAYMENT_TERM_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(r, k)) ctx.addIssue({ code: "custom", path: [k], message: `payment term "${k}" outside accepts` });
+    }
+  })
+  .transform(({ x402Version, error, resource, accepts, extensions }) => ({
+    x402Version,
+    ...(error !== undefined ? { error } : {}),
+    ...(resource !== undefined ? { resource } : {}),
+    accepts,
+    ...(extensions !== undefined ? { extensions } : {}),
+  }));
 export type PaymentRequired = z.infer<typeof PaymentRequired>;
 
 export const Authorization = z.strictObject({

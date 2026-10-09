@@ -63,7 +63,7 @@ describe("payment requirement header aliases", () => {
   it.each([
     ["malformed", "not base64", /not base64/],
     ["oversized", "A".repeat(MAX_HEADER_BYTES + 1), /too large/],
-    ["unknown field", encodeHeader({ ...required(), surprise: true }), /invalid header/],
+    ["payment term outside accepts", encodeHeader({ ...required(), payTo: ATTACKER }), /invalid header/],
     ["wrong payee", encodeHeader(required([requirement({ payTo: ATTACKER })])), /registered address/],
     ["wrong domain", encodeHeader(required([requirement({ extra: { name: "untrusted domain" } })])), /domain name/],
   ] as const)("rejects alias with %s data without signing or spending", async (_label, header, error) => {

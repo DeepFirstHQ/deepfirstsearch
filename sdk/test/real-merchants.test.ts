@@ -68,8 +68,9 @@ describe("real x402 merchants on Base", () => {
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...opt, description: "x".repeat(2000) }] })).toThrow();
   });
 
-  it("still rejects unknown fields outside extra", () => {
-    expect(() => PaymentRequired.parse({ ...BLOCKRUN, surprise: 1 })).toThrow();
+  it("still rejects unknown option fields and payment-looking top-level fields; drops other top-level vendor keys", () => {
+    expect(() => PaymentRequired.parse({ ...BLOCKRUN, payTo: "0x9999999999999999999999999999999999999999" })).toThrow();
+    expect(Object.prototype.hasOwnProperty.call(PaymentRequired.parse({ ...BLOCKRUN, surprise: 1 }), "surprise")).toBe(false);
     expect(() => PaymentRequired.parse({ ...BLOCKRUN, accepts: [{ ...BLOCKRUN.accepts[0], payToOverride: "0x9999999999999999999999999999999999999999" }] })).toThrow();
   });
 });

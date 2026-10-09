@@ -119,6 +119,18 @@ describe("SDK-L-4 a caller retry after an unconfirmed settlement resends the sam
     expect(new Set(net.signed.map((s) => s.payload.authorization.nonce)).size).toBe(1); // still one authorization ever
   });
 
+  it("recognises the live 'already used' variants (tx_already_used, nonce_already_used_locally, nonce already used)", async () => {
+    for (const reason of ["tx_already_used", "nonce_already_used_locally", "nonce already used or payment signature already used"]) {
+      let n = 0;
+      const net = fakeNet({
+        onPaid: (u) => (++n === 1 ? resp(200, {}, u) : new Response(JSON.stringify({ error: "payment_invalid", reason }), { status: 402 })),
+      });
+      const { pay, plan } = mkPay(net);
+      await expect(pay.fetch(`${ORIGIN}/a`, {}, { plan })).rejects.toMatchObject({ code: "settled_not_delivered" });
+      expect(new Set(net.signed.map((s) => s.payload.authorization.nonce)).size).toBe(1);
+    }
+  });
+
   it("X-Payment-Settled: true | queued on a 200 without a receipt is accepted once (no resend, no RPC)", async () => {
     for (const state of ["true", "queued"] as const) {
       const net = fakeNet({ onPaid: (u) => resp(200, { "X-Payment-Settled": state }, u) });
@@ -129,6 +141,16 @@ describe("SDK-L-4 a caller retry after an unconfirmed settlement resends the sam
       expect(res.payment?.merchantSettled).toBe(state);
       expect(net.signed).toHaveLength(1);
       expect(rpc).toBe(0);
+    }
+  });
+
+  it("X-Payment-Tx is reported as the transaction only when it is shaped like a hash", async () => {
+    const good = "0x" + "ab".repeat(32);
+    for (const [tx, expected] of [[good, good], ["<script>", ""], ["0x1234", ""]] as const) {
+      const net = fakeNet({ onPaid: (u) => resp(200, { "X-Payment-Settled": "true", "X-Payment-Tx": tx }, u) });
+      const { pay, plan } = mkPay(net);
+      const res = await pay.fetch(`${ORIGIN}/a`, {}, { plan });
+      expect(res.payment?.settlement.transaction).toBe(expected);
     }
   });
 

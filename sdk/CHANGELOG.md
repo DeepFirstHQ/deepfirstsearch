@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 (2026-10-09)
+
+Found paying Automaton Sovereign (x402 v2 on Base) live, with its maintainer verifying from the seller side:
+- **Fix:** a 402 whose options repeat the network as `chainId` / `networkV1` or carry Bazaar's `outputSchema` was rejected. Those fields are accepted now, informational only; `chainId` and `networkV1` must agree with `network` or the whole 402 is rejected.
+- **Changed:** vendor keys at the top level of a 402 (instructions, trial info, legacy copies) are dropped instead of rejecting the 402; they are never read or echoed. Keys that look like payment terms (`payTo`, `amount`, `asset`, `network`, `to`, `recipient`, …) outside `accepts` still reject it, and every option inside `accepts` stays strict.
+- **Fix:** the "already used" classifier missed `nonce_already_used_locally` (the seller's real answer to a replayed proof). It now matches every variant seen live (`tx_already_used`, `nonce_already_used_locally`, "nonce already used").
+- With `X-Payment-Settled`, a well-formed `X-Payment-Tx` header is reported as `settlement.transaction`.
+
 ## 0.8.2 (2026-10-08)
 
 Never a second signature while the first might have paid (raised in coinbase/agentkit#1544):

@@ -58,8 +58,11 @@ const CONFIRM_CHECKS = 4;
  */
 const EXPIRY_MARGIN_SECONDS = 60;
 
-/** A merchant's answer to a resent payment that says the authorization was already consumed (e.g. tx_already_used). */
-const ALREADY_USED = /\b(?:tx_)?already[_ -]?(?:used|consumed|settled)\b|already been used|nonce (?:has been |already |was )?used/i;
+/**
+ * A merchant's answer to a resent payment that says the authorization was already consumed. Seen live: tx_already_used,
+ * nonce_already_used_locally (Automaton Sovereign), "nonce already used" (CoinMarketCap).
+ */
+const ALREADY_USED = /already[_ -]?(?:been[_ -]?)?(?:used|consumed|settled|spent)|nonce[_ -](?:has[_ -]been[_ -]|was[_ -])?used/i;
 
 export type PaidResponse = Response & {
   payment?: {
@@ -434,7 +437,10 @@ export function createAgentPay(options: AgentPayOptions) {
         const said = paid.ok ? paid.headers.get("X-Payment-Settled")?.trim().toLowerCase() : undefined;
         if (said === "true" || said === "queued") {
           audit.append({ type: "payment.settled_by_merchant", origin: p.merchant.origin, amount: p.amount, nonce: p.authorization.nonce, state: said });
-          paid.payment = { amount: p.amount, payTo: p.merchant.payTo, settlement: { success: true, transaction: "", network: p.requirement.network, payer: p.payer }, merchantSettled: said };
+          // X-Payment-Tx, when present, is the merchant's claim of the settlement hash: kept only if it is shaped like one.
+          const txHeader = paid.headers.get("X-Payment-Tx")?.trim() ?? "";
+          const transaction = /^0x[0-9a-fA-F]{64}$/.test(txHeader) ? txHeader : "";
+          paid.payment = { amount: p.amount, payTo: p.merchant.payTo, settlement: { success: true, transaction, network: p.requirement.network, payer: p.payer }, merchantSettled: said };
           return paid;
         }
         if (paid.ok && options.confirmAuthorization) break;

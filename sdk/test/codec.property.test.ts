@@ -63,16 +63,25 @@ describe("x402 header decoder (property tests)", () => {
     );
   });
 
-  it("rejects a valid 402 with any unknown top-level key or option key", () => {
-    const reserved = new Set(["x402Version", "error", "resource", "accepts", "extensions", "scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds", "extra", "currency", "maxAmountRequired", "recipient", "description", "mimeType"]);
+  it("rejects any unknown option key; drops unknown top-level keys unless they look like payment terms", () => {
+    const reserved = new Set(["x402Version", "error", "resource", "accepts", "extensions", "scheme", "network", "amount", "asset", "payTo", "maxTimeoutSeconds", "extra", "currency", "maxAmountRequired", "recipient", "description", "mimeType", "outputSchema", "chainId", "networkV1"]);
+    const terms = new Set(["payTo", "pay_to", "to", "recipient", "amount", "maxAmountRequired", "asset", "currency", "network", "scheme", "price", "value"]);
     const key = fc.string({ minLength: 1, maxLength: 20 }).filter((k) => !reserved.has(k) && k !== "__proto__");
     fc.assert(
-      fc.property(required, key, fc.jsonValue({ maxDepth: 2 }), fc.boolean(), (r, k, v, top) => {
-        const bad = top ? { ...r, [k]: v } : { ...r, accepts: [{ ...r.accepts[0], [k]: v }, ...r.accepts.slice(1)] };
-        expect(() => decodeHeader(encodeHeader(bad), PaymentRequired)).toThrow(X402DecodeError);
+      fc.property(required, key, fc.jsonValue({ maxDepth: 2 }), (r, k, v) => {
+        // Inside an option (where decisions are made): always rejected.
+        const badOption = { ...r, accepts: [{ ...r.accepts[0], [k]: v }, ...r.accepts.slice(1)] };
+        expect(() => decodeHeader(encodeHeader(badOption), PaymentRequired)).toThrow(X402DecodeError);
+        // Top level: payment-looking keys rejected, anything else dropped (never read, never echoed).
+        const top = { ...r, [k]: v };
+        if (terms.has(k)) expect(() => decodeHeader(encodeHeader(top), PaymentRequired)).toThrow(X402DecodeError);
+        else expect(Object.prototype.hasOwnProperty.call(decodeHeader(encodeHeader(top), PaymentRequired), k)).toBe(false);
       }),
       { numRuns: 300 },
     );
+    for (const k of terms) {
+      expect(() => decodeHeader(encodeHeader({ ...(fc.sample(required, 1)[0] as object), [k]: "0x9999999999999999999999999999999999999999" }), PaymentRequired)).toThrow(X402DecodeError);
+    }
   });
 
   it("rejects an eip155 option whose payTo or asset is not a 20-byte hex address", () => {
