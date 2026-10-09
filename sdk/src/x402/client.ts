@@ -339,6 +339,8 @@ export function createAgentPay(options: AgentPayOptions) {
       if (version === 1 && !caip2ToV1Network(requirement.network)) {
         throw new PaymentDeniedError(["x402 v1 network is not supported"], ["network_not_allowed"]); // unreachable: normalizeV1 maps only table entries
       }
+      // Worked out before signing, so nothing about it can fail once an authorization exists.
+      const echo = version === 2 ? echoedExtensions(required, merchant) : { skipped: [] as string[] };
       const bounds = effectiveTimeoutBounds(options.policy.timeoutBounds, merchant);
       const validFor = Math.min(requirement.maxTimeoutSeconds, bounds.max);
       const { authorization, signature } = await signExactAuthorization({
@@ -356,7 +358,13 @@ export function createAgentPay(options: AgentPayOptions) {
       if (version === 1) {
         headers.set(HEADERS.v1Signature, encodeHeader(v1Payload(requirement, { signature, authorization })));
       } else {
-        const payload: PaymentPayload = { x402Version: 2, ...(required.resource ? { resource: required.resource } : {}), accepted: requirement, payload: { signature, authorization } };
+        const payload: PaymentPayload = {
+          x402Version: 2,
+          ...(required.resource ? { resource: required.resource } : {}),
+          accepted: requirement,
+          ...(echo.extensions ? { extensions: echo.extensions } : {}),
+          payload: { signature, authorization },
+        };
         headers.set(HEADERS.signature, encodeHeader(payload));
       }
       // The 402's own resource URL is the server's description of itself: logged when it names another origin, never
@@ -370,6 +378,8 @@ export function createAgentPay(options: AgentPayOptions) {
         amount,
         nonce: authorization.nonce,
         ...(declared !== undefined && declared !== merchant.origin ? { declaredOrigin: declared } : {}),
+        ...(echo.extensions ? { echoed: Object.keys(echo.extensions) } : {}),
+        ...(echo.skipped.length > 0 ? { notEchoed: echo.skipped } : {}),
       });
 
       headers.set("Idempotency-Key", authorization.nonce);
@@ -574,4 +584,46 @@ function declaredOrigin(required: PaymentRequired, requirement: PaymentRequireme
   } catch {
     return "unparseable";
   }
+}
+
+/** Largest declaration echoed back per extension (serialized). A bigger one is left out, never truncated. */
+const ECHO_MAX_BYTES = 4096;
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * The extensions echoed in a v2 payment: only the keys the owner listed for this merchant (Merchant.echoExtensions),
+ * each the merchant's own declaration from the 402, plus the owner's builder codes as `builder-code.info.s` (owner
+ * codes first, then the merchant's, duplicates removed). Listed keys that are missing, not objects or too large are
+ * reported in `skipped`, and the payment goes ahead without them.
+ */
+function echoedExtensions(required: PaymentRequired, merchant: Merchant): { extensions?: Record<string, unknown>; skipped: string[] } {
+  const out: Record<string, unknown> = {};
+  const skipped: string[] = [];
+  for (const key of merchant.echoExtensions ?? []) {
+    const declared = required.extensions?.[key];
+    const own = key === "builder-code" ? merchant.builderCodes : undefined;
+    if (declared === undefined && !own) {
+      skipped.push(key);
+      continue;
+    }
+    if (declared !== undefined && !isPlainObject(declared)) {
+      skipped.push(key);
+      continue;
+    }
+    let value: Record<string, unknown> = declared ? (JSON.parse(JSON.stringify(declared)) as Record<string, unknown>) : {};
+    if (own) {
+      const info = isPlainObject(value.info) ? value.info : {};
+      const theirs = Array.isArray(info.s) ? info.s : typeof info.s === "string" ? [info.s] : [];
+      value = { ...value, info: { ...info, s: [...new Set([...own, ...theirs.filter((c): c is string => typeof c === "string")])] } };
+    }
+    if (JSON.stringify(value).length > ECHO_MAX_BYTES) {
+      skipped.push(key);
+      continue;
+    }
+    out[key] = value;
+  }
+  return { ...(Object.keys(out).length > 0 ? { extensions: out } : {}), skipped };
 }

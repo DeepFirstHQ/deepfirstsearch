@@ -20,7 +20,21 @@ export type Merchant = {
    * you know still speaks x402 v1; every policy check applies to v1 payments unchanged. There is no global switch.
    */
   x402Versions?: readonly (1 | 2)[];
+  /**
+   * Keys of extensions this merchant declares in its 402 that are echoed back in the payment (x402 v2 only), e.g.
+   * `["builder-code"]` for a seller whose Base Builder Code reaches settlement only through the buyer's payload. Default:
+   * none. Anything not listed is never echoed. The echoed value is the merchant's own declaration, size-capped.
+   */
+  echoExtensions?: readonly string[];
+  /**
+   * The owner's own ERC-8021 service builder codes, added to this merchant's `builder-code` extension as `s` (requires
+   * `"builder-code"` in `echoExtensions`). 1 to 32 lowercase letters, digits or underscores each.
+   */
+  builderCodes?: readonly string[];
 };
+
+const EXTENSION_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+const BUILDER_CODE = /^[a-z0-9_]{1,32}$/;
 
 export const DEFAULT_X402_VERSIONS: readonly (1 | 2)[] = Object.freeze([2] as const);
 
@@ -58,11 +72,31 @@ export class MerchantRegistry {
           throw new Error("x402Versions must be a non-empty list of distinct versions from [1, 2]");
         }
       }
+      if (m.echoExtensions !== undefined) {
+        const e = m.echoExtensions as readonly unknown[];
+        if (!Array.isArray(e) || e.length > 8 || e.some((k) => typeof k !== "string" || !EXTENSION_KEY.test(k)) || new Set(e).size !== e.length) {
+          throw new Error("echoExtensions must be up to 8 distinct extension keys (letters, digits, _ or -)");
+        }
+      }
+      if (m.builderCodes !== undefined) {
+        const c = m.builderCodes as readonly unknown[];
+        if (!Array.isArray(c) || c.length === 0 || c.length > 4 || c.some((k) => typeof k !== "string" || !BUILDER_CODE.test(k)) || new Set(c).size !== c.length) {
+          throw new Error("builderCodes must be 1 to 4 distinct codes of 1-32 lowercase letters, digits or underscores");
+        }
+        if (!m.echoExtensions?.includes("builder-code")) throw new Error('builderCodes requires "builder-code" in echoExtensions');
+      }
       const origin = canonicalOrigin(m.origin);
       if (this.byOrigin.has(origin)) throw new Error(`duplicate merchant origin: ${origin}`);
       this.byOrigin.set(
         origin,
-        Object.freeze({ ...m, origin, payTo: getAddress(m.payTo), ...(m.x402Versions ? { x402Versions: Object.freeze([...m.x402Versions]) } : {}) }),
+        Object.freeze({
+          ...m,
+          origin,
+          payTo: getAddress(m.payTo),
+          ...(m.x402Versions ? { x402Versions: Object.freeze([...m.x402Versions]) } : {}),
+          ...(m.echoExtensions ? { echoExtensions: Object.freeze([...m.echoExtensions]) } : {}),
+          ...(m.builderCodes ? { builderCodes: Object.freeze([...m.builderCodes]) } : {}),
+        }),
       );
     }
   }

@@ -164,6 +164,23 @@ new MerchantRegistry([
 - The signed payment is sent as `X-PAYMENT` (`{ x402Version: 1, scheme: "exact", network: "base", payload: { signature, authorization } }`, base64 JSON), the receipt is read from `X-PAYMENT-RESPONSE` with the same checks as v2, and `res.payment.settlement.network` is reported as CAIP-2. One signature per payment; retries resend the same header; `confirmAuthorization` works the same.
 - A merchant whose `payTo` changes on every request (Browserbase hands out a fresh deposit address per 402) cannot be paid with a pinned payee and stays refused ("payTo … is not the merchant's registered address").
 
+## Echoing a merchant's extensions (builder codes)
+
+By default a payment echoes the 402's `resource` and nothing else: extensions such as Bazaar's are dropped, because they only leak metadata. Some sellers need one back. A seller that declares a Base Builder Code (ERC-8021) only gets its attribution into the settlement if the buyer echoes the `builder-code` extension in the payment. Allow that per merchant:
+
+```ts
+new MerchantRegistry([
+  { origin: "https://402.com.tr", payTo: "0x973a31858f4d2125f48c880542da11a2796f12d6", network: "eip155:8453",
+    maxPerTx: 150_000n,
+    echoExtensions: ["builder-code"],   // echo only this key, as the merchant declared it
+    builderCodes: ["bc_yourcode"] },     // optional: your own service codes, added as info.s
+]);
+```
+
+- Only the listed keys are echoed, each as the merchant's own declaration (capped at 4 KB). A key that is missing, not an object or too large is left out and recorded as `notEchoed` on `payment.signed`, and the payment goes ahead.
+- `builderCodes` go first in `info.s`, then the merchant's own codes, with duplicates removed: the same order as the official client (`@x402/core` with `BuilderCodeClientExtension`). This is checked against a live 402 in the tests.
+- Echoing never changes what is paid: the payee, amount, asset and network still come from the registry and the 402's `accepts`.
+
 ## Guards
 - `commitPlan` (plan-then-execute)
 - `taint` / `isTrusted` (provenance)

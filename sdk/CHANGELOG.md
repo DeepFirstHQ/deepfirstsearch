@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 (2026-10-09)
 
+- **Feature:** per-merchant `echoExtensions` and `builderCodes` in the registry. Nothing is echoed by default, as before. A merchant can be allowed to receive back the extensions it declares, e.g. `["builder-code"]`: a seller's Base Builder Code (ERC-8021) reaches the settlement only through the buyer's payload. `builderCodes` adds the owner's own service codes as `info.s`, in the official client's merge order (checked against a live 402 from 402.com.tr). Each echoed declaration is capped at 4 KB; anything missing or oversized is left out and recorded as `notEchoed`. Payee, amount, asset and network are unaffected.
 - **Audit:** `payment.signed` now records `declaredOrigin` when the 402's own resource URL (v2 `resource.url`, or v1's per-option `resource`) names a different origin from the one the agent contacted. It is the server's self-description, so it is logged and never used for a decision: the merchant is always the contacted origin (suggested by Automaton Sovereign in cloudflare/agents#2544).
 
 ## 0.8.5 (2026-10-09)

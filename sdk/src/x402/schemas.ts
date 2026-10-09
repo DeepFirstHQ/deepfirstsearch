@@ -76,7 +76,8 @@ export const PaymentRequired = z
     error: z.string().max(1024).optional(),
     resource: ResourceInfo.optional(),
     accepts: z.array(PaymentRequirements).max(16),
-    // Extensions (e.g. Bazaar) are accepted on input but never echoed back: they only leak metadata. The resource is.
+    // Extensions (e.g. Bazaar) are accepted on input but echoed back only when the owner lists their key for that
+    // merchant (Merchant.echoExtensions): otherwise they only leak metadata. The resource is always echoed.
     extensions: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine((r, ctx) => {
@@ -108,6 +109,8 @@ export const PaymentPayload = z.strictObject({
   // The 402's resource, echoed as the spec's clients do; facilitators such as Coinbase's reject payloads without it.
   resource: ResourceInfo.optional(),
   accepted: PaymentRequirements,
+  // Only the extensions the owner chose to echo for this merchant (Merchant.echoExtensions).
+  extensions: z.record(z.string(), z.unknown()).optional(),
   payload: z.strictObject({
     signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
     authorization: Authorization,
