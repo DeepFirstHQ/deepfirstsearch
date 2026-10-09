@@ -10,15 +10,17 @@ import {
   PINNED_USDC,
   PaymentBlockedError,
   PaymentDeniedError,
+  burnerAddress,
   burnerPayers,
   createAgentPay,
+  usdcAuthorizationCheck,
   vaultFunder,
   type AgentPayOptions,
   type SealedPlan,
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
 
-export const VERSION = "0.1.8"; // kept equal to package.json by test/version.test.ts
+export const VERSION = "0.2.0"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
@@ -54,6 +56,15 @@ export function refusalTag(e: unknown): string {
   return what ? ` [${code} → ${what}]` : ` [${code}]`;
 }
 
+/** Each merchant's payer address (derived from the burner seed), e.g. to fund it when there is no vault. */
+export function payerAddresses(config: Config, secrets: Secrets): { label: string; payer: string }[] {
+  const chainId = config.network === "eip155:8453" ? base.id : baseSepolia.id;
+  return config.merchants.map((m) => ({
+    label: m.label ?? new URL(m.origin).origin,
+    payer: burnerAddress({ ownerSeed: secrets.burnerSeed, vault: config.vault ?? "0x0000000000000000000000000000000000000000", chainId, counterparty: m.payTo }),
+  }));
+}
+
 /**
  * Builds the MCP server. Everything that decides money (merchants, prices, caps, plan, keys) comes from `config` and
  * `secrets`; the model only chooses which URL to fetch, and the SDK refuses anything outside the sealed plan.
@@ -74,6 +85,7 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
       toleranceBps: Math.round(m.tolerancePct * 100),
       ...(m.label ? { label: m.label } : {}),
       ...(m.maxTimeoutSeconds !== undefined ? { maxTimeoutSeconds: m.maxTimeoutSeconds } : {}),
+      ...(m.x402Versions ? { x402Versions: m.x402Versions } : {}),
     })),
   );
 
@@ -102,6 +114,7 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
     session: { readsUntrustedInput: true, accessesSensitiveData: config.sessionHasSensitiveData, canPay: true },
     audit: new AuditLog(config.auditLog),
     ...(ensureFunded ? { ensureFunded } : {}),
+    ...(config.confirmOnChain ? { confirmAuthorization: usdcAuthorizationCheck({ [config.network]: publicClient }) } : {}),
     ...overrides,
   });
 

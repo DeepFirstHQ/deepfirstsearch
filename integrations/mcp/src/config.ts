@@ -27,6 +27,8 @@ const Merchant = z.object({
   label: z.string().max(80).optional(),
   /** Optional timeout override (e.g. for long-running merchants) */
   maxTimeoutSeconds: z.number().int().min(10).max(86400).optional(),
+  /** x402 versions this merchant may be paid with (default [2]). Set [1, 2] for merchants that still speak v1. */
+  x402Versions: z.array(z.union([z.literal(1), z.literal(2)])).min(1).max(2).optional(),
 });
 
 export const Config = z
@@ -47,6 +49,11 @@ export const Config = z
     sessionHasSensitiveData: z.boolean().default(false),
     /** Append-only, hash-chained audit log (JSONL). */
     auditLog: z.string().optional(),
+    /**
+     * When a merchant's receipt is missing or unreadable, ask USDC on-chain whether the payment executed (through
+     * `rpcUrl`), instead of resending: some merchants deliver without a standard receipt. Only used on that failure path.
+     */
+    confirmOnChain: z.boolean().default(true),
     /** Maximum response body returned to the model, in characters. */
     maxResponseChars: z.number().int().positive().max(1_000_000).default(20_000),
   })

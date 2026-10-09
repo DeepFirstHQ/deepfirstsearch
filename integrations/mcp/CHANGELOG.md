@@ -2,6 +2,7 @@
 
 Reconstructed from the git history; one line per release.
 
+- **0.2.0 (2026-10-09):** on agent-pay 0.8.4. Per-merchant `x402Versions` (x402 v1 merchants such as Heurist Mesh). `confirmOnChain` (default on): an unreadable receipt is checked on-chain instead of resent, so CoinMarketCap, JustaName and Glim work through MCP. Without a vault, prints each merchant's payer address on start (#27).
 - **0.1.8 (2026-10-08):** depends on `@deepfirstsearch/agent-pay` 0.8.0; refusals and blocks show their stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]` or `Payment blocked [settlement_pending → …]` (`resend_same`).
 - **0.1.7 (2026-10-08):** per-merchant `maxTimeoutSeconds` (10 to 86400 s) in the config (#29, thanks @Priyadharshan2003); on agent-pay 0.6.2. Closes #15.
 - **0.1.6 (2026-10-07):** on agent-pay 0.6.1; refusals detected by error name; reports its real version.

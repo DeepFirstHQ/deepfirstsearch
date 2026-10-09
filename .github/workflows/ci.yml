@@ -121,6 +121,24 @@ jobs:
           node-version: 22
       - run: node --test scripts/pr-guard/guard.test.mjs scripts/pr-guard/deps-audit.test.mjs
 
+  newcomer:
+    # Install the packages like a newcomer (packed tarballs + the documented install line, empty ESM project) and run
+    # the docs' offline examples verbatim, strict typecheck included (#26). Offline: mock merchants, no keys, no chain.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.6.2
+      - name: Build the packages
+        run: |
+          for d in sdk integrations/ai-sdk integrations/langchain integrations/agentkit; do
+            (cd "$d" && npm ci && npm run build)
+          done
+      - run: node scripts/newcomer/run.mjs
+
   privy:
     runs-on: ubuntu-latest
     steps:

@@ -97,6 +97,8 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | `merchants[].price`, `tolerancePct` | Expected price per call; anything above `price × (1 + tolerance)` is refused |
 | `merchants[].maxPerTx`, `maxSpend` | Hard cap per call, and per merchant per plan window |
 | `merchants[].maxTimeoutSeconds` | Longest authorization this merchant may ask for, 10 to 86400 s (default 300 s). Only that merchant gets the longer window. |
+| `merchants[].x402Versions` | x402 versions this merchant may be paid with, default `[2]`. Set `[1, 2]` for merchants that still speak x402 v1 (e.g. Heurist Mesh). |
+| `confirmOnChain` | Default `true`. When a merchant's receipt is missing or unreadable, USDC is asked on-chain (through `rpcUrl`) whether the payment executed, instead of resending. Needed for merchants with non-standard receipts (CoinMarketCap, JustaName, Glim). Only used on that failure path. |
 | `planWindowHours` | The plan is sealed from this file at start and renewed from it every window |
 | `periodBudget` | Total across merchants per period: `{ "amount": "1.00", "hours": 24 }` |
 | `approvalAbove` | Payments above this are refused (this server has no approval channel the model can't reach) |
@@ -104,7 +106,7 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | `auditLog` | Hash-chained JSONL log of every decision |
 | `maxResponseChars` | Longest response body returned to the model, in characters (default 20000, max 1000000); longer bodies are truncated and say so |
 
-The MCP config has no `x402Versions` or `confirmAuthorization` option yet, so merchants that need them are SDK-only for now: Heurist Mesh (x402 v1) and CoinMarketCap and JustaName (non-standard receipts). Their guides use the SDK directly.
+Since 0.2.0 every tested merchant works through MCP: set `x402Versions: [1, 2]` for v1 merchants (Heurist Mesh), and leave `confirmOnChain` on for merchants with non-standard receipts (CoinMarketCap, JustaName, Glim). Without a vault, the server prints each merchant's payer address on start, so you know which address to fund.
 
 A refused payment comes back as an error result, `Payment refused by policy: …`. From 0.1.8, once the bundled `@deepfirstsearch/agent-pay` is 0.8.0 or later, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` (codes listed in the SDK README, "Refusal codes"). Blocks carry codes too (`Payment blocked [settlement_pending → …]: …`; also `settled_not_delivered`, `rate_limited`, `kill_switch`), with the extra action `resend_same`: call `paid_fetch` on the same URL again, and the SDK resends the same signed authorization without signing a new one.
 
