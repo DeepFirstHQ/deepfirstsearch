@@ -22,6 +22,7 @@
 - Amounts are atomic USDC units (6 decimals) as bigint: 10_000n = 0.01 USDC.
 - `payer` is any viem `LocalAccount`: a local key, or Turnkey, Privy, Coinbase CDP or KMS wrapped with `toAccount`.
 - Offline testing: `startMockServer(routes, { network })` from `@deepfirstsearch/agent-pay/testing` (default Base Sepolia `eip155:84532`; pass `eip155:8453` for mainnet-shaped code). It verifies signatures locally and needs no funds.
+- Dry run (agent-pay >= 0.10.0): `dryRun(await fetch(url), { url, policy, registry, plan })` returns `no_challenge` (no terms shown), `invalid_402`, or the policy's `allow` / `needsApproval` / `deny` with codes. No key, nothing signed.
 - Extensions (agent-pay >= 0.9.0): none are echoed by default. Per merchant, `echoExtensions: ["builder-code"]` echoes that declaration back (Base Builder Codes, ERC-8021), and `builderCodes: ["bc_…"]` adds the owner's service codes as `info.s`. Echoing never changes payee, amount, asset or network.
 - Per-merchant `maxTimeoutSeconds` (10 to 86400) overrides the default 300 s authorization window for that merchant only.
 - Optional: `screen` (sanctions, fails closed), `confirmAuthorization: usdcAuthorizationCheck({ network: publicClient })` (on-chain confirmation when a receipt is unusable), `approve`, `settleRetries`.

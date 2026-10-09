@@ -164,6 +164,20 @@ new MerchantRegistry([
 - The signed payment is sent as `X-PAYMENT` (`{ x402Version: 1, scheme: "exact", network: "base", payload: { signature, authorization } }`, base64 JSON), the receipt is read from `X-PAYMENT-RESPONSE` with the same checks as v2, and `res.payment.settlement.network` is reported as CAIP-2. One signature per payment; retries resend the same header; `confirmAuthorization` works the same.
 - A merchant whose `payTo` changes on every request (Browserbase hands out a fresh deposit address per 402) cannot be paid with a pinned payee and stays refused ("payTo … is not the merchant's registered address").
 
+## Dry run: the decision layer without a key
+
+`dryRun` reads a seller's answer the way `pay.fetch` does and returns what the policy would do. Nothing is signed and no key is needed. Every outcome is a value, so a seller that shows no terms doesn't look like a crash:
+
+```ts
+import { MerchantRegistry, commitPlan, dryRun } from "@deepfirstsearch/agent-pay";
+
+const registry = new MerchantRegistry([{ origin: "https://api.example.com", payTo: "0x…", network: "eip155:8453", maxPerTx: 25_000n }]);
+const plan = commitPlan(registry, [{ origin: "https://api.example.com", maxSpend: 100_000n }], 3_600_000);
+const url = "https://api.example.com/v1/data";
+const verdict = await dryRun(await fetch(url), { url, policy: { allowedNetworks: ["eip155:8453"] }, registry, plan });
+// verdict.kind: "no_challenge" | "invalid_402" | "allow" | "needsApproval" | "deny"
+```
+
 ## Echoing a merchant's extensions (builder codes)
 
 By default a payment echoes the 402's `resource` and nothing else: extensions such as Bazaar's are dropped, because they only leak metadata. Some sellers need one back. A seller that declares a Base Builder Code (ERC-8021) only gets its attribution into the settlement if the buyer echoes the `builder-code` extension in the payment. Allow that per merchant:

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0 (2026-10-09)
+
+- **Feature:** `dryRun(response, { url, policy, registry, plan })` runs the decision layer on its own: no key, nothing signed. Every outcome is a value, never an exception: `no_challenge` (the seller showed no payment terms: any status but 402, or a 402 with neither a header nor an x402 v1 body), `invalid_402`, or the policy's `allow` / `needsApproval` / `deny` with its codes. Useful to audit sellers, and to tell "this host never shows a stranger its terms" apart from "the harness broke" (suggested by Automaton Sovereign in coinbase/agentkit#1544).
+
 ## 0.9.0 (2026-10-09)
 
 - **Feature:** per-merchant `echoExtensions` and `builderCodes` in the registry. Nothing is echoed by default, as before. A merchant can be allowed to receive back the extensions it declares, e.g. `["builder-code"]`: a seller's Base Builder Code (ERC-8021) reaches the settlement only through the buyer's payload. `builderCodes` adds the owner's own service codes as `info.s`, in the official client's merge order (checked against a live 402 from 402.com.tr). Each echoed declaration is capped at 4 KB; anything missing or oversized is left out and recorded as `notEchoed`. Payee, amount, asset and network are unaffected.

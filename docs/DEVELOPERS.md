@@ -155,6 +155,7 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 
 - **agent-pay-mcp 0.2.1:** on agent-pay 0.8.5 (reads v2 receipts with a v1 network name).
 - **agent-pay-mcp 0.2.0:** on agent-pay 0.8.4. Per-merchant `x402Versions` in the config, so x402 v1 merchants (Heurist Mesh) work through MCP; `confirmOnChain` (on by default) checks an unreadable receipt on-chain instead of resending, so CoinMarketCap, JustaName and Glim work too; without a vault, each merchant's payer address is printed on start.
+- **0.10.0:** `dryRun(response, { url, policy, registry, plan })`: the policy's verdict on a seller's answer without a key or a signature; `no_challenge` and `invalid_402` are values, not exceptions.
 - **0.9.0:** per-merchant `echoExtensions` (e.g. `["builder-code"]`) and `builderCodes`, so sellers that rely on Base Builder Codes keep their attribution; nothing is echoed by default. `payment.signed` also records `declaredOrigin` when the 402's own resource URL names another origin (logged, never trusted).
 - **0.8.5:** a v2 receipt whose `network` is a v1 short name (`"base"`, as Automaton Sovereign sends) is read through the fixed table and checked like any other; unknown names are still rejected.
 - **0.8.4:** replay refusals are recognized as a family (`tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`, …): all mean `settled_not_delivered`, and nothing is ever re-signed.
