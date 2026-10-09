@@ -244,6 +244,10 @@ canvas {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  /* With line-height under 1 the box is shorter than the glyphs, and background-clip: text only paints inside the box:
+     descenders (the "g") were cut off. Extra room below, cancelled by the negative margin so the layout doesn't move. */
+  padding-bottom: 0.16em;
+  margin-bottom: -0.16em;
 }
 .hero__sub {
   margin: 28px auto 0;
