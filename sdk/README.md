@@ -43,9 +43,9 @@ const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan
 - Merchants not in the registry; payees suggested by web content (tainted data).
 - x402 v1 from any merchant whose registry entry does not set `x402Versions: [1, 2]` (see below), malformed or oversized headers, and 402s reached through cross-origin redirects.
 - An authorization window above 300 s (`policy.timeoutBounds`), unless that merchant sets `maxTimeoutSeconds` (10 to 86400) in the registry.
+- A second signature while the first might have paid: one signed authorization per resource, every step recorded in a hash-chained audit log (see "When a payment is unconfirmed").
 
 The 402 is read from `PAYMENT-REQUIRED`, or from `X-PAYMENT-REQUIRED` when the standard header is absent.
-- Retrying a payment: one signature per request, recorded in a hash-chained audit log.
 
 ## Refusal codes
 
@@ -71,6 +71,7 @@ try {
 | `invalid_402` | report | malformed or oversized 402, no options, a non-positive amount, or a cross-origin redirect |
 | `price_changed` | ask_owner | the price is above the owner's pin (plus tolerance) |
 | `human_refused` | ask_owner | a human declined the approval (or no approval channel exists) |
+| `over_cap` | ask_owner | above the merchant's `maxPerTx` |
 | `policy_denied` | ask_owner | generic refusal (default when no specific code applies) |
 | `unknown_merchant` | fix_config | the origin is not in the registry (or is not https) |
 | `not_in_plan` | fix_config | the merchant is not in the sealed plan |
@@ -78,7 +79,6 @@ try {
 | `asset_not_pinned` | fix_config | no USDC pinned for the merchant's network |
 | `timeout_out_of_bounds` | fix_config | `maxTimeoutSeconds` outside the accepted bounds |
 | `version_not_allowed` | fix_config | an x402 version not enabled for that merchant |
-| `over_cap` | ask_owner | above the merchant's `maxPerTx` |
 | `plan_exhausted` | retry_later | not enough left in the sealed plan |
 | `plan_expired` | retry_later | the sealed plan expired; seal a new one |
 | `budget_exhausted` | retry_later | not enough left in the period budget |
@@ -103,8 +103,24 @@ Kill switch, rate limits and settlement problems are not refusals: they throw `P
 One signed authorization per resource, and never a second one while the first could still have paid:
 
 1. While the authorization is valid, asking for the resource again resends **the same** proof (`settlement_pending` → `resend_same`). Resends are bounded by its validity window (the 402's `maxTimeoutSeconds`, capped by your timeout bounds).
-2. Near or just past expiry (until 60 s after `validBefore`, to cover chain clock skew) nothing is sent or signed: `settlement_pending`.
-3. After that, the chain decides (with `confirmAuthorization`): never used → a new authorization is signed; used → `settled_not_delivered`, and that resource is not paid again. Without an on-chain check: `settlement_unknown`, until the owner clears it with `pay.forgetUnsettled(url)`.
+2. Near or just past expiry (less than 15 s left, until 60 s after `validBefore` to cover chain clock skew) nothing is sent or signed: `settlement_pending`.
+3. After that, the chain decides (with `confirmAuthorization`): never used → a new authorization is signed; used → `settled_not_delivered`, and that resource is not paid again. Without an on-chain check, or if the RPC fails: `settlement_unknown`, until the owner clears it with `pay.forgetUnsettled(url)`.
+
+`pay.forgetUnsettled(url)` is an owner action: it forgets the unconfirmed (or paid-but-undelivered) payments recorded for that exact URL, so the next request may sign a new authorization. Call it only after checking the earlier payment yourself (for example, its nonce on a block explorer). It returns how many entries it cleared and records a `payment.forgotten` audit event.
+
+```ts
+import { PaymentBlockedError } from "@deepfirstsearch/agent-pay";
+
+try {
+  await pay.fetch(url, {}, { plan });
+} catch (e) {
+  if (e instanceof PaymentBlockedError && e.code === "settlement_unknown") {
+    // Owner side, after confirming the earlier authorization was never used on-chain:
+    const cleared = pay.forgetUnsettled(url); // 1
+    await pay.fetch(url, {}, { plan });       // signs a new authorization
+  }
+}
+```
 
 Merchants without a standard receipt can say how settlement went with `X-Payment-Settled` on a 2xx: `true` (settled) or `queued` (in flight). The SDK accepts the delivered resource once, without resending or calling the chain, and reports it as `res.payment.merchantSettled`. The mapping, shared with sellers that render it:
 
@@ -114,6 +130,22 @@ Merchants without a standard receipt can say how settlement went with `X-Payment
 | 2xx + `X-Payment-Settled: queued` | delivered, settlement pending (`merchantSettled: "queued"`) |
 | 2xx + `X-Payment-Settled: true` | delivered (`merchantSettled: "true"`) |
 | any replay refusal on the payment's own scheme (e.g. `402 payment_invalid` with `tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`) | `settled_not_delivered` (report, never re-sign) |
+
+## Interoperability notes
+
+Real merchants send more than the spec. What the SDK tolerates, always without using it to sign or echoing it back:
+
+- Informational 402 fields: `chainId` and `networkV1` (accepted only when they agree with `network`), Bazaar's `outputSchema`, x402 v1 resource metadata (`resource`, `description`, `mimeType`), v1 alias fields (`currency`, `maxAmountRequired`, `recipient`, only when they agree), free-form `extra`, and options on other chains (skipped).
+- Vendor keys at the top level of a 402 (instructions, trial info, legacy copies): dropped, never read.
+- v1 network names in receipts: a v2 `PAYMENT-RESPONSE` whose `network` is `"base"` or `"base-sepolia"` is mapped through the fixed table and checked against the network that was signed.
+- Receipts under `X-PAYMENT-RESPONSE`, and `X-Payment-Settled: true | queued` on a 2xx without a standard receipt (accepted once, reported as `res.payment.merchantSettled`; a well-formed `X-Payment-Tx` becomes `settlement.transaction`).
+- Replay refusals in any of the variants seen live (`tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`, "nonce already used"): classified `settled_not_delivered`, never re-signed.
+
+What it still rejects:
+
+- Payment terms outside `accepts` (`payTo`, `amount`, `asset`, `network`, `to`, `recipient`, …): the whole 402 is refused. Every option inside `accepts` stays strict.
+- Unknown networks: a v1 name outside the fixed table, or a receipt network that does not map to what was signed.
+- A rotating `payTo` (a fresh deposit address per 402, as Browserbase does): it never matches the registered payee, so it is refused as `payee_mismatch`.
 
 ## x402 v1 merchants (opt-in per merchant)
 
@@ -205,7 +237,7 @@ git clone https://github.com/DeepFirstHQ/deepfirstsearch && cd deepfirstsearch/s
 PAYER_KEY=0x… npx tsx examples/real-merchants.ts   # a throwaway key, never a wallet that matters
 ```
 
-Thirty merchants, each tested with a real payment, have a step-by-step guide at [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html).
+Thirty-four merchants, each tested with a real payment, have a step-by-step guide at [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html).
 
 ## Try the whole loop on Base Sepolia (free, about 1 hour)
 

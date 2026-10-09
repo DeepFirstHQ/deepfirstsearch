@@ -39,7 +39,7 @@ Result  spent 0.03 USDC of 0.03 USDC · signatures sent to attackers: 0 · audit
 
 The integrations take the SDK as a peer dependency, so your app always uses a single copy of it.
 
-Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm:
+Integration guides, each tested with a real payment on Base mainnet and then run verbatim from npm (34 merchants, 3 wallets):
 
 - **Wallets:** [Turnkey](integrations/TURNKEY.md) · [Privy](integrations/PRIVY.md) · [Coinbase CDP](integrations/CDP.md) · [OpenClaw agents](guides/OPENCLAW.md)
 - **Search, web and AI:** [Exa](integrations/EXA.md) · [BlockRun](integrations/BLOCKRUN.md) · [Pocket Network](integrations/POCKET.md) · [Spraay](integrations/SPRAAY.md) · [Otto AI](integrations/OTTO.md) · [Brave Search](integrations/BRAVESEARCH.md) · [You.com](integrations/YOUCOM.md) · [Telnyx](integrations/TELNYX.md) · [OpenWeb Ninja](integrations/OPENWEBNINJA.md) · [Particle](integrations/PARTICLE.md)
@@ -117,7 +117,7 @@ Budgets are signed by the owner and become active after a public timelock. Pausi
 
 `paid_fetch` (MCP server, AI SDK, LangChain, AgentKit) fetches any URL the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned to the model as data, fenced as untrusted.
 
-Refusals carry stable codes (`PaymentDeniedError.code`, e.g. `payee_mismatch`, `price_changed`, `plan_exhausted`) and an `action` (`report`, `ask_owner`, `fix_config`, `retry_later`); blocks (`PaymentBlockedError`) carry codes too, and `settlement_pending` means `resend_same`: request the same resource again, the SDK resends the same proof and never signs a new one. Full tables: [Refusal codes](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#refusal-codes).
+Refusals carry stable codes (`PaymentDeniedError.code`, e.g. `payee_mismatch`, `price_changed`, `plan_exhausted`) and an `action` (`report`, `ask_owner`, `fix_config`, `retry_later`); blocks (`PaymentBlockedError`) carry codes too, and `settlement_pending` means `resend_same`: request the same resource again, the SDK resends the same proof and never signs a new one. `settled_not_delivered` means it was paid but not delivered (never pay again, report it), and `settlement_unknown` means an earlier authorization expired unconfirmed: nothing new is signed until the chain says it was unused or the owner calls `pay.forgetUnsettled(url)`. Full tables: [Refusal codes](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#refusal-codes).
 
 ## Test without a chain
 
@@ -153,6 +153,13 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 
 ## What's new
 
+- **agent-pay-mcp 0.2.1:** on agent-pay 0.8.5 (reads v2 receipts with a v1 network name).
+- **agent-pay-mcp 0.2.0:** on agent-pay 0.8.4. Per-merchant `x402Versions` in the config, so x402 v1 merchants (Heurist Mesh) work through MCP; `confirmOnChain` (on by default) checks an unreadable receipt on-chain instead of resending, so CoinMarketCap, JustaName and Glim work too; without a vault, each merchant's payer address is printed on start.
+- **0.8.5:** a v2 receipt whose `network` is a v1 short name (`"base"`, as Automaton Sovereign sends) is read through the fixed table and checked like any other; unknown names are still rejected.
+- **0.8.4:** replay refusals are recognized as a family (`tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`, …): all mean `settled_not_delivered`, and nothing is ever re-signed.
+- **0.8.3:** informational 402 fields (`chainId` and `networkV1`, which must agree with `network`, and Bazaar's `outputSchema`) are accepted; vendor keys at the top level of a 402 are dropped, but payment terms (`payTo`, `amount`, `network`, …) outside `accepts` still reject it. With `X-Payment-Settled`, an `X-Payment-Tx` header is reported as the transaction.
+- **0.8.2:** never a blind second signature: after an unconfirmed authorization expires, the chain decides (`confirmAuthorization`); without that check the payment is blocked with `settlement_unknown` until the owner calls `pay.forgetUnsettled(url)`. A merchant that answers a resend with "already used" means `settled_not_delivered`. Sellers without a standard receipt can send `X-Payment-Settled: true | queued`.
+- **0.8.1:** the helpers that take a viem client (`usdcAuthorizationCheck`, `oracleScreen`, `vaultFunder`) typecheck with a chain-specific client under `strict`.
 - **0.8.0:** refusals carry stable codes and an action: `PaymentDeniedError` gains `codes`, `code` and `action` (`report`, `ask_owner`, `fix_config`, `retry_later`), exported as `REFUSAL_CODES`. `PaymentBlockedError` carries a code too (`BLOCK_CODES`): `settlement_pending` means resend the same proof (request the same resource again; the SDK never re-signs), `settled_not_delivered` means never pay again and report it, plus `rate_limited` and `kill_switch`. Reasons are unchanged; nothing about checks or signing changed.
 - **0.7.0:** x402 v1, opt-in per merchant: set `x402Versions: [1, 2]` on that merchant's registry entry (default `[2]`, no global switch, no automatic downgrade). v1 networks map to CAIP-2 through a fixed table (`base`, `base-sepolia`) and every policy check applies unchanged.
 - **0.6.3:** with `confirmAuthorization`, a 2xx with no readable receipt goes straight to the on-chain check instead of resending the spent authorization (CoinMarketCap); the check is retried up to 4 times. 402 options that repeat x402 v1 resource metadata (Interzoid) are accepted.

@@ -18,14 +18,18 @@ npx @deepfirstsearch/agent-pay demo
 
 | You use | Install | Guide |
 |---|---|---|
-| Claude Desktop, Claude Code, Cursor, any MCP client | `npx @deepfirstsearch/agent-pay-mcp` | [integrations/mcp](integrations/mcp/README.md) |
-| Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk` | [integrations/ai-sdk](integrations/ai-sdk/README.md) |
-| LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain` | [integrations/langchain](integrations/langchain/README.md) |
+| Claude Desktop, Claude Code, Cursor, OpenClaw, any MCP client | `npx @deepfirstsearch/agent-pay-mcp ./config.json` | [integrations/mcp](integrations/mcp/README.md) |
+| Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk @deepfirstsearch/agent-pay ai zod viem` | [integrations/ai-sdk](integrations/ai-sdk/README.md) |
+| LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain @deepfirstsearch/agent-pay @langchain/core @langchain/langgraph viem` | [integrations/langchain](integrations/langchain/README.md) |
 | Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [integrations/agentkit](integrations/agentkit/README.md) |
 | Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay viem` | [sdk](sdk/README.md) |
-| A Turnkey, Privy or Coinbase CDP wallet as the payer | `npm i @deepfirstsearch/agent-pay-turnkey` (or `-privy`, `-cdp`) plus `@deepfirstsearch/agent-pay viem` and the wallet's SDK | [Turnkey](integrations/turnkey/README.md) · [Privy](integrations/privy/README.md) · [CDP](integrations/cdp/README.md) |
+| A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey @deepfirstsearch/agent-pay @turnkey/sdk-server viem` | [Turnkey](integrations/turnkey/README.md) |
+| A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @deepfirstsearch/agent-pay @privy-io/node viem` | [Privy](integrations/privy/README.md) |
+| A Coinbase CDP Server Wallet | `npm i @deepfirstsearch/agent-pay-cdp @deepfirstsearch/agent-pay @coinbase/cdp-sdk viem` | [CDP](integrations/cdp/README.md) |
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [integrations/order-guard](integrations/order-guard/README.md) |
 | On-chain budgets on Base | `npx @deepfirstsearch/agent-pay owner help` | [owner CLI](sdk/README.md#owner-cli-vault-and-budgets-in-three-commands) |
+
+The integrations take the SDK as a peer dependency, so your app always uses a single copy of it. Step-by-step guides for 34 x402 merchants, each tested with a real payment on Base mainnet, are in [docs/integrations](docs/integrations/).
 
 Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)** · building a wallet, framework or platform? **[Partners](https://deepfirstsearch.com/partners.html)**.
 
@@ -33,9 +37,9 @@ Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch
 
 | Component | What it does | Status |
 |---|---|---|
-| **MCP server** (`integrations/mcp/`) | Model Context Protocol server: Claude Desktop, Claude Code, Cursor and any MCP client get `paid_fetch`, `list_merchants` and `budget_status` tools that pay x402 APIs inside the owner's budget | ✅ `npx @deepfirstsearch/agent-pay-mcp` · tested with a real Claude session on Base Sepolia |
+| **MCP server** (`integrations/mcp/`) | Model Context Protocol server: Claude Desktop, Claude Code, Cursor and any MCP client get `paid_fetch`, `list_merchants` and `budget_status` tools that pay x402 APIs inside the owner's budget; x402 v1 merchants opt in per merchant (`x402Versions`), and an unreadable receipt is confirmed on-chain instead of resent (`confirmOnChain`, on by default) | ✅ `npx @deepfirstsearch/agent-pay-mcp ./config.json` (0.2.0) · 24 tests · tested with a real Claude session on Base Sepolia |
 | **Agent Safe** (`contracts/`) | On-chain vault: owner-signed, timelocked, per-merchant budgets; the agent key can spend but never widen | ✅ 98 tests (fuzzing, invariants, properties, regressions, Base mainnet fork with real USDC), two internal reviews · live on Base mainnet (beta) |
-| **agent-pay SDK** (`sdk/`) | x402 v2 client (v1 opt-in per merchant) with a policy engine outside the model, prompt-injection guards, stable refusal codes, per-merchant payers, owner CLI | ✅ 284 tests (274 run offline; 10 need a Base mainnet fork or RPC) incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
+| **agent-pay SDK** (`sdk/`) | x402 v2 client (v1 opt-in per merchant) with a policy engine outside the model, prompt-injection guards, stable refusal and block codes, never a second signature while the first might have paid, per-merchant payers, owner CLI | ✅ 293 tests (283 run offline; 10 need a Base mainnet fork or RPC) incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
 | **Framework tools** (`integrations/`) | Vercel AI SDK `paidFetchTool`, LangChain/LangGraph `createPaidFetchTool`, Coinbase AgentKit `agentPayActionProvider`; wallet payers `turnkeyPayer`, `privyPayer`, `cdpPayer`; `order-guard` for agents that place real orders | ✅ on npm |
 | **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · not launched |
 | **Website** (`web/`) | Site, whitepaper, tokenomics, partner kit, legal pages; strict CSP, no cookies; only third party is cookieless Cloudflare Web Analytics | ✅ |

@@ -56,14 +56,14 @@ console.log(await paidFetch.invoke({ url: `${merchant.url}/evil` })); // Payment
 await merchant.close();
 ```
 
-With a real merchant, use its origin and `payTo` from its 402 (30 merchants with tested values: [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)). The actions plug into AgentKit's framework extensions (LangChain, Vercel AI SDK, OpenAI Agents) like any other provider.
+With a real merchant, use its origin and `payTo` from its 402 (34 merchants with tested values: [deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)). The actions plug into AgentKit's framework extensions (LangChain, Vercel AI SDK, OpenAI Agents) like any other provider.
 
 ## What's different from AgentKit's built-in x402 actions
 
 AgentKit's `x402ActionProvider` lets the model pick the payment option (`selectedPaymentOption` includes `payTo` and the amount) when it retries a 402. That is convenient, and it is also where a prompt injection can redirect a payment. This provider keeps the model out of money decisions:
 
 - The model only chooses a URL. Every 402 is checked against the owner's registry before anything is signed: payee, asset, network, price and timeout must match, and the sealed plan and period budget must have room.
-- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened. Since 0.2.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` or `[payee_mismatch → do not retry, report it]` (codes listed in the SDK README, "Refusal codes"). Older SDKs give the text without the tag. Blocks carry codes too (`Payment blocked [settlement_pending → …]`; also `settled_not_delivered`, `rate_limited`, `kill_switch`), with the extra action `resend_same`: fetch the same URL again, and the SDK resends the same signed authorization without signing a new one.
+- Refusals come back as text (`Payment refused by policy: …`), never thrown, so the agent can explain what happened. Since 0.2.0, with `@deepfirstsearch/agent-pay` >= 0.8.0, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` or `[payee_mismatch → do not retry, report it]` (codes listed in the SDK README, "Refusal codes"). Older SDKs give the text without the tag. Blocks carry codes too (`Payment blocked [settlement_pending → …]`; also `settled_not_delivered`, `settlement_unknown` (agent-pay >= 0.8.2), `rate_limited`, `kill_switch`), with the extra action `resend_same`: fetch the same URL again, and the SDK resends the same signed authorization without signing a new one.
 - Responses are fenced with a random tag and labeled as untrusted data.
 - `paid_fetch` fetches any URL the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned as data (fenced as untrusted), so treat it like any fetch action you give a model.
 - On-chain budgets (optional): fund the payer from an Agent Safe vault with `vaultFunder`, so even a compromised machine can only spend inside the owner-signed caps. See the [SDK](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk).

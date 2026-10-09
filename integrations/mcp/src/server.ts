@@ -20,7 +20,7 @@ import {
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
 
-export const VERSION = "0.2.0"; // kept equal to package.json by test/version.test.ts
+export const VERSION = "0.2.1"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
