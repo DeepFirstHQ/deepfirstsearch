@@ -34,7 +34,8 @@ beforeAll(async () => {
     const json = (status: number, body: unknown) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
     if (req.headers.authorization !== `Bearer ${SECRET}`) return json(401, { error: { message: "bad api key" } });
     const url = new URL(req.url ?? "", "http://x");
-    const accountJson = { id: ID, object: "account", address: key.address, wallet: "pla_test", custody: "Developer", chainType: "EVM", createdAt: 1 };
+    const accountJson = { id: ID, object: "account", address: key.address.toLowerCase(), // Openfort returns lowercase
+      wallet: "pla_test", custody: "Developer", chainType: "EVM", createdAt: 1 };
     if (req.method === "GET" && url.pathname === `/v2/accounts/${ID}`) return json(200, accountJson);
     if (req.method === "GET" && url.pathname.startsWith("/v2/accounts/")) return json(404, { error: { message: "account not found" } });
     if (req.method === "GET" && url.pathname === "/v2/accounts") {
@@ -70,6 +71,12 @@ let m: MockServer | undefined;
 afterEach(async () => { await m?.close(); m = undefined; signCalls = 0; otherWrites = 0; });
 
 describe("openfortPayer", () => {
+  it("returns the checksummed address even though Openfort sends it in lowercase", async () => {
+    const payer = await openfortPayer({ openfort, id: ID });
+    expect(payer.address).toBe(key.address);
+    expect(payer.address).not.toBe(key.address.toLowerCase());
+  });
+
   it("looks the backend wallet up by id or by address", async () => {
     expect((await openfortPayer({ openfort, id: ID })).address).toBe(key.address);
     expect((await openfortPayer({ openfort, address: key.address })).address).toBe(key.address);

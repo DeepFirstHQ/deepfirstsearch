@@ -1,4 +1,4 @@
-import type { Address, LocalAccount } from "viem";
+import { getAddress, type Address, type LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import type Openfort from "@openfort/openfort-node";
 
@@ -27,7 +27,8 @@ export async function openfortPayer(params: OpenfortPayerParams): Promise<LocalA
     params.id !== undefined ? { id: params.id } : { address: params.address },
   );
   return toAccount({
-    address: account.address,
+    // Openfort returns addresses in lowercase; use the checksummed form everywhere downstream.
+    address: getAddress(account.address),
     signTypedData: (typedData) => account.signTypedData(typedData as Parameters<typeof account.signTypedData>[0]),
     signMessage: refuse("messages"),
     signTransaction: refuse("transactions"),
