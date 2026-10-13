@@ -116,7 +116,7 @@ Budgets are signed by the owner and become active after a public timelock. Pausi
 4. **The vault enforces it again on-chain:** the agent key can top up only the signed payer, within the caps.
 5. **Everything is logged** in a hash-chained audit log.
 
-`paid_fetch` (MCP server, AI SDK, LangChain, AgentKit) fetches any URL the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned to the model as data, fenced as untrusted.
+`paid_fetch` (MCP server, AI SDK, LangChain, AgentKit) fetches public https URLs the model asks for; only **payments** are restricted to registered merchants. A non-402 response from an unregistered origin is returned to the model as data, fenced as untrusted. Plain http and hosts on loopback, private, link-local or cloud-metadata addresses are refused (a registered merchant is always allowed), and redirects are returned instead of followed; the owner can opt in to a private network with `allowPrivateNetwork`.
 
 Refusals carry stable codes (`PaymentDeniedError.code`, e.g. `payee_mismatch`, `price_changed`, `plan_exhausted`) and an `action` (`report`, `ask_owner`, `fix_config`, `retry_later`); blocks (`PaymentBlockedError`) carry codes too, and `settlement_pending` means `resend_same`: request the same resource again, the SDK resends the same proof and never signs a new one. `settled_not_delivered` means it was paid but not delivered (never pay again, report it), and `settlement_unknown` means an earlier authorization expired unconfirmed: nothing new is signed until the chain says it was unused or the owner calls `pay.forgetUnsettled(url)`. Full tables: [Refusal codes](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#refusal-codes).
 

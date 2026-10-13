@@ -34,7 +34,7 @@
 - Replays: one signed authorization per resource. Any replay refusal from the merchant (`tx_already_used`, `nonce_already_used_locally`, `nonce_replayed_local`, "nonce already used") is classified `settled_not_delivered` and is never re-signed (agent-pay >= 0.8.4).
 - 402 tolerance (agent-pay >= 0.8.3): informational option fields (`chainId`/`networkV1`, which must agree with `network`; `outputSchema`; resource metadata) are accepted and never used to sign; vendor keys at the top level of a 402 are dropped; payment terms (`payTo`, `amount`, `asset`, `network`, `to`, `recipient`, …) outside `accepts` reject the 402, as does a `payTo` that differs from the registry (merchants that rotate `payTo` per request cannot be paid).
 - x402 v2 by default. x402 v1 only for merchants whose registry entry sets `x402Versions: [1, 2]` (or `[1]`); there is no global switch and no automatic downgrade; a v1 402 from any other merchant is refused (`version_not_allowed`).
-- `paid_fetch` (MCP, AI SDK, LangChain, AgentKit) fetches any URL; only payments are restricted to registered merchants. Non-402 responses from other origins come back as fenced, untrusted data.
+- `paid_fetch` (MCP, AI SDK, LangChain, AgentKit) fetches public https URLs (internal addresses and plain http are refused unless the owner sets `allowPrivateNetwork`); only payments are restricted to registered merchants. Non-402 responses from other origins come back as fenced, untrusted data.
 
 ## Docs
 
