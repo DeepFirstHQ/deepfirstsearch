@@ -27,9 +27,9 @@ export const AGENT_SAFE: Record<"base" | "base-sepolia", AgentSafeDeployment> = 
   "base-sepolia": {
     network: "eip155:84532",
     chainId: 84532,
-    version: "v0.4",
-    factory: "0xF245D3CB8700a804432Ea50b253a923B4b32C0c7",
-    feeJar: "0x4AE59Cf9462d1601de4FC5aA4538D376E93A79f2",
+    version: "v0.5",
+    factory: "0xb17ad2fd3DEa433f7d2e60bea7a6fB9eB9546055",
+    feeJar: "0xCf9A44d3Ad86919EBC47999368dFaB0ee24f5f8B",
     usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
     beta: false,
     explorer: "https://sepolia.basescan.org",

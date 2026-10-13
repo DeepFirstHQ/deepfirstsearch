@@ -2,7 +2,17 @@
 
 ## Base Sepolia (testnet, chain id 84532)
 
-### Current: v0.4 (2026-10-06)
+### Current: v0.5 (2026-10-13): the code under external audit (`audit-v1`)
+Includes the fixes from the October internal pre-audit ([findings](audit/PREAUDIT-2026-10.md)): the fee split rounds in the FeeJar's favour, the FeeJar refuses an EIP-7702 delegated releaser, and burner-less intents work when OPS is unset. Source verified on Blockscout.
+
+| Contract | Address |
+|---|---|
+| FeeJar | [`0xCf9A44d3Ad86919EBC47999368dFaB0ee24f5f8B`](https://base-sepolia.blockscout.com/address/0xCf9A44d3Ad86919EBC47999368dFaB0ee24f5f8B) |
+| BudgetVaultFactory | [`0xb17ad2fd3DEa433f7d2e60bea7a6fB9eB9546055`](https://base-sepolia.blockscout.com/address/0xb17ad2fd3DEa433f7d2e60bea7a6fB9eB9546055) |
+| Demo vault | [`0x0754dbFf1Ad2Fa8a1079DDC62DB037fEC02F3b33`](https://base-sepolia.blockscout.com/address/0x0754dbFf1Ad2Fa8a1079DDC62DB037fEC02F3b33) |
+| x402 payment through v0.5 (owner-signed intent, 1 h timelock, public x402 facilitator) | [tx](https://sepolia.basescan.org/tx/0xf42fdb4e6f794228a5cf232fd9bd224667970889be292259b59d82f41efb615e) |
+
+### v0.4 (2026-10-06)
 Includes the fixes from the second internal review: fees owed to each recipient are flushed independently, the agent cannot spend fees the vault still owes, `invalidateNonce` is idempotent, intents cannot name a protocol address as payee or payer, intents that would expire before they activate are rejected, and the Firepit only arms once it is connected and its start time has passed. Source verified on Blockscout.
 
 | Contract | Address |
