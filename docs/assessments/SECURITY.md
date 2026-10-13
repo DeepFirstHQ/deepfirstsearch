@@ -108,8 +108,8 @@ require-trusted-types-for 'script'; trusted-types 'none'
 ## 2. Contratos (`contracts/`)
 
 **Herramientas y resultados:**
-- 66 tests: unitarios, de regresión, de fuzzing (1.000 corridas), 5 propiedades universales y 4 invariantes (256 corridas × 64 llamadas, ~16 mil llamadas sin reverts).
-- Slither: **0 hallazgos high o medium**. Los restantes son falsos positivos o decisiones de diseño:
+- 117 tests (más 5 contra USDC real en un fork de Base): unitarios, de regresión, de fuzzing (1.000 corridas), propiedades universales e invariantes (256 corridas × 64 llamadas). Cobertura: 100% de líneas, sentencias y funciones en todos los contratos; ramas al 100% salvo un lado inalcanzable en `BudgetVault.withdraw` (saldo menor que lo adeudado).
+- Slither 0.11.6: 21 resultados, **ninguno real**. Slither etiqueta 1 como High (`weak-prng`) y 5 como Medium; todos son falsos positivos o decisiones de diseño:
 
 | Detector | Dónde | Justificación |
 |---|---|---|
@@ -118,7 +118,9 @@ require-trusted-types-for 'script'; trusted-types 'none'
 | `divide-before-multiply` | `RewardsPool.vested`, `Firepit.threshold` | `budget /= 2` es exacto (125M / 2ᵏ); la interpolación del umbral redondea a favor del protocolo |
 | `weak-prng` | `Firepit.threshold` (`% HALF_LIFE`) | No es aleatoriedad, es aritmética de tiempo |
 | `calls-loop` | `FeeJar.release` | La lista de assets la elige quien paga la quema; un token malicioso solo afecta su propia llamada; `release` solo la puede llamar el releaser, y `Firepit.claim` es `nonReentrant` |
-| `incorrect-equality`, `missing-inheritance`, `too-many-digits` | varios | Estilo |
+| `incorrect-equality` | `BudgetVault.applyActivationDelay` (`pendingDelayEta == 0`), `FeeJar.release` (`amount == 0`) | Comparan contra un centinela propio o un saldo cero para saltear; nadie gana nada forzando o evitando la igualdad |
+| `unused-return` | `BudgetVault._isOwnerSignature` | Se usan `recovered` y `err`; el tercer valor (el argumento del error) no hace falta |
+| `missing-inheritance`, `too-many-digits` | varios | Estilo |
 
 ### Modelo STRIDE por contrato
 

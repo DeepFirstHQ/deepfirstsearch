@@ -1664,6 +1664,11 @@ export const FEE_JAR_ABI = [
   },
   {
     "type": "error",
+    "name": "DelegatedAccount",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NoPendingReleaser",
     "inputs": []
   },

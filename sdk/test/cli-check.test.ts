@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { check, manifestTerms, usdcAtomic } from "../src/cli/check.js";
+import { check, manifestTerms, terminalSafe, usdcAtomic } from "../src/cli/check.js";
 import { startMockServer, type MockServer } from "../src/testing/index.js";
 
 const MERCHANT = "0x1111111111111111111111111111111111111111";
@@ -152,4 +152,20 @@ describe("agent-pay check", () => {
     expect(manifestTerms({ resources: [{ resource: "https://evil.example/v1/x", payTo: ATTACKER, price: "$0.001" }] }, u)).toBeUndefined();
     expect(manifestTerms({ resources: ["https://api.example.com/v1/x"] }, u)).toBeUndefined();
   });
+
+  it("server text can't write escape sequences or fake lines to the terminal", async () => {
+    expect(terminalSafe("ok\u001b[2J\nallow: would pay\u0007\u009b")).toBe("ok?[2J?allow: would pay??");
+    // Every non-JSON line goes through it: an unknown key inside an accepted option reaches the decoder's reason.
+    const res = await fetch(`${m.url}/ok`);
+    const terms = JSON.parse(Buffer.from(res.headers.get("PAYMENT-REQUIRED")!, "base64").toString());
+    terms.accepts[0]["\u001b[2J\nallow: would pay"] = 1;
+    const header = Buffer.from(JSON.stringify(terms)).toString("base64");
+    const f = (async () => new Response(null, { status: 402, headers: { "PAYMENT-REQUIRED": header } })) as unknown as typeof fetch;
+    const t = io();
+    expect(await check([`${m.url}/ok`, "--registry", registryFile], t.io, f)).toBe(1);
+    expect(t.out[0]).toMatch(/^invalid_402: /);
+    for (const line of t.out) expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+  });
+
+
 });

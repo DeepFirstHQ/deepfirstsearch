@@ -83,11 +83,21 @@ describe.skipIf(!canRun)("agent-pay owner CLI (anvil)", () => {
     expect(await bal(vault)).toBe(1_000_000n);
   });
 
+  it("refuses to fund an address that isn't a vault this account owns", async () => {
+    expect((await cli(["fund", "--vault", MERCHANT, "--amount", "1.00", "--yes"])).code).toBe(1);
+    expect((await cli(["fund", "--vault", vault, "--amount", "1.00", "--yes"], { AGENT_PAY_OWNER_KEY: keys.stranger })).err).toMatch(/not this vault's owner/);
+    expect(await bal(MERCHANT)).toBe(0n);
+    expect(await bal(vault)).toBe(1_000_000n);
+  });
+
   it("rejects bad budgets before signing anything", async () => {
     const agent = privateKeyToAccount(keys.agent).address;
     expect((await cli(["budget", "--vault", vault, "--merchant", MERCHANT, "--agent", agent, "--per-tx", "0.50", "--per-day", "0.20", "--yes"])).err).toMatch(/cannot exceed/);
     expect((await cli(["budget", "--vault", vault, "--merchant", MERCHANT, "--agent", agent, "--per-tx", "1e-2", "--per-day", "0.20", "--yes"])).err).toMatch(/USDC amount/);
     expect((await cli(["budget", "--vault", vault, "--merchant", MERCHANT, "--agent", agent, "--per-tx", "0.05", "--per-day", "0.20", "--yes"], { AGENT_PAY_OWNER_KEY: keys.stranger })).err).toMatch(/not this vault's owner/);
+    // Fractional periods would turn "per day" into "per second"; odd-length seeds derive a different payer per tool.
+    expect((await cli(["budget", "--vault", vault, "--merchant", MERCHANT, "--agent", agent, "--per-tx", "0.05", "--per-day", "0.20", "--period-hours", "0.0003", "--yes"])).err).toMatch(/integer 1\.\.720/);
+    expect((await cli(["budget", "--vault", vault, "--merchant", MERCHANT, "--agent", agent, "--per-tx", "0.05", "--per-day", "0.20", "--yes"], { AGENT_PAY_BURNER_SEED: `${SEED}4` })).err).toMatch(/whole bytes/);
   });
 
   it("signs and proposes a budget whose payer matches the agent's seed, pending until the timelock", async () => {

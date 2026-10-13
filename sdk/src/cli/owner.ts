@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -51,7 +52,8 @@ Commands
 
 Options
   --network base-sepolia | base   (default base-sepolia)
-  --rpc <url>  --factory 0x…  --usdc 0x…   custom RPC or deployment
+  --rpc <url>  --factory 0x…  --usdc 0x…   custom RPC or deployment (on Base or Base Sepolia themselves, also
+                                          --allow-custom-deployment: the pinned addresses are overridden)
   --keystore <path>   owner key from a Foundry/geth keystore (password: prompt or AGENT_PAY_KEYSTORE_PASSWORD)
                       or set AGENT_PAY_OWNER_KEY. Keys are never accepted as arguments.
   --yes   skip the confirmation    --json   machine-readable output
@@ -92,6 +94,10 @@ async function context(v: Record<string, string | boolean | string[] | undefined
   if (chainId !== d.chainId) {
     if (!v.factory || !v.usdc) throw new Error(`RPC is chain ${chainId}, not ${net}: pass --factory and --usdc for a custom deployment`);
     chain = defineChain({ id: chainId, name: `chain-${chainId}`, nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpc] } } });
+  }
+  // On the canonical chains a different factory or USDC is almost always a typo or a pasted address: say so.
+  if (chainId === d.chainId && (v.factory || v.usdc) && !v["allow-custom-deployment"]) {
+    throw new Error(`--factory/--usdc override the pinned ${net} addresses; add --allow-custom-deployment if that is intended`);
   }
   return {
     chain,
@@ -157,7 +163,7 @@ export async function ownerCli(argv: string[], env: NodeJS.ProcessEnv, io: Io): 
       vault: { type: "string" }, amount: { type: "string" }, to: { type: "string" }, delay: { type: "string" }, salt: { type: "string" },
       merchant: { type: "string" }, agent: { type: "string" }, "per-tx": { type: "string" }, "per-day": { type: "string" },
       "tranche-cap": { type: "string" }, days: { type: "string" }, "period-hours": { type: "string" }, burner: { type: "string" },
-      intent: { type: "string", multiple: true },
+      intent: { type: "string", multiple: true }, "allow-custom-deployment": { type: "boolean" },
     },
   });
   const ctx = await context(v);
@@ -204,6 +210,8 @@ export async function ownerCli(argv: string[], env: NodeJS.ProcessEnv, io: Io): 
     }
     case "fund": {
       const vault = vaultArg();
+      // A typo here would send USDC away for good: the address must be a vault this account owns.
+      await isOwner(vault);
       const a = amount(v.amount, "amount");
       await confirm(`Send ${usdc(a)} from ${owner!.address} to vault ${vault}.`);
       const tx = await send({ address: ctx.usdc, abi: erc20Abi, functionName: "transfer", args: [vault, a], account: owner!, chain: ctx.chain });
@@ -222,12 +230,15 @@ export async function ownerCli(argv: string[], env: NodeJS.ProcessEnv, io: Io): 
       if (trancheCap < perTx) io.err("Note: --tranche-cap is below --per-tx, so a payer can never hold one full payment.");
       const days = Number(v.days ?? 30);
       const periodHours = Number(v["period-hours"] ?? 24);
-      if (!(days > 0 && days <= 365) || !(periodHours > 0 && periodHours <= 24 * 30)) throw new Error("--days must be 1..365 and --period-hours 1..720");
+      if (!(Number.isInteger(days) && days >= 1 && days <= 365) || !(Number.isInteger(periodHours) && periodHours >= 1 && periodHours <= 24 * 30)) {
+        throw new Error("--days must be an integer 1..365 and --period-hours an integer 1..720");
+      }
       let burner: Address;
       if (v.burner) burner = addr(v.burner, "burner");
       else {
         const seed = env.AGENT_PAY_BURNER_SEED;
-        if (!seed || !/^0x[0-9a-fA-F]{64,}$/.test(seed)) throw new Error("set AGENT_PAY_BURNER_SEED (the agent SDK's payer seed) or pass --burner");
+        // Whole bytes only: an odd digit count decodes differently across tools and would derive another payer.
+        if (!seed || !/^0x(?:[0-9a-fA-F]{2}){32,}$/.test(seed)) throw new Error("set AGENT_PAY_BURNER_SEED (the agent SDK's payer seed, 0x + at least 32 whole bytes of hex) or pass --burner");
         burner = burnerAddress({ ownerSeed: hexToBytes(seed as Hex), vault, chainId: ctx.chain.id, counterparty: merchant });
       }
       const block = await ctx.pub.getBlock();
@@ -236,7 +247,7 @@ export async function ownerCli(argv: string[], env: NodeJS.ProcessEnv, io: Io): 
         maxPerTx: perTx, maxPerPeriod: perDay, trancheCap,
         period: Math.round(periodHours * 3600), validAfter: 0n,
         expiry: block.timestamp + BigInt(Math.round(days * 86400)),
-        nonce: BigInt(keccak256(toHex(`${Date.now()}-${Math.random()}`))) >> 64n,
+        nonce: BigInt(toHex(randomBytes(24))),
       };
       const delay = await ctx.pub.readContract({ address: vault, abi: BUDGET_VAULT_FULL_ABI, functionName: "activationDelay" });
       await confirm(

@@ -77,7 +77,11 @@ export function loadRegistryFile(text: string): Merchant[] {
 }
 
 /** `agent-pay check`: one request, one verdict. Never sends a payment header. */
-export async function check(args: string[], io: Io, fetchImpl: typeof fetch = globalThis.fetch): Promise<number> {
+/** Server-derived text reaches a terminal: drop control characters (escape sequences, carriage returns, bells). */
+export const terminalSafe = (t: string) => t.replace(/[\u0000-\u001f\u007f-\u009f]/g, "?");
+
+export async function check(args: string[], realIo: Io, fetchImpl: typeof fetch = globalThis.fetch): Promise<number> {
+  const io: Io = { out: (t) => realIo.out(terminalSafe(t)), err: (t) => realIo.err(terminalSafe(t)) };
   let p: Parsed | string;
   try {
     p = parse(args);
@@ -85,7 +89,7 @@ export async function check(args: string[], io: Io, fetchImpl: typeof fetch = gl
     p = (e as Error).message;
   }
   if (typeof p === "string") {
-    (p === USAGE ? io.out : io.err)(p);
+    (p === USAGE ? realIo.out : io.err)(p);
     return p === USAGE ? 0 : 2;
   }
   let merchants: Merchant[];
@@ -111,7 +115,8 @@ export async function check(args: string[], io: Io, fetchImpl: typeof fetch = gl
 
   if (p.json) {
     const out = { ...v, ...(proposal ? { proposal: { merchant: index, origin: merchant!.origin, edits: proposal } } : {}), ...(manifest ? { manifest } : {}) };
-    io.out(JSON.stringify(out, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2));
+    // JSON.stringify escapes control characters inside strings, so its own line breaks can stay.
+    realIo.out(JSON.stringify(out, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2));
     return exitCode(v);
   }
   if (v.kind === "allow" || v.kind === "needsApproval") {
