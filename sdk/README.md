@@ -178,6 +178,13 @@ const verdict = await dryRun(await fetch(url), { url, policy: { allowedNetworks:
 // verdict.kind: "no_challenge" (no terms shown to this caller; not the same as free) | "invalid_402" | "allow" | "needsApproval" | "deny"
 ```
 
+The same check from a terminal, with the registry as a JSON file (amounts in atomic units). It exits with code 1 on a refusal:
+
+```bash
+npx @deepfirstsearch/agent-pay check https://api.example.com/v1/data --registry registry.json
+# allow: would pay 1000 atomic units (exact, eip155:8453) to 0x…
+```
+
 ## Echoing a merchant's extensions (builder codes)
 
 By default a payment echoes the 402's `resource` and nothing else: extensions such as Bazaar's are dropped, because they only leak metadata. Some sellers need one back. A seller that declares a Base Builder Code (ERC-8021) only gets its attribution into the settlement if the buyer echoes the `builder-code` extension in the payment. Allow that per merchant:

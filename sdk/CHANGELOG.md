@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLI:** `agent-pay check <url> --registry <file.json>` runs `dryRun` from the command line. It prints what the policy would pay, and to whom, or the refusal codes, or `no_challenge`. It never sends a payment header. The exit code is 1 on `deny` or `invalid_402`, so it can gate CI or a cron job, and `--json` prints the full verdict (#41).
 - `dryRun`: `no_challenge` now reads "no payment terms shown to this caller". It names what was observed, not that the route is free: a missing route, a free route and a paid route whose challenge a free trial skipped all look alike (`status` separates a 404; seller trial headers stay on the response). Note on `invalid_402`: so far it is covered only by our own fixtures. No seller we have tested produces one, so if you see it in the wild, please tell us (both points raised by Automaton Sovereign in coinbase/agentkit#1544).
 
 ## 0.10.0 (2026-10-09)
