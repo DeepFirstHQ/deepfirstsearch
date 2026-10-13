@@ -1,5 +1,7 @@
 # Publishes the SDK to npm when a tag like `sdk-v0.1.1` is pushed. The tag must match sdk/package.json.
 # Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
+# Two jobs: `test` installs dependencies and runs their code (tests) without an OIDC token; only `publish` gets one, and
+# it only installs with install scripts off, builds and publishes.
 name: Publish SDK
 
 on:
@@ -8,18 +10,17 @@ on:
 
 permissions:
   contents: read
-  id-token: write # OIDC for npm trusted publishing and provenance
 
 jobs:
-  publish:
+  test:
     runs-on: ubuntu-latest
-    environment: npm
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
       - name: Tag matches package version
         working-directory: sdk
         run: test "sdk-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
@@ -28,5 +29,25 @@ jobs:
         run: |
           npm ci
           npm run typecheck
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # OIDC for npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11.6.2
+      - working-directory: sdk
+        run: |
+          npm ci --ignore-scripts
           npm run build
           npm publish --provenance --access public --ignore-scripts
