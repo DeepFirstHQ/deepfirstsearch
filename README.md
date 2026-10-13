@@ -88,6 +88,7 @@ cd ../web && npm ci && npm run dev
 | [Decisions](docs/DECISIONS.md) | ADRs: ticker, chain, burn, vesting, stand… (ES) |
 | [Deployments](docs/DEPLOYMENTS.md) | Contract addresses on Base mainnet (unaudited beta) and Base Sepolia, plus the live demo vault |
 | [Audit scope](docs/audit/SCOPE.md) | Scope, nSLOC, roles, known issues and questions for reviewers |
+| [Internal pre-audit, Oct 2026](docs/audit/PREAUDIT-2026-10.md) | Every finding of our latest internal review, fixed (with its test) or acknowledged (with the reason) |
 | [Airdrop tool](tools/airdrop/build.mjs) | Builds the airdrop Merkle tree and proofs; tested against the contract |
 | [Mainnet runbook](docs/MAINNET.md) | Safes, rehearsal, deploy, checks, guarded launch, monitoring |
 | [Security assessment](docs/assessments/SECURITY.md) | Pentest findings, threat model, evidence (ES) |
