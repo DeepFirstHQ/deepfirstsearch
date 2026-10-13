@@ -27,7 +27,7 @@ Draft v0.2 · 5 October 2026 · Pre-launch. No token exists. Nothing here is an 
 | Protocol-owned liquidity | 10 | 100,000,000 | LP | Paired with auction proceeds. **The LP position is burned** |
 | **Founder** | **12** | **120,000,000** | `DepthVesting` | **Nothing for 12 months, then 36 months linear (4 years total). The vesting contract cannot be transferred; the beneficiary is a public multisig Safe** |
 | Contributors | 3 | 30,000,000 | `DepthVesting` | Same schedule as the founder |
-| Foundation | 10 | 100,000,000 | `DepthVesting` | Linear over 5 years, which caps on-chain spending at 2% of supply per year. Beneficiary is a multisig |
+| Foundation | 10 | 100,000,000 | `DepthVesting` | Linear over 5 years, which caps on-chain spending at 2% of the genesis supply (20M DEPTH) per year. Beneficiary is a multisig |
 | Venture capital | **0** | 0 | — | None: no private round, no side letters, no refund rights |
 | **Total** | **100** | **1,000,000,000** | | |
 
@@ -36,8 +36,8 @@ At launch, the airdrop (25%) is claimable, and the launch reserve (25%) sits in 
 ## 3. The burn: fee jar and firepit
 
 1. **Agent Safe charges 0.1%** in USDC on every agent payment and burner top-up, paid on top of the amount.
-2. **An immutable split** set in `BudgetVaultFactory` sends 50% of that fee to the **FeeJar** and 50% to operations.
-3. **Anyone can claim the whole jar** by burning `threshold()` $DEPTH in the **Firepit**. The auction opens at TGE from the 10,000,000 ceiling, so fees collected before launch are not sold for the floor. The FeeJar connects to the Firepit once, through a public 14-day timelock.
+2. **An immutable split** set in `BudgetVaultFactory` sends 50% of that fee to the **FeeJar** and 50% to operations (an odd unit goes to the FeeJar, so micropayments still feed it).
+3. **Anyone can claim the whole jar** by burning `threshold()` $DEPTH in the **Firepit**. The auction opens from the 10,000,000 ceiling once the FeeJar is connected and the Firepit armed, never before TGE, so fees collected before launch are not sold for the floor. The connection is proposed only once the public auction and liquidity exist, so buyers can compete. The FeeJar connects to the Firepit once, through a public 14-day timelock.
 4. **The threshold doubles** after every claim and **halves every 3 days** without one. It always stays between **10,000 and 10,000,000 $DEPTH**. The `maxThreshold` argument protects claimers against front-running.
 
 **Why this design**

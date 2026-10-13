@@ -41,7 +41,7 @@ Hicimos dos revisiones adversariales independientes, una del Agent Safe y otra d
 
 | ID | Componente | Hallazgo | Severidad | Estado |
 |---|---|---|---|---|
-| T-H-1 / S-M-3 | FeeJar | El codehash fijado del Firepit trababa los fees para siempre ante cualquier cambio del Firepit | Alta | ✅ Corregido: releaser elegido una vez, con timelock público de 14 días, sin pin de bytecode |
+| T-H-1 / S-M-3 | FeeJar | El codehash fijado del Firepit trababa los fees para siempre ante cualquier cambio del Firepit | Alta | ✅ Corregido: releaser elegido una vez, con timelock público de 14 días; el codehash queda fijado solo entre la propuesta y la aceptación (no hay pin permanente) |
 | S-M-1 | BudgetVault | Si el emisor de USDC bloqueaba `OPS` o el FeeJar, todos los pagos de todos los vaults quedaban frenados | Media | ✅ Corregido: el fee nunca bloquea el pago; se registra como adeudado y se paga con `flushFees()` |
 | S-M-2 | BudgetVault | Renovar un intent para el mismo comerciante dejaba la wallet de pagos atada al intent viejo | Media | ✅ Corregido: el payer va firmado en el intent |
 | S-L-1 | BudgetVault | Con la llave del agente robada, `fundBurner` podía fondear cualquier dirección | Baja (contradecía la documentación) | ✅ Corregido: solo se fondea el payer firmado en el intent |
@@ -117,7 +117,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 | `immutable-states` | `Firepit.DEPTH`, `FEE_JAR` | Intencional: sin immutables, el codehash es idéntico entre deploys y el FeeJar lo puede fijar |
 | `divide-before-multiply` | `RewardsPool.vested`, `Firepit.threshold` | `budget /= 2` es exacto (125M / 2ᵏ); la interpolación del umbral redondea a favor del protocolo |
 | `weak-prng` | `Firepit.threshold` (`% HALF_LIFE`) | No es aleatoriedad, es aritmética de tiempo |
-| `calls-loop` | `FeeJar.release` | La lista de assets la elige quien paga la quema; un token malicioso solo afecta su propia llamada (y `nonReentrant` bloquea la reentrada) |
+| `calls-loop` | `FeeJar.release` | La lista de assets la elige quien paga la quema; un token malicioso solo afecta su propia llamada; `release` solo la puede llamar el releaser, y `Firepit.claim` es `nonReentrant` |
 | `incorrect-equality`, `missing-inheritance`, `too-many-digits` | varios | Estilo |
 
 ### Modelo STRIDE por contrato
@@ -175,7 +175,7 @@ require-trusted-types-for 'script'; trusted-types 'none'
 - Corregido: `abi.encodePacked` → `bytes.concat` en la predicción de direcciones del factory, y `nonReentrant` pasa a ser el primer modificador de `withdraw`.
 - Dos falsos positivos documentados:
   - **"Ether bloqueado" en DepthVesting:** el `VestingWallet` de OpenZeppelin tiene `release()` para ETH, así que no queda bloqueado.
-  - **"Reentrancia" en `FeeJar.setReleaser`:** la llamada a `FEE_JAR()` es una función `view` (staticcall), no puede modificar estado, y solo la hace el initializer.
+  - **"Reentrancia" en `FeeJar.proposeReleaser`:** la llamada a `FEE_JAR()` es una función `view` (staticcall), no puede modificar estado, y solo la hace el initializer.
 - Los demás hallazgos son de estilo o de centralización por diseño (el owner controla su propio vault).
 
 **Propiedades universales** (`test/symbolic/`). Están escritas para Halmos, que debería probarlas para todos los inputs posibles:
@@ -208,8 +208,8 @@ Halmos 0.3.3 no puede correr todavía con Foundry 1.8 / forge-std 1.17 (falla en
 | Exceso de capacidades | La sesión lee input no confiable, tiene datos sensibles y puede pagar | Rule of Two: aprobación humana obligatoria | `client.test.ts` |
 | Ráfagas o drenaje lento | Muchos pagos chicos | Rate limit por origen y global, espejo del presupuesto por período, y el vault lo hace cumplir on-chain | `client.test.ts`, invariantes |
 | Doble pago | Reintento ante un error | Sin reintentos automáticos; cada firma lleva su idempotency key | `client.test.ts` |
-| Replay de firma | Reutilizar la autorización EIP-3009 | Nonce aleatorio de 32 bytes, ventana ≤ 300 s, dominio fijado | `wallet.test.ts` |
-| DoS por parser | Header gigante o malformado | Tope de 8 KB, base64 estricto, zod `strictObject` | `client.test.ts` |
+| Replay de firma | Reutilizar la autorización EIP-3009 | Nonce aleatorio de 32 bytes, ventana acotada por `timeoutBounds` (300 s por defecto; el owner puede subirla por merchant), dominio fijado | `wallet.test.ts` |
+| DoS por parser | Header gigante o malformado | Tope de 16 KB, base64 estricto, zod `strictObject` | `client.test.ts` |
 | Redirect | Un 402 servido desde otro origen | Se rechaza (S-01) | `client.test.ts` |
 | Manipulación del log | Borrar o editar evidencia | Log JSONL encadenado por hash con `verifyChain` | `guard.test.ts` |
 | Desvío del fondeo vía exchange (Nivel 1) | Un agente engañado pide fondos para una dirección propia | El servicio de fondeo corre en el proceso del owner, deriva el pagador por sí mismo, ignora destinos que mande el agente y aplica límites por recarga y por día; token bearer con comparación de tiempo constante | `funding.test.ts` |

@@ -116,8 +116,8 @@ The SDK treats every 402 response as untrusted input and every model output as u
 7. **Runtime controls:**
    - Rate limits per merchant and globally.
    - A kill switch.
-   - No automatic retries; one idempotency key per signature.
-   - A strict 8 KB, schema-validated header parser.
+   - Never a second signature for one purchase: an unconfirmed payment is resent with the same authorization, and a new one is signed only once the chain shows the first unused and expired.
+   - A strict 16 KB, schema-validated header parser.
    - Refusal of 402 responses received through cross-origin redirects.
 8. **Tamper-evident audit log.** Hash-chained records of every decision serve as the owner's evidence for audits and tax.
 
@@ -162,12 +162,12 @@ Holding it entitles the holder to nothing beyond the ability to transfer or burn
 | Protocol-owned liquidity | 10% | Paired with auction proceeds; LP position burned |
 | Founder | 12% | `DepthVesting`: nothing for 12 months, then 36 months linear; the vesting contract cannot be transferred |
 | Contributors | 3% | Same schedule as the founder |
-| Foundation | 10% | `DepthVesting` over 5 years (at most 2% of supply per year) |
+| Foundation | 10% | `DepthVesting` over 5 years (at most 2% of the genesis supply per year) |
 
 ### 6.3 Burn mechanism
 - 50% of the 0.1% Agent Safe fee accrues in USDC to the FeeJar; the other 50% funds operations.
 - The Firepit threshold doubles after each claim and halves every three days without one, bounded between 10,000 and 10,000,000 $DEPTH.
-- No swap, oracle or administrator is involved. The auction opens at TGE from the ceiling.
+- No swap, oracle or administrator is involved. The auction opens from the ceiling once the FeeJar is connected and the Firepit armed, never before TGE.
 - Only Agent Safe, SDK and inference fees may feed the jar.
 - The burn mechanism activates only on a functioning network, and it is described as a protocol mechanism, never as a return.
 
@@ -210,7 +210,7 @@ A fuller list is published at `/legal/risks.html`.
 - The project is designed to be non-custodial. It operates no relayer or mixing service and takes no fee from any privacy pool.
 - Any public token sale will exclude persons in the United States, Argentina, Ontario and sanctioned jurisdictions. Whether a paid sale happens at all is still open (a no-sale launch is under consideration).
 - EU participation will either stay within MiCA exemptions or be accompanied by a notified white paper.
-- The airdrop requires only a wallet signature and no personal data.
+- The airdrop requires no signature and no personal data: anyone can submit a claim, and the tokens always go to the address in the list.
 - The detailed legal analysis is kept privately and will be reviewed by counsel before any token distribution. Nothing here is legal advice.
 
 ## References

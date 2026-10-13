@@ -29,7 +29,7 @@ Formato: contexto → decisión → consecuencias. Fecha de todas: 2026-10-05, s
   - El umbral se duplica tras cada reclamo y se reduce a la mitad cada 3 días, dentro del rango [10k, 10M].
 - **Consecuencias:**
   - No hay DEX, oráculo ni admin. Los reclamos son una carrera pública; `maxThreshold` acota cuánto quema quien llega segundo.
-  - Queda una sola confianza: el `INITIALIZER` del FeeJar propone el Firepit una vez y queda fijo tras un timelock público de 14 días. Durante ese plazo cualquiera puede verificar que `Firepit.DEPTH()` sea el token oficial. (Antes se fijaba por codehash; se cambió porque cualquier arreglo al Firepit habría trabado los fees para siempre: hallazgo T-H-1.)
+  - Queda una sola confianza: el `INITIALIZER` del FeeJar propone el Firepit una vez y queda fijo tras un timelock público de 14 días. Durante ese plazo cualquiera puede verificar que `Firepit.DEPTH()` sea el token oficial. (Antes se fijaba un codehash permanente; se cambió porque cualquier arreglo al Firepit habría trabado los fees para siempre: hallazgo T-H-1. Hoy el codehash se fija por propuesta, entre `proposeReleaser` y `acceptReleaser`, así lo que entra en vigor es exactamente lo que se pudo revisar; y se rechazan cuentas con delegación EIP-7702.)
 
 ## ADR-004 · Solo los fees de Agent Safe, SDK e inferencia alimentan la quema
 - **Contexto:** el riesgo §1960 de Tornado Cash y Samourai aparece cuando el valor del token depende de fees de mezcla.
