@@ -185,6 +185,21 @@ npx @deepfirstsearch/agent-pay check https://api.example.com/v1/data --registry 
 # allow: would pay 1000 atomic units (exact, eip155:8453) to 0x…
 ```
 
+Sellers reprice and rotate wallets, and a pin refuses the moment they do. Run the check on a schedule to find out before your agent does. When the address or price no longer matches, it prints the registry edit that would accept the change, and never applies it: a 402 that names a new address is also what a hijacked server looks like, so confirm it through a channel that server doesn't control (the seller's announcement, a message from them). `--manifest` also reads the seller's `/.well-known/x402` and says whether it lists the same terms as the 402. It's served by the same server, so agreement shows consistency, not that the change is genuine; disagreement means don't edit:
+
+```bash
+npx @deepfirstsearch/agent-pay check https://api.example.com/v1/data --registry registry.json --manifest
+# deny: price_changed
+#   amount 3000 is above the pinned price 2000
+# if the seller really changed its terms, the edit to merchant 0 (https://api.example.com) in registry.json would be:
+#   pricePin: 2000 -> 3000
+#   the 402 alone can't tell a rotation from a hijack: confirm it through a channel this server doesn't control before editing.
+# manifest https://api.example.com/.well-known/x402: payTo 0x…, price 3000 atomic units
+#   agrees with the 402 (same server as the 402: that shows consistency, not that the change is genuine).
+```
+
+A lower price always passes, so only an increase or a new address stops a payment.
+
 ## Echoing a merchant's extensions (builder codes)
 
 By default a payment echoes the 402's `resource` and nothing else: extensions such as Bazaar's are dropped, because they only leak metadata. Some sellers need one back. A seller that declares a Base Builder Code (ERC-8021) only gets its attribution into the settlement if the buyer echoes the `builder-code` extension in the payment. Allow that per merchant:

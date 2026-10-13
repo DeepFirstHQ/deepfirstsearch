@@ -30,37 +30,39 @@ export type DryRunContext = {
   now?: number;
 };
 
+export type Challenge =
+  | { kind: "terms"; required: PaymentRequired; version: 1 | 2 }
+  | Extract<DryRunVerdict, { kind: "no_challenge" | "invalid_402" }>;
+
+/** Reads the payment terms a response shows, the way `pay.fetch` does: v2 header first, then an x402 v1 body (capped). */
+export async function readChallenge(res: Response): Promise<Challenge> {
+  if (res.status !== 402) return { kind: "no_challenge", status: res.status, reason: `HTTP ${res.status}: no payment terms shown to this caller` };
+  const header = res.headers.get(HEADERS.required) ?? res.headers.get("X-PAYMENT-REQUIRED");
+  try {
+    if (header !== null) return { kind: "terms", required: decodeHeader(header, PaymentRequired), version: 2 };
+    const text = await readBodyCapped(res);
+    if (text === undefined) return { kind: "invalid_402", status: 402, reason: "402 body too large" };
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = undefined;
+    }
+    if (!looksLikeV1(json)) return { kind: "no_challenge", status: 402, reason: "402 without a PAYMENT-REQUIRED header or an x402 v1 body" };
+    return { kind: "terms", required: normalizeV1(parseV1(json)).required, version: 1 };
+  } catch (e) {
+    return { kind: "invalid_402", status: 402, reason: e instanceof X402DecodeError ? e.message : "unreadable 402" };
+  }
+}
+
 /**
  * The decision layer on its own: read a response the way `pay.fetch` does and ask the policy what it would do. Nothing
  * is signed and no key is needed. Reads the response body when it has to look for an x402 v1 402 (capped).
  */
 export async function dryRun(res: Response, ctx: DryRunContext): Promise<DryRunVerdict> {
-  if (res.status !== 402) return { kind: "no_challenge", status: res.status, reason: `HTTP ${res.status}: no payment terms shown to this caller` };
-
-  let required: PaymentRequired;
-  let version: 1 | 2 = 2;
-  const header = res.headers.get(HEADERS.required) ?? res.headers.get("X-PAYMENT-REQUIRED");
-  try {
-    if (header !== null) {
-      required = decodeHeader(header, PaymentRequired);
-    } else {
-      const text = await readBodyCapped(res);
-      if (text === undefined) return { kind: "invalid_402", status: 402, reason: "402 body too large" };
-      let json: unknown;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = undefined;
-      }
-      if (!looksLikeV1(json)) {
-        return { kind: "no_challenge", status: 402, reason: "402 without a PAYMENT-REQUIRED header or an x402 v1 body" };
-      }
-      required = normalizeV1(parseV1(json)).required;
-      version = 1;
-    }
-  } catch (e) {
-    return { kind: "invalid_402", status: 402, reason: e instanceof X402DecodeError ? e.message : "unreadable 402" };
-  }
+  const c = await readChallenge(res);
+  if (c.kind !== "terms") return c;
+  const { required, version } = c;
 
   try {
     const decision = evaluate(ctx.policy, ctx.registry, {

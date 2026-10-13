@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **CLI:** `agent-pay check <url> --registry <file.json>` runs `dryRun` from the command line. It prints what the policy would pay, and to whom, or the refusal codes, or `no_challenge`. It never sends a payment header. The exit code is 1 on `deny` or `invalid_402`, so it can gate CI or a cron job, and `--json` prints the full verdict (#41).
+- **CLI:** when `check` is refused because the seller's address or price no longer matches the registry (`payee_mismatch`, `price_changed`, `over_cap`), it prints the edit that would accept the change (`proposal` in `--json`). It never applies it, since a 402 can't tell a rotation from a hijack. `--manifest` reads the same origin's `/.well-known/x402` (no redirects, 2 MB cap, the server's text never echoed) and reports whether it lists the same payTo and price as the 402. Agreement is consistency, not proof; disagreement means don't edit. Suggested by NetIntel, whose manifest regenerates on every deploy.
 - `dryRun`: `no_challenge` now reads "no payment terms shown to this caller". It names what was observed, not that the route is free: a missing route, a free route and a paid route whose challenge a free trial skipped all look alike (`status` separates a 404; seller trial headers stay on the response). Note on `invalid_402`: so far it is covered only by our own fixtures. No seller we have tested produces one, so if you see it in the wild, please tell us (both points raised by Automaton Sovereign in coinbase/agentkit#1544).
 
 ## 0.10.0 (2026-10-09)
