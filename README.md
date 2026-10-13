@@ -30,7 +30,7 @@ npx @deepfirstsearch/agent-pay demo
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [integrations/order-guard](integrations/order-guard/README.md) |
 | On-chain budgets on Base | `npx @deepfirstsearch/agent-pay owner help` | [owner CLI](sdk/README.md#owner-cli-vault-and-budgets-in-three-commands) |
 
-The integrations take the SDK as a peer dependency, so your app always uses a single copy of it. Step-by-step guides for 37 x402 merchants, each tested with a real payment on Base mainnet, are in [docs/integrations](docs/integrations/).
+The integrations take the SDK as a peer dependency, so your app always uses a single copy of it. Step-by-step guides for 40 x402 merchants, each tested with a real payment on Base mainnet, are in [docs/integrations](docs/integrations/).
 
 Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch.com/developers.html)** · building a wallet, framework or platform? **[Partners](https://deepfirstsearch.com/partners.html)**.
 
