@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0 (2026-10-13)
+
+- **Feature:** `agentSafeGuard({ registry, policy, plan })` plugs Agent Safe into the official x402 client (`@x402/fetch` / `@x402/core` `x402Client`) through its hooks: `guard.install(client)` and `guard.fetch(wrapFetchWithPayment(fetch, client))`. Before anything is signed, the chosen option goes through the same `evaluate` as `createAgentPay` (payee pinned per origin, price pin and caps, asset and network pins, sealed plan, period budget, approval threshold), against the origin actually requested, never the 402's own `resource`; a refusal aborts the payment with its codes in the reason. Budgets are reserved synchronously before signing and returned when nothing was signed or the facilitator rejected the payment. Tested against `@x402/fetch` 2.28.0 and the official `ExactEvmScheme`.
+- **Deployments:** Base Sepolia now points at the audited-code deployment (v0.5): FeeJar `0xCf9A44d3Ad86919EBC47999368dFaB0ee24f5f8B`, BudgetVaultFactory `0xb17ad2fd3DEa433f7d2e60bea7a6fB9eB9546055`.
+
 ## 0.11.0 (2026-10-13)
 
 - **CLI:** `agent-pay check <url> --registry <file.json>` runs `dryRun` from the command line. It prints what the policy would pay, and to whom, or the refusal codes, or `no_challenge`. It never sends a payment header. The exit code is 1 on `deny` or `invalid_402`, so it can gate CI or a cron job, and `--json` prints the full verdict (#41).

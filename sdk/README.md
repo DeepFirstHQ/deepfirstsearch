@@ -37,6 +37,40 @@ const plan = pay.commitPlan([{ origin: "https://api.pricing-intel.io", maxSpend:
 const res = await pay.fetch("https://api.pricing-intel.io/v1/prices", {}, { plan });
 ```
 
+## Already using the x402 client? Add Agent Safe in two lines
+
+The official client (`@x402/fetch`, `@x402/core`) caps each payment with `spendControls`. Agent Safe adds what a single cap can't: the payee pinned for each origin, a price pin, a sealed plan per session, period budgets and refusal codes. Keep your client and plug the guard into its hooks:
+
+```ts
+import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { agentSafeGuard, commitPlan, MerchantRegistry } from "@deepfirstsearch/agent-pay";
+import { startMockServer } from "@deepfirstsearch/agent-pay/testing";
+
+// A local merchant and an attacker copy of it, so this runs offline.
+const MERCHANT = "0x1111111111111111111111111111111111111111";
+const shop = await startMockServer({
+  "/data": { price: 1_000n, payTo: MERCHANT },
+  "/hijacked": { price: 1_000n, payTo: MERCHANT, tamper: (r) => ({ ...r, payTo: "0x9999999999999999999999999999999999999999" }) },
+});
+
+const registry = new MerchantRegistry([{ origin: shop.url, payTo: MERCHANT, network: "eip155:84532", maxPerTx: 5_000n, pricePin: 1_000n }]);
+const plan = commitPlan(registry, [{ origin: shop.url, maxSpend: 10_000n }], 3_600_000);
+const guard = agentSafeGuard({ registry, plan, policy: { allowedNetworks: ["eip155:84532"] } });
+
+const client = guard.install(x402Client.fromConfig({ schemes: [{ network: "eip155:*", client: new ExactEvmScheme(privateKeyToAccount(generatePrivateKey())) }] }));
+const fetchWithPayment = guard.fetch(wrapFetchWithPayment(fetch, client));
+
+console.log((await fetchWithPayment(`${shop.url}/data`)).status); // 200: paid 0.001 USDC to the pinned payee
+await fetchWithPayment(`${shop.url}/hijacked`).catch((e) => console.log(e.message)); // ...[payee_mismatch]..., nothing signed
+await shop.close();
+```
+
+For a client that wraps its own fetch around one base URL (an OpenAI-style client such as `@qntx/openai`), pass `origin: "https://llm.example.com"` and hand it the guarded client (`x402Client: guard.install(...)`): payments are then judged against that configured origin.
+
+`guard.fetch` matters: the hooks only see the 402, whose `resource` is the server's own claim, so the guard records the origin each request was actually made to and judges payments against it. A payment made outside it is refused. Budgets are reserved before the signature, so parallel requests can't overspend them, and are held in this process; for a budget shared across processes and enforced even if the agent's machine is compromised, add a [BudgetVault](#owner-cli-vault-and-budgets-in-three-commands). `createAgentPay` goes further on settlement: it never signs twice for one purchase and confirms unreadable receipts on-chain.
+
 ## What it refuses
 - A 402 whose `payTo`, asset, network, EIP-712 domain, scheme or timeout differ from owner configuration.
 - Prices above the pinned price, the per-merchant cap, the sealed plan or the period budget.
