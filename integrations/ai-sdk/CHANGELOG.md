@@ -2,12 +2,7 @@
 
 Reconstructed from the git history; one line per release.
 
-## Unreleased
-
-- Security: `paid_fetch` refuses plain `http` and hosts that are or resolve to loopback, private, link-local or CGNAT addresses unless they are in the sealed plan or `allowPrivateNetwork` is set, and returns redirects instead of following them; errors other than policy refusals come back with a fixed `reason`; `paid.transaction` is `(unverified)` unless it is a well-formed hash.
-
-## History
-
+- **0.4.0 (2026-10-13):** Security: `paid_fetch` refuses plain `http` and hosts that are or resolve to loopback, private, link-local or CGNAT addresses unless they are in the sealed plan or `allowPrivateNetwork` is set, and returns redirects instead of following them; errors other than policy refusals come back with a fixed `reason`; `paid.transaction` is `(unverified)` unless it is a well-formed hash.
 - **Unreleased (0.3.1):** explicit `Tool` return type; compiles under `exactOptionalPropertyTypes`.
 - **0.3.0 (2026-10-08):** with `@deepfirstsearch/agent-pay` >= 0.8.0, refusals and blocks carry a stable `code` and an `action` (`report`, `ask_owner`, `fix_config`, `retry_later`, `resend_same`).
 - **0.2.0 (2026-10-07):** `@deepfirstsearch/agent-pay`, `ai` and `zod` are peer dependencies (one SDK copy per app); refusals detected by error name.
