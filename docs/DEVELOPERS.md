@@ -154,6 +154,11 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 
 ## What's new
 
+- **Security releases (2026-10-13), from our internal pre-audit ([findings](audit/PREAUDIT-2026-10.md)). Please upgrade:**
+  - **agent-pay 0.11.0:** an unconfirmed payment is never followed by a second signature for the same resource; `agent-pay check` on the command line; `timeoutMs`; the owner's config is validated up front.
+  - **Payers 0.2.0** (turnkey, privy, cdp, openfort) and **agentkit 0.3.0:** they sign only an EIP-3009 `TransferWithAuthorization` on pinned USDC from the payer. Privy's payer no longer exposes raw-hash or EIP-7702 signing.
+  - **agent-pay-mcp 0.3.0** (on agent-pay 0.11.0), **ai-sdk 0.4.0**, **langchain 0.4.0:** `paid_fetch` refuses internal addresses and plain http unless the owner opts in (`allowPrivateNetwork`), and network or RPC errors no longer reach the model. MCP config keys are now strict.
+  - **order-guard 0.1.1:** concurrent submits can't pass the same preview twice.
 - **agent-pay-mcp 0.2.1:** on agent-pay 0.8.5 (reads v2 receipts with a v1 network name).
 - **agent-pay-mcp 0.2.0:** on agent-pay 0.8.4. Per-merchant `x402Versions` in the config, so x402 v1 merchants (Heurist Mesh) work through MCP; `confirmOnChain` (on by default) checks an unreadable receipt on-chain instead of resending, so CoinMarketCap, JustaName and Glim work too; without a vault, each merchant's payer address is printed on start.
 - **0.10.0:** `dryRun(response, { url, policy, registry, plan })`: the policy's verdict on a seller's answer without a key or a signature; `no_challenge` and `invalid_402` are values, not exceptions.

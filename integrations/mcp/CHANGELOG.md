@@ -2,12 +2,7 @@
 
 Reconstructed from the git history; one line per release.
 
-## Unreleased
-
-- Security: `paid_fetch` refuses plain `http` and hosts that are or resolve to loopback, private, link-local or CGNAT addresses unless they are a configured merchant or `allowPrivateNetwork` is set, and returns redirects instead of following them; errors other than policy refusals reach the model as a fixed text (details on stderr), so an `rpcUrl` API key can't leak; a settlement transaction is shown only if it is a well-formed hash; unknown config keys are rejected; `AGENT_PAY_BURNER_SEED` must be whole bytes (an even number of hex digits).
-
-## History
-
+- **0.3.0 (2026-10-13):** on agent-pay 0.11.0 (never a second signature while the first may pay). Security: `paid_fetch` refuses plain `http` and hosts that are or resolve to loopback, private, link-local or CGNAT addresses unless they are a configured merchant or `allowPrivateNetwork` is set, and returns redirects instead of following them; errors other than policy refusals reach the model as a fixed text (details on stderr), so an `rpcUrl` API key can't leak; a settlement transaction is shown only if it is a well-formed hash; unknown config keys are rejected; `AGENT_PAY_BURNER_SEED` must be whole bytes (an even number of hex digits).
 - **0.2.1 (2026-10-09):** on agent-pay 0.8.5: reads v2 receipts whose network is a v1 short name (Automaton Sovereign's origin).
 - **0.2.0 (2026-10-09):** on agent-pay 0.8.4. Per-merchant `x402Versions` (x402 v1 merchants such as Heurist Mesh). `confirmOnChain` (default on): an unreadable receipt is checked on-chain instead of resent, so CoinMarketCap, JustaName and Glim work through MCP. Without a vault, prints each merchant's payer address on start (#27).
 - **0.1.8 (2026-10-08):** depends on `@deepfirstsearch/agent-pay` 0.8.0; refusals and blocks show their stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]` or `Payment blocked [settlement_pending → …]` (`resend_same`).
