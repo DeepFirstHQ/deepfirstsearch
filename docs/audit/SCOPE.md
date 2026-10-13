@@ -76,8 +76,8 @@ BASE_FORK_RPC=https://mainnet.base.org forge test --mc BaseMainnetForkTest   # 5
 forge coverage --report summary         # 100% lines/statements/functions on every contract
 uvx --from slither-analyzer slither . --config-file slither.config.json
 
-cd ../sdk && npm ci --ignore-scripts && npm test   # includes an anvil end-to-end with the official x402 facilitator
-cd ../integrations/mcp && npm ci --ignore-scripts && npm test   # same for each integration package
+cd ../sdk && npm ci --ignore-scripts && npm test   # 348 tests, incl. an anvil end-to-end with the official x402 facilitator
+cd ../integrations/mcp && npm ci --ignore-scripts && npm test   # same for each integration package (146 tests in total)
 ```
 Note: `foundry.toml` turns `dynamic_test_linking` off on purpose. With it on, `new C(...)` in a test escapes `expectRevert`, and a test can pass after its first expected revert without running the rest.
 
