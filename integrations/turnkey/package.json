@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-turnkey",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Turnkey-held keys as Agent Safe payers: x402 payments signed inside Turnkey, inside an owner-signed budget",
   "license": "MIT",
   "type": "module",

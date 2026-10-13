@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-cdp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Coinbase CDP Server Wallet accounts as Agent Safe payers: x402 payments signed by CDP, inside an owner-signed budget",
   "license": "MIT",
   "type": "module",

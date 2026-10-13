@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/agent-pay-privy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Privy server wallets as Agent Safe payers: x402 payments signed by Privy, inside an owner-signed budget",
   "license": "MIT",
   "type": "module",
