@@ -105,12 +105,15 @@ Point the config's merchant at `http://127.0.0.1:4021` with that `payTo`, then a
 | `sessionHasSensitiveData` | If the agent can also read private data, every payment needs a human (Rule of Two), so all are refused |
 | `auditLog` | Hash-chained JSONL log of every decision |
 | `maxResponseChars` | Longest response body returned to the model, in characters (default 20000, max 1000000); longer bodies are truncated and say so |
+| `allowPrivateNetwork` | Default `false`. Set `true` to let `paid_fetch` reach `http://` URLs and loopback, private, link-local or CGNAT hosts that are not merchants in this file |
+
+Unknown keys are rejected, so a typo (`approvalabove`) stops the server instead of silently dropping a limit.
 
 Since 0.2.0 every tested merchant works through MCP: set `x402Versions: [1, 2]` for v1 merchants (Heurist Mesh), and leave `confirmOnChain` on for merchants with non-standard receipts (CoinMarketCap, JustaName, Glim). Without a vault, the server prints each merchant's payer address on start, so you know which address to fund.
 
 A refused payment comes back as an error result, `Payment refused by policy: …`. From 0.1.8, once the bundled `@deepfirstsearch/agent-pay` is 0.8.0 or later, the text carries the refusal's stable code and what to do about it, e.g. `Payment refused by policy [price_changed → ask the owner]: …` (codes listed in the SDK README, "Refusal codes"). Blocks carry codes too (`Payment blocked [settlement_pending → …]: …`; also `settled_not_delivered`, `rate_limited`, `kill_switch`), with the extra action `resend_same`: call `paid_fetch` on the same URL again, and the SDK resends the same signed authorization without signing a new one.
 
-`paid_fetch` fetches any URL the model asks for; only **payments** are restricted to the merchants in your config. A non-402 response from an unregistered origin is returned as data (fenced as untrusted), so treat it like any fetch tool you give a model.
+`paid_fetch` fetches any public `https` URL the model asks for; only **payments** are restricted to the merchants in your config. A non-402 response from an unregistered origin is returned as data (fenced as untrusted), so treat it like any fetch tool you give a model. Hosts that are or resolve to loopback, private, link-local or CGNAT addresses, `localhost` names and plain `http` are refused unless they are a merchant in your config or you set `allowPrivateNetwork`; redirects are returned, not followed. Errors other than policy refusals (for example an RPC failure, whose message can contain your `rpcUrl`) reach the model as a fixed text; the details go to the server's stderr.
 
 ## Develop
 

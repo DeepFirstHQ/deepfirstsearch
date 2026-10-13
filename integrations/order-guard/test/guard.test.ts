@@ -116,6 +116,40 @@ describe("order guard", () => {
     expect(guard.audit().at(-1)?.type).toBe("order.unconfirmed");
   });
 
+  it("places one order when the same preview is submitted three times while the owner is still approving", async () => {
+    const slowYes = async () => { await new Promise((r) => setTimeout(r, 20)); return true; };
+    const { guard, backend } = setup({ approvalAbove: 100, approve: slowYes });
+    const { preview } = await guard.preview(burrito);
+    const r = await Promise.allSettled([1, 2, 3].map(() => guard.submit(preview.previewId)));
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(backend.orders).toHaveLength(1);
+    expect(guard.spentToday()).toBe(preview.total);
+  });
+
+  it("keeps parallel submits of different previews inside the daily budget while approvals are pending", async () => {
+    const slowYes = async () => { await new Promise((r) => setTimeout(r, 20)); return true; };
+    const { guard, backend } = setup({ approvalAbove: 100, approve: slowYes });
+    const ids = [];
+    for (let i = 0; i < 3; i++) ids.push((await guard.preview(burrito)).preview.previewId);
+    const r = await Promise.allSettled(ids.map((id) => guard.submit(id)));
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(2); // 2 × $17.47 fit in $40.00, a third does not
+    expect(backend.orders).toHaveLength(2);
+    expect(guard.spentToday()).toBeLessThanOrEqual(4000);
+  });
+
+  it("gives the reservation back when the owner declines or the approver fails", async () => {
+    let answer: () => Promise<boolean> = async () => false;
+    const { guard } = setup({ approvalAbove: 100, approve: () => answer() });
+    const { preview } = await guard.preview(burrito);
+    expect(await refusal(guard.submit(preview.previewId))).toMatch(/approval/);
+    expect(guard.spentToday()).toBe(0);
+    answer = async () => { throw new Error("approver down"); };
+    await expect(guard.submit(preview.previewId)).rejects.toThrow("approver down");
+    expect(guard.spentToday()).toBe(0);
+    answer = async () => true;
+    await expect(guard.submit(preview.previewId)).resolves.toMatchObject({ total: preview.total });
+  });
+
   it("validates the policy", () => {
     const b = createMockDelivery({ address: HOME });
     expect(() => createOrderGuard(policy({ maxOrderTotal: 12.5 }), b)).toThrow(/cents/);

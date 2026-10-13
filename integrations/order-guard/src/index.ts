@@ -118,14 +118,29 @@ export function createOrderGuard(policy: OrderPolicy, backend: OrderBackend, now
       if (now() - p.checkedAt > maxAge) return refuse(["preview expired: prices and fees may have changed, preview again"], previewId);
       const reasons = check(p);
       if (reasons.length) return refuse(reasons, previewId);
-      if (policy.approvalAbove !== undefined && p.total > policy.approvalAbove) {
-        const ok = policy.approve ? await policy.approve(p) : false;
-        if (!ok) return refuse([`orders above ${usd(policy.approvalAbove)} need the owner's approval`], previewId);
-      }
-      // Reserve before calling out: if the backend fails ambiguously the money may be spent, so it stays counted.
+      // Reserve in the same synchronous step as the check, before any await: a concurrent submit then sees this preview
+      // as used and this total as spent. Released only if the owner does not approve; once the backend is called it
+      // stays counted, because if the backend fails ambiguously the money may be spent.
       used.add(previewId);
       const entry = { at: now(), total: p.total };
       spent.push(entry);
+      const release = () => {
+        used.delete(previewId);
+        spent.splice(spent.indexOf(entry), 1);
+      };
+      if (policy.approvalAbove !== undefined && p.total > policy.approvalAbove) {
+        let ok: boolean;
+        try {
+          ok = policy.approve ? await policy.approve(p) : false;
+        } catch (e) {
+          release();
+          throw e;
+        }
+        if (!ok) {
+          release();
+          return refuse([`orders above ${usd(policy.approvalAbove)} need the owner's approval`], previewId);
+        }
+      }
       try {
         const { orderId } = await backend.submit(previewId);
         audit.push({ type: "order.submitted", previewId, orderId, total: p.total, at: now() });

@@ -19,6 +19,7 @@ import {
   type SealedPlan,
 } from "@deepfirstsearch/agent-pay";
 import type { Config, Secrets } from "./config.js";
+import { urlRefusal } from "./urlguard.js";
 
 export const VERSION = "0.2.1"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -34,6 +35,8 @@ export function fence(origin: string, body: string): string {
 }
 
 const usd = (v: bigint) => `${formatUnits(v, 6)} USDC`;
+/** The settlement transaction comes from the merchant and is shown outside the fence: only a well-formed hash passes. */
+export const txHash = (t: unknown) => (typeof t === "string" && /^0x[0-9a-fA-F]{64}$/.test(t) ? t : "(unverified)");
 
 /** What the agent should do, per refusal action (SDK >= 0.8.0). */
 const ACTION_TEXT: Record<string, string> = {
@@ -132,6 +135,7 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
     return plan;
   };
 
+  const merchantOrigins = new Set(config.merchants.map((m) => new URL(m.origin).origin));
   const server = new McpServer({ name: "agent-pay", version: VERSION });
 
   server.registerTool(
@@ -153,13 +157,16 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
     async ({ url, method, body, contentType }) => {
       const origin = new URL(url).origin;
       try {
-        const init: RequestInit = { method, ...(body !== undefined ? { body } : {}) };
+        const refusal = await urlRefusal(url, { isMerchant: (o) => merchantOrigins.has(o), allowPrivateNetwork: config.allowPrivateNetwork });
+        if (refusal) return { content: [{ type: "text" as const, text: `Request refused: ${refusal}. Only the owner can allow it (allowPrivateNetwork in the config).` }], isError: true };
+        // Redirects are returned, not followed: a public URL must not be able to bounce the request to an internal one.
+        const init: RequestInit = { method, redirect: "manual", ...(body !== undefined ? { body } : {}) };
         if (contentType) init.headers = { "content-type": contentType };
         const res = await pay.fetch(url, init, { plan: currentPlan() });
         const text = await res.text();
         const truncated = text.length > config.maxResponseChars;
         const paid = res.payment
-          ? `Paid ${usd(res.payment.amount)} to ${res.payment.payTo} (tx ${res.payment.settlement.transaction}).`
+          ? `Paid ${usd(res.payment.amount)} to ${res.payment.payTo} (tx ${txHash(res.payment.settlement.transaction)}).`
           : "No payment was needed.";
         return {
           content: [
@@ -173,13 +180,18 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
           isError: res.status >= 400,
         };
       } catch (e) {
+        const name = (e as Error)?.name;
         const kind =
-          (e as Error)?.name === "PaymentDeniedError"
+          name === "PaymentDeniedError"
             ? `Payment refused by policy${refusalTag(e)}`
-            : (e as Error)?.name === "PaymentBlockedError"
+            : name === "PaymentBlockedError"
               ? `Payment blocked${refusalTag(e)}`
-              : "Request failed";
-        return { content: [{ type: "text" as const, text: `${kind}: ${(e as Error).message}` }], isError: true };
+              : undefined;
+        if (kind) return { content: [{ type: "text" as const, text: `${kind}: ${(e as Error).message}` }], isError: true };
+        // Anything else may carry the RPC URL (often with an API key in it) or other local detail: keep it off the
+        // model's context and in the server's log (stderr; stdout carries the MCP protocol).
+        console.error(`agent-pay-mcp: paid_fetch ${origin} failed:`, e);
+        return { content: [{ type: "text" as const, text: "Request failed (network or RPC error); details are in the server log." }], isError: true };
       }
     },
   );

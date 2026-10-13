@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { createAgentPay, SealedPlan } from "@deepfirstsearch/agent-pay";
+import { urlRefusal } from "./urlguard.js";
 
 type AgentPay = ReturnType<typeof createAgentPay>;
 
@@ -14,7 +15,18 @@ export type PaidFetchToolOptions = {
   name?: string;
   /** Maximum response body returned to the model, in characters (default 20,000). */
   maxResponseChars?: number;
+  /**
+   * Let the model fetch http:// URLs and hosts on loopback, private, link-local or CGNAT addresses that are not in the
+   * plan. Default false: otherwise an injected page could make the agent read this machine's or the LAN's services.
+   */
+  allowPrivateNetwork?: boolean;
 };
+
+/** The settlement transaction comes from the merchant: only a well-formed hash is passed on, outside the fence. */
+export const txHash = (t: unknown) => (typeof t === "string" && /^0x[0-9a-fA-F]{64}$/.test(t) ? t : "(unverified)");
+
+/** A registered merchant: an origin in the sealed plan (`covers` also checks expiry; at time 0 it is membership only). */
+const inPlan = (plan: SealedPlan) => (origin: string) => plan.covers(origin, 0);
 
 const ACTIONS = new Set(["report", "ask_owner", "fix_config", "retry_later", "resend_same"]);
 
@@ -47,15 +59,19 @@ export function createPaidFetchTool(opts: PaidFetchToolOptions) {
   return tool(
     async ({ url, method, body, contentType }) => {
       try {
-        const init: RequestInit = { method, ...(body !== undefined ? { body } : {}) };
+        const plan = currentPlan();
+        const refusal = await urlRefusal(url, { isMerchant: inPlan(plan), allowPrivateNetwork: opts.allowPrivateNetwork ?? false });
+        if (refusal) return JSON.stringify({ ok: false, refused: true, reason: `request refused: ${refusal}` });
+        // Redirects are returned, not followed: a public URL must not be able to bounce the request to an internal one.
+        const init: RequestInit = { method, redirect: "manual", ...(body !== undefined ? { body } : {}) };
         if (contentType) init.headers = { "content-type": contentType };
-        const res = await opts.pay.fetch(url, init, { plan: currentPlan() });
+        const res = await opts.pay.fetch(url, init, { plan });
         const text = await res.text();
         return JSON.stringify({
           ok: true,
           status: res.status,
           paid: res.payment
-            ? { amount: (Number(res.payment.amount) / 1e6).toFixed(6).replace(/\.?0+$/, ""), payTo: res.payment.payTo, transaction: res.payment.settlement.transaction }
+            ? { amount: (Number(res.payment.amount) / 1e6).toFixed(6).replace(/\.?0+$/, ""), payTo: res.payment.payTo, transaction: txHash(res.payment.settlement.transaction) }
             : null,
           truncated: text.length > max,
           body: fence(new URL(url).origin, text.length > max ? text.slice(0, max) : text),
@@ -64,6 +80,8 @@ export function createPaidFetchTool(opts: PaidFetchToolOptions) {
         // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
         const name = (e as Error)?.name;
         const refused = name === "PaymentDeniedError" || name === "PaymentBlockedError";
+        // Anything else may carry the RPC URL (often with an API key in it) or other local detail: not for the model.
+        if (!refused) return JSON.stringify({ ok: false, refused, reason: "Request failed (network or RPC error); details are not shown to the model" });
         return JSON.stringify({ ok: false, refused, reason: (e as Error).message, ...refusalCode(e) });
       }
     },

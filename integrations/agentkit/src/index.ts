@@ -4,6 +4,8 @@ import type { createAgentPay, PayerProvider, SealedPlan } from "@deepfirstsearch
 import { formatUnits, type Address } from "viem";
 import { toAccount } from "viem/accounts";
 import { z } from "zod";
+import { assertPaymentAuthorization } from "./guard.js";
+import { urlRefusal } from "./urlguard.js";
 
 type AgentPay = ReturnType<typeof createAgentPay>;
 /**
@@ -19,6 +21,11 @@ export type AgentPayActionProviderOptions = {
   plan: SealedPlan | (() => SealedPlan);
   /** Longest response body handed back to the model, in characters. Default 20,000. */
   maxResponseChars?: number;
+  /**
+   * Let the model fetch http:// URLs and hosts on loopback, private, link-local or CGNAT addresses that are not in the
+   * plan. Default false: otherwise an injected page could make the agent read this machine's or the LAN's services.
+   */
+  allowPrivateNetwork?: boolean;
 };
 
 /**
@@ -30,13 +37,15 @@ export const PaidFetchSchema = z
     url: z.string().url().describe("The URL to fetch. If it answers 402, it is paid only if it matches the owner's configuration."),
     method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional().describe("HTTP method (default GET)"),
     body: z.string().max(100_000).optional().describe("Request body, for POST/PUT/PATCH"),
-    contentType: z.string().max(100).optional().describe("Content-Type of the body, e.g. application/json"),
+    contentType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).optional().describe("Content-Type of the body, e.g. application/json"),
   })
   .strict();
 
 export const PAID_FETCH_ACTION = "AgentPayActionProvider_paid_fetch";
 
 const usd = (v: bigint) => `${formatUnits(v, 6)} USDC`;
+/** The settlement transaction comes from the merchant and is shown outside the fence: only a well-formed hash passes. */
+export const txHash = (t: unknown) => (typeof t === "string" && /^0x[0-9a-fA-F]{64}$/.test(t) ? t : "(unverified)");
 
 /** What the agent should do, per refusal action (SDK >= 0.8.0). */
 const ACTION_TEXT: Record<string, string> = {
@@ -104,20 +113,25 @@ export class AgentPayActionProvider extends ActionProvider<WalletProvider> {
     const plan = typeof this.options.plan === "function" ? this.options.plan() : this.options.plan;
     const max = this.options.maxResponseChars ?? 20_000;
     try {
-      const init: RequestInit = { method, ...(body !== undefined ? { body } : {}) };
+      // A registered merchant is an origin in the sealed plan (`covers` also checks expiry; at time 0 it is membership only).
+      const refusal = await urlRefusal(url, { isMerchant: (o) => plan.covers(o, 0), allowPrivateNetwork: this.options.allowPrivateNetwork ?? false });
+      if (refusal) return `Request refused: ${refusal}. Only the owner can allow it.`;
+      // Redirects are returned, not followed: a public URL must not be able to bounce the request to an internal one.
+      const init: RequestInit = { method, redirect: "manual", ...(body !== undefined ? { body } : {}) };
       if (contentType) init.headers = { "content-type": contentType };
       const res = await this.options.pay.fetch(url, init, { plan });
       const text = await res.text();
       const paid = res.payment
-        ? `Paid ${usd(res.payment.amount)} to ${res.payment.payTo} (tx ${res.payment.settlement.transaction || "confirmed on-chain"}).`
+        ? `Paid ${usd(res.payment.amount)} to ${res.payment.payTo} (tx ${(res.payment as { confirmedOnChain?: boolean }).confirmedOnChain && !res.payment.settlement.transaction ? "confirmed on-chain" : txHash(res.payment.settlement.transaction)}).`
         : "No payment was needed.";
       const truncated = text.length > max;
       return `HTTP ${res.status}. ${paid}${truncated ? ` Body truncated to ${max} characters.` : ""}\n${fence(origin, truncated ? text.slice(0, max) : text)}`;
     } catch (e) {
       // By name, not instanceof: with two copies of the SDK installed, instanceof would miss a real refusal.
       const name = (e as Error)?.name;
-      const kind = name === "PaymentDeniedError" ? `Payment refused by policy${refusalTag(e)}` : name === "PaymentBlockedError" ? `Payment blocked${refusalTag(e)}` : "Request failed";
-      return `${kind}: ${(e as Error)?.message ?? String(e)}`;
+      const kind = name === "PaymentDeniedError" ? `Payment refused by policy${refusalTag(e)}` : name === "PaymentBlockedError" ? `Payment blocked${refusalTag(e)}` : undefined;
+      // Anything else may carry the RPC URL (often with an API key in it) or other local detail: not for the model.
+      return kind ? `${kind}: ${(e as Error)?.message ?? String(e)}` : "Request failed (network or RPC error); details are not shown to the model";
     }
   }
 }
@@ -126,13 +140,20 @@ export const agentPayActionProvider = (options: AgentPayActionProviderOptions) =
 
 /**
  * Use an AgentKit EVM wallet (ViemWalletProvider, CdpEvmWalletProvider, …) as the Agent Safe payer. It only signs
- * payment authorizations (EIP-712) and messages; the SDK decides whether to sign at all.
+ * payment authorizations: a USDC `TransferWithAuthorization` from this wallet (`assertPaymentAuthorization`). Other
+ * typed data, messages and transactions are refused; the SDK decides whether to sign at all.
  */
 export function agentKitPayer(walletProvider: EvmWalletProvider): PayerAccount {
+  const address = walletProvider.getAddress() as Address;
   const account = toAccount({
-    address: walletProvider.getAddress() as Address,
-    signMessage: ({ message }) => walletProvider.signMessage(typeof message === "string" ? message : (message.raw as Uint8Array | string) as never),
-    signTypedData: (typedData) => walletProvider.signTypedData(typedData),
+    address,
+    signMessage: async () => {
+      throw new Error("agentKitPayer only signs payment authorizations, not messages");
+    },
+    signTypedData: async (typedData) => {
+      assertPaymentAuthorization(typedData, address);
+      return walletProvider.signTypedData(typedData);
+    },
     signTransaction: async () => {
       throw new Error("agentKitPayer only signs payment authorizations, not transactions");
     },

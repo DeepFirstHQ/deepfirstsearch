@@ -1,6 +1,7 @@
 import type { Address, LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import type { CdpClient } from "@coinbase/cdp-sdk";
+import { assertPaymentAuthorization } from "./guard.js";
 
 /** Which CDP Server Wallet v2 EVM account pays: look it up by address or by name. */
 export type CdpPayerParams =
@@ -19,7 +20,8 @@ const refuse = (what: string) => async (): Promise<never> => {
  *
  * It looks the account up with `cdp.evm.getAccount` (it never creates one) and wraps CDP's own `signTypedData` with
  * viem's `toAccount`. x402's EIP-3009 authorizations are EIP-712 typed data, so that is the only thing it signs:
- * transactions, messages and raw hashes are refused, so a compromised agent can't use the account for anything else.
+ * transactions, messages and raw hashes are refused, and so is typed data other than a USDC `TransferWithAuthorization`
+ * from this account (`assertPaymentAuthorization`), so a compromised agent can't use the account for anything else.
  */
 export async function cdpPayer(params: CdpPayerParams): Promise<LocalAccount> {
   const account = await params.cdp.evm.getAccount(
@@ -27,7 +29,10 @@ export async function cdpPayer(params: CdpPayerParams): Promise<LocalAccount> {
   );
   return toAccount({
     address: account.address,
-    signTypedData: (typedData) => account.signTypedData(typedData as Parameters<typeof account.signTypedData>[0]),
+    signTypedData: async (typedData) => {
+      assertPaymentAuthorization(typedData, account.address);
+      return account.signTypedData(typedData as Parameters<typeof account.signTypedData>[0]);
+    },
     signMessage: refuse("messages"),
     signTransaction: refuse("transactions"),
   });

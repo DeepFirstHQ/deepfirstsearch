@@ -60,3 +60,51 @@ describe("privyPayer", () => {
     expect(calls).toBe(1);
   });
 });
+
+// Typed data for the guard tests: the pinned USDC domains, an EIP-3009 transfer and a USDC Permit.
+const USDC_BASE = { name: "USD Coin", version: "2", chainId: 8453, verifyingContract: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" } as const;
+const USDC_BASE_SEPOLIA = { name: "USDC", version: "2", chainId: 84532, verifyingContract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" } as const;
+const TRANSFER_TYPES = { TransferWithAuthorization: [{ name: "from", type: "address" }, { name: "to", type: "address" }, { name: "value", type: "uint256" }, { name: "validAfter", type: "uint256" }, { name: "validBefore", type: "uint256" }, { name: "nonce", type: "bytes32" }] };
+const transfer = (from: string, domain: Record<string, unknown> = USDC_BASE, types: Record<string, unknown> = TRANSFER_TYPES) =>
+  ({ domain, types, primaryType: "TransferWithAuthorization", message: { from, to: "0x1111111111111111111111111111111111111111", value: 1000n, validAfter: 0n, validBefore: 1n, nonce: `0x${"00".repeat(32)}` } }) as never;
+const permit = (owner: string) =>
+  ({
+    domain: USDC_BASE,
+    types: { Permit: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }, { name: "value", type: "uint256" }, { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" }] },
+    primaryType: "Permit",
+    message: { owner, spender: "0x9999999999999999999999999999999999999999", value: 2n ** 256n - 1n, nonce: 0n, deadline: 2n ** 255n },
+  }) as never;
+const notPayments = (from: string): [string, never][] => [
+  ["a USDC Permit with unlimited allowance", permit(from)],
+  ["a transfer on another verifyingContract", transfer(from, { ...USDC_BASE, verifyingContract: "0x9999999999999999999999999999999999999999" })],
+  ["a transfer on another chainId", transfer(from, { ...USDC_BASE, chainId: 1 })],
+  ["a transfer with Base Sepolia's domain name on Base", transfer(from, { ...USDC_BASE, name: "USDC" })],
+  ["a transfer from another address", transfer("0x2222222222222222222222222222222222222222")],
+  ["a transfer whose EIP712Domain leaves out verifyingContract", transfer(from, USDC_BASE, { ...TRANSFER_TYPES, EIP712Domain: [{ name: "name", type: "string" }, { name: "version", type: "string" }, { name: "chainId", type: "uint256" }] })],
+];
+
+describe("privyPayer signs only USDC TransferWithAuthorization from its own wallet", () => {
+  it("exposes no raw-hash sign, no EIP-7702 signAuthorization, and refuses messages and transactions", async () => {
+    const p = payer as unknown as Record<string, unknown>;
+    expect(p.sign).toBeUndefined();
+    expect(p.signAuthorization).toBeUndefined();
+    await expect(payer.signMessage({ message: "Sign in to evil.example" })).rejects.toThrow(/only signs payment authorizations/);
+    await expect(payer.signTransaction({ to: MERCHANT, value: 1n } as never)).rejects.toThrow(/only signs payment authorizations/);
+    expect(calls).toBe(0);
+  });
+
+  it("signs a transfer on Base and on Base Sepolia", async () => {
+    for (const domain of [USDC_BASE, USDC_BASE_SEPOLIA]) {
+      const td = transfer(key.address, domain);
+      expect(await recoverTypedDataAddress({ ...(td as object), signature: await payer.signTypedData(td) } as never)).toBe(key.address);
+    }
+    expect(calls).toBe(2);
+  });
+
+  for (const [name, td] of notPayments(key.address)) {
+    it(`refuses ${name} without asking Privy`, async () => {
+      await expect(payer.signTypedData(td)).rejects.toThrow(/refusing to sign/);
+      expect(calls).toBe(0);
+    });
+  }
+});

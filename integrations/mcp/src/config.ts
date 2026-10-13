@@ -29,7 +29,9 @@ const Merchant = z.object({
   maxTimeoutSeconds: z.number().int().min(10).max(86400).optional(),
   /** x402 versions this merchant may be paid with (default [2]). Set [1, 2] for merchants that still speak v1. */
   x402Versions: z.array(z.union([z.literal(1), z.literal(2)])).min(1).max(2).optional(),
-});
+})
+  // Unknown keys are errors: a typo such as "maxSpned" would otherwise drop a limit silently.
+  .strict();
 
 export const Config = z
   .object({
@@ -42,7 +44,7 @@ export const Config = z
     merchants: z.array(Merchant).min(1),
     /** The plan is sealed from this config at start and re-sealed (from this config only) every window. */
     planWindowHours: z.number().positive().max(24 * 30).default(24),
-    periodBudget: z.object({ amount: usdc, hours: z.number().positive() }).optional(),
+    periodBudget: z.object({ amount: usdc, hours: z.number().positive() }).strict().optional(),
     /** Payments above this need a human. This server has no approval channel, so they are refused. */
     approvalAbove: usdc.optional(),
     /** Set true if the agent can also read private data: then every payment needs a human (Rule of Two). */
@@ -56,7 +58,15 @@ export const Config = z
     confirmOnChain: z.boolean().default(true),
     /** Maximum response body returned to the model, in characters. */
     maxResponseChars: z.number().int().positive().max(1_000_000).default(20_000),
+    /**
+     * Let paid_fetch reach http:// URLs and hosts on loopback, private, link-local or CGNAT addresses that are not
+     * registered merchants (default false: the model could otherwise read this machine's or the LAN's services).
+     */
+    allowPrivateNetwork: z.boolean().default(false),
   })
+  // Unknown keys are errors: a typo such as "sessionHasSensitiveDta" or "approvalabove" would otherwise turn a
+  // safety setting off silently.
+  .strict()
   .superRefine((c, ctx) => {
     if (c.vault && (!c.tranche || c.merchants.some((m) => !m.intentId)))
       ctx.addIssue({ code: "custom", message: "with a vault, set `tranche` and an `intentId` for every merchant" });
@@ -73,13 +83,18 @@ export type Config = z.infer<typeof Config>;
 export type Secrets = { agentKey?: Hex; burnerSeed: Uint8Array };
 
 export function loadConfig(path: string): Config {
-  return Config.parse(JSON.parse(readFileSync(path.replace(/^~(?=\/)/, homedir()), "utf8")));
+  const r = Config.safeParse(JSON.parse(readFileSync(path.replace(/^~(?=\/)/, homedir()), "utf8")));
+  if (!r.success) throw new Error(`invalid config ${path}:\n${z.prettifyError(r.error)}`);
+  return r.data;
 }
 
 /** Secrets come only from the environment, never from the config file or the model. */
 export function loadSecrets(env: NodeJS.ProcessEnv, needsAgentKey: boolean): Secrets {
   const seed = env.AGENT_PAY_BURNER_SEED;
-  if (!seed || !/^0x[0-9a-fA-F]{64,}$/.test(seed)) throw new Error("AGENT_PAY_BURNER_SEED must be a 32-byte (or longer) hex secret");
+  // Whole bytes only: an odd number of hex digits would decode differently here (Buffer drops the last digit) and in
+  // the owner CLI (viem left-pads), so the two would derive different payer addresses.
+  if (!seed || !/^0x(?:[0-9a-fA-F]{2}){32,}$/.test(seed))
+    throw new Error("AGENT_PAY_BURNER_SEED must be a 32-byte (or longer) hex secret: 0x followed by an even number (64 or more) of hex digits");
   const agentKey = env.AGENT_PAY_AGENT_KEY;
   if (needsAgentKey && (!agentKey || !/^0x[0-9a-fA-F]{64}$/.test(agentKey)))
     throw new Error("AGENT_PAY_AGENT_KEY (the intent's agent key) is required when a vault is configured");

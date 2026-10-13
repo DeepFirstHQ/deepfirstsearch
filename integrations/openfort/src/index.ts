@@ -1,6 +1,7 @@
 import { getAddress, type Address, type LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
 import type Openfort from "@openfort/openfort-node";
+import { assertPaymentAuthorization } from "./guard.js";
 
 /** Which Openfort backend wallet pays: look it up by its id (`acc_…`) or by address. */
 export type OpenfortPayerParams =
@@ -19,17 +20,22 @@ const refuse = (what: string) => async (): Promise<never> => {
  *
  * It looks the wallet up with `openfort.accounts.evm.backend.get` (it never creates one) and wraps the wallet's own
  * `signTypedData` with viem's `toAccount`. x402's EIP-3009 authorizations are EIP-712 typed data, so that is the only
- * thing it signs: transactions, messages and raw hashes are refused, so a compromised agent can't use the wallet for
- * anything else through this signer.
+ * thing it signs: transactions, messages and raw hashes are refused, and so is typed data other than a USDC
+ * `TransferWithAuthorization` from this wallet (`assertPaymentAuthorization`), so a compromised agent can't use the
+ * wallet for anything else through this signer.
  */
 export async function openfortPayer(params: OpenfortPayerParams): Promise<LocalAccount> {
   const account = await params.openfort.accounts.evm.backend.get(
     params.id !== undefined ? { id: params.id } : { address: params.address },
   );
+  // Openfort returns addresses in lowercase; use the checksummed form everywhere downstream.
+  const address = getAddress(account.address);
   return toAccount({
-    // Openfort returns addresses in lowercase; use the checksummed form everywhere downstream.
-    address: getAddress(account.address),
-    signTypedData: (typedData) => account.signTypedData(typedData as Parameters<typeof account.signTypedData>[0]),
+    address,
+    signTypedData: async (typedData) => {
+      assertPaymentAuthorization(typedData, address);
+      return account.signTypedData(typedData as Parameters<typeof account.signTypedData>[0]);
+    },
     signMessage: refuse("messages"),
     signTransaction: refuse("transactions"),
   });

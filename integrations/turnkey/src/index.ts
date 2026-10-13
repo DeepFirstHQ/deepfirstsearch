@@ -1,5 +1,6 @@
-import { hashMessage, hashTypedData, serializeSignature, type Address, type Hex, type LocalAccount } from "viem";
+import { hashTypedData, serializeSignature, type Address, type Hex, type LocalAccount } from "viem";
 import { toAccount } from "viem/accounts";
+import { assertPaymentAuthorization } from "./guard.js";
 
 /** The subset of Turnkey's API client this needs (`new Turnkey({...}).apiClient()` from @turnkey/sdk-server). */
 export type TurnkeySigner = {
@@ -17,7 +18,8 @@ export type TurnkeySigner = {
  * Typed data (EIP-712, which x402's EIP-3009 authorizations use) is hashed locally with viem and Turnkey signs that
  * exact digest. In our tests `@turnkey/viem` 0.14.44's `signTypedData` recovered to a different address, while
  * signing the digest recovers correctly; doing it this way also makes what Turnkey signs fully auditable.
- * Transactions are not supported: an x402 payer only signs authorizations.
+ * Only a USDC `TransferWithAuthorization` from `address` is hashed and sent (`assertPaymentAuthorization`); messages,
+ * transactions and any other typed data are refused: an x402 payer only signs authorizations.
  */
 export function turnkeyPayer(params: { client: TurnkeySigner; address: Address }): LocalAccount {
   const { client, address } = params;
@@ -27,8 +29,13 @@ export function turnkeyPayer(params: { client: TurnkeySigner; address: Address }
   };
   return toAccount({
     address,
-    signMessage: ({ message }) => signDigest(hashMessage(message)),
-    signTypedData: (td) => signDigest(hashTypedData(td as Parameters<typeof hashTypedData>[0])),
+    signMessage: async () => {
+      throw new Error("turnkeyPayer only signs payment authorizations, not messages");
+    },
+    signTypedData: async (td) => {
+      assertPaymentAuthorization(td, address);
+      return signDigest(hashTypedData(td as Parameters<typeof hashTypedData>[0]));
+    },
     signTransaction: async () => {
       throw new Error("turnkeyPayer only signs payment authorizations, not transactions");
     },
