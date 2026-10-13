@@ -9,6 +9,9 @@ optimizer_runs = 200
 via_ir = false
 bytecode_hash = "none"
 fs_permissions = [{ access = "read", path = "./" }]
+# With dynamic test linking, `new C(...)` in a test compiles to a cheatcode that `expectRevert` doesn't cover: a test
+# then stops at the first expected revert and passes without running the rest. Keep it off so every line runs.
+dynamic_test_linking = false
 
 [fuzz]
 runs = 1000
