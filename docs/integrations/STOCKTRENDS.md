@@ -47,4 +47,12 @@ Add to the merchants of your [agent-pay-mcp](https://github.com/DeepFirstHQ/deep
 
 Source, issues and the full SDK: [github.com/DeepFirstHQ/deepfirstsearch](https://github.com/DeepFirstHQ/deepfirstsearch). Questions or a merchant you'd like covered: [Discussions](https://github.com/DeepFirstHQ/deepfirstsearch/discussions).
 
+## If Stock Trends changes its price or address
+
+The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when Stock Trends reprices or rotates its wallet, Agent Safe refuses and nothing is signed:
+- a higher price gives `price_changed` (action `ask_owner`), or `over_cap` if it is also above your per-call cap;
+- a different address gives `payee_mismatch` (action `report`).
+
+Confirm the change through Stock Trends's own channels (its site, docs or announcement), then update `pricePin` or `payTo` in the registry, or `price` or `payTo` in the MCP config. To absorb small price changes without a prompt, allow a tolerance instead of removing the pin: `toleranceBps` in the registry (1000 = up to 10% over the pin) or `tolerancePct` in the MCP config.
+
 > Agent Safe is an independent open-source project (MIT), live on Base mainnet as an unaudited beta. Not affiliated with Stock Trends.

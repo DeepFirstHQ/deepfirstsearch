@@ -36,4 +36,12 @@ console.log(res.status, res.payment?.settlement.transaction);
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.6.3 or later.
 
+## If Interzoid changes its price or address
+
+The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when Interzoid reprices or rotates its wallet, Agent Safe refuses and nothing is signed:
+- a higher price gives `price_changed` (action `ask_owner`), or `over_cap` if it is also above your per-call cap;
+- a different address gives `payee_mismatch` (action `report`).
+
+Confirm the change through Interzoid's own channels (its site, docs or announcement), then update `pricePin` or `payTo` in the registry, or `price` or `payTo` in the MCP config. To absorb small price changes without a prompt, allow a tolerance instead of removing the pin: `toleranceBps` in the registry (1000 = up to 10% over the pin) or `tolerancePct` in the MCP config.
+
 > Agent Safe is an independent open-source project (MIT), live on Base mainnet as an unaudited beta. Not affiliated with Interzoid.
