@@ -14,9 +14,12 @@ interface IFirepitView {
 ///         callable solely by the releaser (the Firepit, which first burns $DEPTH).
 /// @dev The jar exists before the token, so Agent Safe can earn fees before any token is launched. The releaser is
 ///      connected exactly once, through a public timelock: `INITIALIZER` proposes a Firepit, anyone can inspect it
-///      (its `DEPTH()` must be the official token) during `RELEASER_DELAY`, and anyone can then finalize it. There is
-///      no bytecode pin, so an audited fix to the Firepit can never lock the jar. Remaining trust: the initializer
-///      picks the instance, and the timelock exists so that a wrong pick is visible before it takes effect.
+///      (its `DEPTH()` must be the official token, and `pendingCodehash` the published Firepit runtime hash) during
+///      `RELEASER_DELAY`, and anyone can then finalize it. The codehash is pinned only between proposal and acceptance,
+///      so what takes effect is exactly what was reviewed; there is no permanent bytecode pin, so an audited fix to the
+///      Firepit can still be connected instead. Accounts with EIP-7702 delegated code are refused: their key could
+///      call `release` directly. Remaining trust: the initializer picks the instance, and the timelock exists so that
+///      a wrong pick is visible before it takes effect.
 ///      Only Agent Safe, SDK and inference fees may be routed here, never fees from any privacy pool.
 contract FeeJar {
     using SafeERC20 for IERC20;
@@ -42,6 +45,7 @@ contract FeeJar {
     error NotReleaser();
     error ZeroAddress();
     error CodeChanged();
+    error DelegatedAccount();
 
     constructor(address initializer) {
         if (initializer == address(0)) revert ZeroAddress();
@@ -53,6 +57,8 @@ contract FeeJar {
         if (msg.sender != INITIALIZER) revert NotInitializer();
         if (releaser != address(0)) revert AlreadySet();
         if (newReleaser == address(0)) revert ZeroAddress();
+        // An EIP-7702 delegated EOA has code `0xef0100 || delegate` and a stable codehash, but its key can still act.
+        if (newReleaser.code.length == 23 && bytes3(newReleaser.code) == 0xef0100) revert DelegatedAccount();
         if (IFirepitView(newReleaser).FEE_JAR() != address(this)) revert WrongJar();
         uint64 eta = uint64(block.timestamp) + RELEASER_DELAY;
         bytes32 codehash = newReleaser.codehash;

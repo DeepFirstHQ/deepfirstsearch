@@ -208,7 +208,8 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         emit Paused(value);
     }
 
-    /// @notice Longer delays apply immediately; shorter ones wait out the current delay.
+    /// @notice Longer delays apply immediately to new proposals; shorter ones wait out the current delay. Intents
+    ///         already proposed keep the `activeAt` they were given: to hold one back longer, revoke it.
     function setActivationDelay(uint32 delay) external onlyOwner {
         if (delay < MIN_DELAY || delay > MAX_DELAY) revert BadDelay();
         if (delay >= activationDelay) {
@@ -282,7 +283,8 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         USDC.safeTransfer(to, amount);
     }
 
-    /// @notice Tops up the payer address the owner signed into this intent. It never holds more than `trancheCap`.
+    /// @notice Tops up the payer address the owner signed into this intent. The vault never brings its balance above
+    ///         `trancheCap` (funds sent to it by others are not counted against the cap or limited by it).
     function fundBurner(bytes32 id, address burner, uint256 amount) external nonReentrant {
         IntentState storage st = _spend(id, amount);
         if (burner == address(0) || burner != st.intent.burner) revert NotSignedBurner();
@@ -347,8 +349,9 @@ contract BudgetVault is EIP712, ReentrancyGuard {
         if (USDC.balanceOf(address(this)) < owedJar + owedOps + amount + feeFor(amount)) revert OwedFees();
     }
 
+    /// @dev `OPS` may be zero when the jar takes 100% of the fee; zero then still means "no burner", not OPS.
     function _isProtocolAddress(address a) private view returns (bool) {
-        return a == address(this) || a == FEE_JAR || a == OPS;
+        return a != address(0) && (a == address(this) || a == FEE_JAR || a == OPS);
     }
 
     /// @dev A fee transfer that fails (for example, a fee recipient blacklisted by the token issuer) never blocks
@@ -356,12 +359,13 @@ contract BudgetVault is EIP712, ReentrancyGuard {
     function _chargeFee(uint256 amount) private returns (uint256 fee) {
         fee = feeFor(amount);
         if (fee == 0) return 0;
-        uint256 toJar = (fee * JAR_SHARE_BPS) / BPS;
+        // Rounds in the jar's favour, so micropayments (fee of 1 unit) still feed the jar rather than only OPS.
+        uint256 toOps = (fee * (BPS - JAR_SHARE_BPS)) / BPS;
+        uint256 toJar = fee - toOps;
         if (toJar != 0 && !USDC.trySafeTransfer(FEE_JAR, toJar)) {
             owedJar += toJar;
             emit FeeDeferred(FEE_JAR, toJar);
         }
-        uint256 toOps = fee - toJar;
         if (toOps != 0 && !USDC.trySafeTransfer(OPS, toOps)) {
             owedOps += toOps;
             emit FeeDeferred(OPS, toOps);

@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {BudgetVault} from "../../src/safe/BudgetVault.sol";
 import {BudgetVaultFactory} from "../../src/safe/BudgetVaultFactory.sol";
+import {FeeJar} from "../../src/fees/FeeJar.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {MerkleAirdrop} from "../../src/distribution/MerkleAirdrop.sol";
 import {IBurnableToken} from "../../src/interfaces/IBurnableToken.sol";
 import {MockFiatUSDC} from "../mocks/MockFiatUSDC.sol";
@@ -149,9 +151,11 @@ contract AuditFixesTest is Test {
     /// T-L-2: an airdrop with a zero root or a past deadline cannot be deployed.
     function test_AirdropRejectsZeroRootAndPastDeadline() public {
         vm.expectRevert(MerkleAirdrop.BadConfig.selector);
-        new MerkleAirdrop(IBurnableToken(address(1)), bytes32(0), uint64(block.timestamp + 1 days));
+        new MerkleAirdrop(
+            IBurnableToken(address(1)), bytes32(0), uint64(block.timestamp), uint64(block.timestamp + 1 days)
+        );
         vm.expectRevert(MerkleAirdrop.BadConfig.selector);
-        new MerkleAirdrop(IBurnableToken(address(1)), keccak256("root"), uint64(block.timestamp));
+        new MerkleAirdrop(IBurnableToken(address(1)), keccak256("root"), 0, uint64(block.timestamp));
     }
 }
 
@@ -222,3 +226,43 @@ contract AuditFixesRound2Test is AuditFixesTest {
         vault.proposeIntent(short, abi.encodePacked(sr, ss, sv));
     }
 }
+
+/// @notice Regression tests for the pre-audit review of 2026-10-13 (private/docs/audit-intake.md).
+contract PreAuditFixesTest is AuditFixesTest {
+    /// L-1: the fee split rounds in the jar's favour, so a $0.001 payment (fee of 1 unit) feeds the jar, not only OPS.
+    function test_MicropaymentFeeGoesToTheJar() public {
+        bytes32 id = _propose(1);
+        skip(1 hours);
+        vm.startPrank(agent);
+        for (uint256 k; k < 100; ++k) {
+            vault.pay(id, merchant, 1_000);
+        }
+        vm.stopPrank();
+        assertEq(usdc.balanceOf(jar), 100);
+        assertEq(usdc.balanceOf(ops), 0);
+        // An odd fee splits with the extra unit to the jar: fee 3 -> jar 2, OPS 1.
+        vm.prank(agent);
+        vault.pay(id, merchant, 3_000);
+        assertEq(usdc.balanceOf(jar), 102);
+        assertEq(usdc.balanceOf(ops), 1);
+    }
+
+    /// L-2: an EIP-7702 delegated EOA has a stable codehash, but its key could call `release` directly.
+    function test_FeeJarRefusesADelegatedAccount() public {
+        FeeJar fj = new FeeJar(address(this));
+        address eoa = makeAddr("delegated");
+        vm.etch(eoa, abi.encodePacked(hex"ef0100", address(this)));
+        vm.expectRevert(FeeJar.DelegatedAccount.selector);
+        fj.proposeReleaser(eoa);
+    }
+
+    /// I-1: with OPS unset (the jar takes 100%), an intent without a burner (`burner == 0`) is still accepted.
+    function test_OpsZeroStillAllowsIntentsWithoutABurner() public {
+        BudgetVault v = new BudgetVault(owner, IERC20(address(usdc)), jar, address(0), 10_000, 1 hours);
+        BudgetVault.Intent memory i = _intent(1);
+        i.burner = address(0);
+        (uint8 sv, bytes32 r, bytes32 sg) = vm.sign(ownerKey, v.intentId(i));
+        v.proposeIntent(i, abi.encodePacked(r, sg, sv));
+    }
+}
+

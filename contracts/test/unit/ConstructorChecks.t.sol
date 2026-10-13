@@ -115,10 +115,20 @@ contract ConstructorChecksTest is Test {
 
     function test_DistributionRejectsZeroAddresses() public {
         vm.expectRevert(MerkleAirdrop.ZeroAddress.selector);
-        new MerkleAirdrop(IBurnableToken(address(0)), bytes32(uint256(1)), uint64(block.timestamp + 1));
+        new MerkleAirdrop(
+            IBurnableToken(address(0)), bytes32(uint256(1)), uint64(block.timestamp), uint64(block.timestamp + 1)
+        );
         vm.expectRevert(RewardsPool.ZeroAddress.selector);
         new RewardsPool(IBurnableToken(address(0)), owner, uint64(block.timestamp));
         vm.expectRevert(RewardsPool.ZeroAddress.selector);
         new RewardsPool(token, address(0), uint64(block.timestamp));
+    }
+
+    /// A rewards start long in the past would release most of the pool at once (and let anyone burn it after the end).
+    function test_RewardsPoolRejectsAStartInThePast() public {
+        vm.warp(400 days);
+        vm.expectRevert(RewardsPool.StartInPast.selector);
+        new RewardsPool(token, owner, uint64(block.timestamp - 1 hours - 1));
+        new RewardsPool(token, owner, uint64(block.timestamp - 1 hours));
     }
 }

@@ -35,7 +35,7 @@ INITIALIZER=0x<safe> OPS=0x<safe> \
 
 # Genesis (TGE), only after the launch plan's F3 tasks are complete
 FOUNDER_SAFE=… CONTRIBUTORS_SAFE=… FOUNDATION_SAFE=… DISTRIBUTOR_SAFE=… LAUNCH_RESERVE_SAFE=… \
-FEE_JAR=… AIRDROP_ROOT=… TGE=<unix> \
+FEE_JAR=… AIRDROP_ROOT=… AIRDROP_TOTAL=<sum from build.mjs> TGE=<unix> \
   forge script script/DeployGenesis.s.sol --rpc-url base_sepolia --account deployer --broadcast --verify
 # then, from the INITIALIZER Safe: FeeJar.proposeReleaser(<Firepit>); after 14 days anyone calls acceptReleaser()
 ```

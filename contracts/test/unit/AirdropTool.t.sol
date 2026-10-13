@@ -16,7 +16,9 @@ contract AirdropToolTest is Test {
 
         // The airdrop is deployed first, against the predicted token address, like DeployGenesis does.
         address predicted = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
-        MerkleAirdrop airdrop = new MerkleAirdrop(IBurnableToken(predicted), root, uint64(block.timestamp + 30 days));
+        MerkleAirdrop airdrop = new MerkleAirdrop(
+            IBurnableToken(predicted), root, uint64(block.timestamp), uint64(block.timestamp + 30 days)
+        );
         address[] memory to = new address[](2);
         uint256[] memory amt = new uint256[](2);
         (to[0], amt[0]) = (address(airdrop), 250_000_000e18);

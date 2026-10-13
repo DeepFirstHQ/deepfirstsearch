@@ -8,7 +8,8 @@ import {IBurnableToken} from "../interfaces/IBurnableToken.sol";
 
 /// @title Wallet-only airdrop
 /// @notice Claims need only a Merkle proof: no email, no KYC, no signature from us. Anyone may submit a claim, and
-///         the tokens always go to the account in the leaf. After the deadline, anyone can burn what was not claimed.
+///         the tokens always go to the account in the leaf. Claims open at `START` (the TGE, not the deployment) and
+///         close at `DEADLINE`; after it, anyone can burn what was not claimed.
 /// @dev Leaves are `keccak256(bytes.concat(keccak256(abi.encode(index, account, amount))))`, the format produced by
 ///      OpenZeppelin's StandardMerkleTree for the types (uint256, address, uint256).
 contract MerkleAirdrop {
@@ -17,6 +18,7 @@ contract MerkleAirdrop {
 
     IBurnableToken public immutable TOKEN;
     bytes32 public immutable MERKLE_ROOT;
+    uint64 public immutable START;
     uint64 public immutable DEADLINE;
 
     BitMaps.BitMap private _claimed;
@@ -24,6 +26,7 @@ contract MerkleAirdrop {
     event Claimed(uint256 indexed index, address indexed account, uint256 amount);
     event UnclaimedBurned(uint256 amount);
 
+    error ClaimWindowNotOpen();
     error ClaimWindowClosed();
     error ClaimWindowOpen();
     error AlreadyClaimed();
@@ -31,11 +34,12 @@ contract MerkleAirdrop {
     error ZeroAddress();
     error BadConfig();
 
-    constructor(IBurnableToken token, bytes32 merkleRoot, uint64 deadline) {
+    constructor(IBurnableToken token, bytes32 merkleRoot, uint64 start, uint64 deadline) {
         if (address(token) == address(0)) revert ZeroAddress();
-        if (merkleRoot == bytes32(0) || deadline <= block.timestamp) revert BadConfig();
+        if (merkleRoot == bytes32(0) || deadline <= block.timestamp || start >= deadline) revert BadConfig();
         TOKEN = token;
         MERKLE_ROOT = merkleRoot;
+        START = start;
         DEADLINE = deadline;
     }
 
@@ -44,6 +48,7 @@ contract MerkleAirdrop {
     }
 
     function claim(uint256 index, address account, uint256 amount, bytes32[] calldata proof) external {
+        if (block.timestamp < START) revert ClaimWindowNotOpen();
         if (block.timestamp > DEADLINE) revert ClaimWindowClosed();
         if (_claimed.get(index)) revert AlreadyClaimed();
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(index, account, amount))));

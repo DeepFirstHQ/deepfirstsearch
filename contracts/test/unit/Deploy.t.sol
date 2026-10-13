@@ -22,7 +22,13 @@ contract DeployScriptsTest is Test {
         vm.setEnv("LAUNCH_RESERVE_SAFE", vm.toString(makeAddr("reserve")));
         vm.setEnv("FEE_JAR", vm.toString(address(jar)));
         vm.setEnv("AIRDROP_ROOT", vm.toString(keccak256("root")));
-        // The script's own require() calls assert the allocation and the empty deployer.
-        new DeployGenesis().run();
+        // A tree that hands out more than the 250M the airdrop holds is refused before anything is deployed.
+        vm.setEnv("AIRDROP_TOTAL", vm.toString(uint256(250_000_000e18 + 1)));
+        DeployGenesis genesis = new DeployGenesis();
+        vm.expectRevert(bytes("AIRDROP_TOTAL must be in (0, 250M]"));
+        genesis.run();
+        vm.setEnv("AIRDROP_TOTAL", vm.toString(uint256(240_000_000e18)));
+        // The script's own require() calls assert every allocation, the wiring and the empty deployer.
+        genesis.run();
     }
 }

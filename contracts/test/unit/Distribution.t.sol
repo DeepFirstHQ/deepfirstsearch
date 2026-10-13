@@ -33,7 +33,7 @@ contract MerkleAirdropTest is Test {
         (r[0], r[1]) = (predicted, address(this));
         (a[0], a[1]) = (300e18, 1_000_000_000e18 - 300e18);
         token = new DepthToken(r, a);
-        airdrop = new MerkleAirdrop(IBurnableToken(address(token)), root, deadline);
+        airdrop = new MerkleAirdrop(IBurnableToken(address(token)), root, uint64(block.timestamp), deadline);
         assertEq(address(airdrop), predicted);
     }
 
@@ -58,6 +58,18 @@ contract MerkleAirdropTest is Test {
     function test_RevertWhen_AmountTampered() public {
         vm.expectRevert(MerkleAirdrop.InvalidProof.selector);
         airdrop.claim(0, alice, 1_000e18, _proof(leafB));
+    }
+
+    /// Claims open at the TGE, not when the airdrop is deployed (the script may deploy up to 90 days earlier).
+    function test_RevertWhen_ClaimBeforeStart() public {
+        bytes32 root = airdrop.MERKLE_ROOT();
+        MerkleAirdrop later =
+            new MerkleAirdrop(IBurnableToken(address(token)), root, uint64(block.timestamp + 10 days), deadline);
+        vm.expectRevert(MerkleAirdrop.ClaimWindowNotOpen.selector);
+        later.claim(0, alice, 100e18, _proof(leafB));
+        // The window is [START, DEADLINE]: a start at or after the deadline is refused.
+        vm.expectRevert(MerkleAirdrop.BadConfig.selector);
+        new MerkleAirdrop(IBurnableToken(address(token)), root, deadline, deadline);
     }
 
     function test_RevertWhen_ClaimAfterDeadline() public {

@@ -30,9 +30,12 @@ contract RewardsPool {
     error ProgramEnded();
     error ProgramRunning();
     error ZeroAddress();
+    error StartInPast();
 
     constructor(IBurnableToken token, address distributor, uint64 start) {
         if (address(token) == address(0) || distributor == address(0)) revert ZeroAddress();
+        // A start long in the past would release (and let anyone burn) most of the pool at once.
+        if (uint256(start) + 1 hours < block.timestamp) revert StartInPast();
         TOKEN = token;
         DISTRIBUTOR = distributor;
         START = start;

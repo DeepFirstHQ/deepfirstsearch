@@ -14,9 +14,12 @@ import {IBurnableToken} from "../src/interfaces/IBurnableToken.sol";
 ///      airdrop 25% · rewards 25% · launch reserve 25% (15% auction + 10% liquidity, held by a Safe until the auction
 ///      and LP contracts exist) · founder 12% · contributors 3% · foundation 10%.
 ///      After broadcasting, the FeeJar initializer Safe calls `FeeJar.proposeReleaser(firepit)`; anyone calls
-///      `acceptReleaser()` after the 14-day public timelock. Broadcast with `--slow` so each step lands before the next.
+///      `acceptReleaser()` after the 14-day public timelock, and anyone can then `arm()` the Firepit. The 30-day descent
+///      from the ceiling starts there, so propose only once the public auction and LP exist (DEPTH is liquid enough
+///      for buyers to compete). Broadcast with `--slow` so each step lands before the next.
 contract DeployGenesis is Script {
     uint256 constant SUPPLY = 1_000_000_000e18;
+    uint256 constant AIRDROP = 250_000_000e18;
     uint64 constant YEAR = 365 days;
 
     struct Config {
@@ -27,6 +30,7 @@ contract DeployGenesis is Script {
         address launchReserveSafe;
         address feeJar;
         bytes32 airdropRoot;
+        uint256 airdropTotal;
         uint64 tge;
         uint64 claimDeadline;
     }
@@ -39,6 +43,8 @@ contract DeployGenesis is Script {
         c.launchReserveSafe = vm.envAddress("LAUNCH_RESERVE_SAFE");
         c.feeJar = vm.envAddress("FEE_JAR");
         c.airdropRoot = vm.envBytes32("AIRDROP_ROOT");
+        // The sum of the tree's amounts, as printed by tools/airdrop/build.mjs.
+        c.airdropTotal = vm.envUint("AIRDROP_TOTAL");
         c.tge = uint64(vm.envOr("TGE", block.timestamp));
         c.claimDeadline = c.tge + 180 days;
     }
@@ -48,6 +54,8 @@ contract DeployGenesis is Script {
         // TGE in the past would let anyone burn the airdrop early and unlock vesting early; far future is a typo.
         require(c.tge + 1 hours >= block.timestamp && c.tge <= block.timestamp + 90 days, "TGE out of range");
         require(c.feeJar.code.length > 0, "FEE_JAR has no code");
+        // An over-allocated tree would leave the last claimers unable to claim; the unclaimed rest is burned later.
+        require(c.airdropTotal > 0 && c.airdropTotal <= AIRDROP, "AIRDROP_TOTAL must be in (0, 250M]");
         if (block.chainid == 8453) {
             require(
                 c.founderSafe.code.length > 0 && c.contributorsSafe.code.length > 0 && c.foundationSafe.code.length > 0
@@ -65,14 +73,14 @@ contract DeployGenesis is Script {
         DepthVesting founder = new DepthVesting(c.founderSafe, c.tge + YEAR, 3 * YEAR);
         DepthVesting contributors = new DepthVesting(c.contributorsSafe, c.tge + YEAR, 3 * YEAR);
         DepthVesting foundation = new DepthVesting(c.foundationSafe, c.tge, 5 * YEAR);
-        MerkleAirdrop airdrop = new MerkleAirdrop(token, c.airdropRoot, c.claimDeadline);
+        MerkleAirdrop airdrop = new MerkleAirdrop(token, c.airdropRoot, c.tge, c.claimDeadline);
         RewardsPool rewards = new RewardsPool(token, c.distributorSafe, c.tge);
         // The burn auction starts at TGE from the ceiling, so pre-launch fees are not sold for the floor.
         Firepit firepit = new Firepit(token, c.feeJar, 10_000_000e18, c.tge);
 
         address[] memory to = new address[](6);
         uint256[] memory amt = new uint256[](6);
-        (to[0], amt[0]) = (address(airdrop), 250_000_000e18);
+        (to[0], amt[0]) = (address(airdrop), AIRDROP);
         (to[1], amt[1]) = (address(rewards), 250_000_000e18);
         (to[2], amt[2]) = (c.launchReserveSafe, 250_000_000e18);
         (to[3], amt[3]) = (address(founder), 120_000_000e18);
@@ -84,7 +92,12 @@ contract DeployGenesis is Script {
         require(address(depth) == address(token), "token address prediction failed");
         require(depth.totalSupply() == SUPPLY, "supply");
         require(depth.balanceOf(deployer) == 0, "deployer must hold nothing");
-        require(depth.balanceOf(address(founder)) == SUPPLY * 12 / 100, "founder");
+        for (uint256 i; i < to.length; ++i) {
+            require(depth.balanceOf(to[i]) == amt[i], "allocation");
+        }
+        require(address(firepit.DEPTH()) == address(depth) && firepit.FEE_JAR() == c.feeJar, "firepit wiring");
+        require(airdrop.START() == c.tge && address(airdrop.TOKEN()) == address(depth), "airdrop wiring");
+        require(address(rewards.TOKEN()) == address(depth), "rewards wiring");
 
         console.log("DEPTH", address(depth));
         console.log("FounderVesting", address(founder));
