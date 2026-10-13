@@ -41,6 +41,14 @@ export type EvaluateInput = {
 
 const DEFAULT_TIMEOUT = { min: 10, max: 300 };
 
+/** Owner configuration is checked when the client is created, so a bad value never surfaces at payment time. */
+export function assertPolicy(config: PolicyConfig): void {
+  const b = config.timeoutBounds;
+  if (b !== undefined && (!Number.isInteger(b.min) || !Number.isInteger(b.max) || b.min < 1 || b.max < b.min)) {
+    throw new Error("timeoutBounds must be integers with 1 <= min <= max");
+  }
+}
+
 export function effectiveTimeoutBounds(
   bounds: { min: number; max: number } | undefined,
   merchant: Merchant,

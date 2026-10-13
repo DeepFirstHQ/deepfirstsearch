@@ -103,14 +103,14 @@ describe("on-chain confirmation when the receipt is unusable (#16)", () => {
 });
 
 describe("usdcAuthorizationCheck", () => {
-  it("reads authorizationState on the network's client, and answers 'not used' without one", async () => {
+  it("reads authorizationState on the network's client, and answers 'unknown' (never 'not used') without one", async () => {
     const reads: unknown[] = [];
     const client = { readContract: async (a: unknown) => (reads.push(a), true) } as never;
     const check = usdcAuthorizationCheck({ "eip155:8453": client });
     const q = { network: "eip155:8453", asset: PINNED_USDC["eip155:8453"]!.asset, authorizer: payer.address, nonce: `0x${"ab".repeat(32)}` as const };
     expect(await check(q)).toBe(true);
     expect(reads[0]).toMatchObject({ address: q.asset, functionName: "authorizationState", args: [q.authorizer, q.nonce] });
-    expect(await check({ ...q, network: "eip155:1" })).toBe(false);
+    expect(await check({ ...q, network: "eip155:1" })).toBeUndefined();
   });
 });
 

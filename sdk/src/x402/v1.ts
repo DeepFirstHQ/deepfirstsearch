@@ -1,4 +1,4 @@
-import { decodeHeader, X402DecodeError } from "./codec.js";
+import { decodeHeader, describeIssue, X402DecodeError } from "./codec.js";
 import {
   caip2ToV1Network,
   HEADERS,
@@ -20,10 +20,14 @@ function show(v: unknown): string {
   return t.length ? t : "(invalid)";
 }
 
+/** Default time limit on reading a response (the unpaid request, and a capped body). */
+export const DEFAULT_TIMEOUT_MS = 30_000;
+
 /**
  * Reads at most `limit` bytes of a response body. Returns undefined when the body is larger (the rest is not read).
+ * A body still arriving after `timeoutMs` is cancelled and the read throws, so a server cannot stall us by trickling.
  */
-export async function readBodyCapped(res: Response, limit = MAX_V1_BODY_BYTES): Promise<string | undefined> {
+export async function readBodyCapped(res: Response, limit = MAX_V1_BODY_BYTES, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<string | undefined> {
   const declared = Number(res.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > limit) {
     await res.body?.cancel().catch(() => {});
@@ -33,15 +37,27 @@ export async function readBodyCapped(res: Response, limit = MAX_V1_BODY_BYTES): 
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel().catch(() => {});
-      return undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new X402DecodeError("response body read timed out")), timeoutMs);
+  });
+  timedOut.catch(() => {}); // observed through the race; never an unhandled rejection
+  try {
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), timedOut]);
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel().catch(() => {});
+        return undefined;
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } catch (e) {
+    await reader.cancel().catch(() => {});
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
   return Buffer.concat(chunks).toString("utf8");
 }
@@ -53,7 +69,7 @@ export function looksLikeV1(json: unknown): boolean {
 
 export function parseV1(json: unknown): PaymentRequiredV1 {
   const parsed = PaymentRequiredV1.safeParse(json);
-  if (!parsed.success) throw new X402DecodeError(`invalid x402 v1 402: ${parsed.error.issues[0]?.message ?? "schema"}`);
+  if (!parsed.success) throw new X402DecodeError(`invalid x402 v1 402: ${describeIssue(parsed.error.issues[0])}`);
   return parsed.data;
 }
 

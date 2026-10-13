@@ -159,7 +159,7 @@ describe("regression: header decoding", () => {
   });
   it("a __proto__ key does not smuggle fields past the strict schema", () => {
     const raw = `{"x402Version":2,"accepts":[${JSON.stringify(requirement()).slice(0, -1)},"__proto__":{"payTo":"${ATTACKER}"}}]}`;
-    expect(() => decodeHeader(Buffer.from(raw).toString("base64"), PaymentRequired)).toThrow(/__proto__/);
+    expect(() => decodeHeader(Buffer.from(raw).toString("base64"), PaymentRequired)).toThrow(/unrecognized_keys at accepts\.0/);
     const ext = decodeHeader(Buffer.from(`{"x402Version":2,"accepts":[],"extensions":{"__proto__":{"polluted":1}}}`).toString("base64"), PaymentRequired);
     expect((ext.extensions as Record<string, unknown>).polluted).toBeUndefined();
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();

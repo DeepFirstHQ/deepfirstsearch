@@ -1,6 +1,6 @@
-import { createServer, type Server, type ServerResponse } from "node:http";
+import { createServer, type IncomingHttpHeaders, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { verifyTypedData, type Address } from "viem";
+import { getAddress, verifyTypedData, type Address } from "viem";
 import { decodeHeader, encodeHeader } from "../x402/codec.js";
 import { TRANSFER_WITH_AUTHORIZATION_TYPES, usdcDomain } from "../x402/exactEvm.js";
 import {
@@ -17,7 +17,9 @@ import { PINNED_USDC } from "../policy/networks.js";
 /**
  * A local x402 resource server plus facilitator, for tests and the demo. Speaks v2 by default; a route with
  * `x402Version: 1` speaks v1 (402 as a JSON body, `X-PAYMENT` in, `X-PAYMENT-RESPONSE` out). Each route can behave honestly or like
- * an attacker (swapping the payee, the asset, the price...). It verifies signatures the way a facilitator would.
+ * an attacker (swapping the payee, the asset, the price...). It verifies payments the way a facilitator would: the
+ * signature, the payee (`to` must be the route's payTo), the exact price, the validity window, and that the nonce was
+ * never settled before. A malformed payment header gets a 400.
  */
 export type Route = {
   price: bigint;
@@ -49,18 +51,30 @@ export type MockServer = {
 
 /**
  * Starts the mock merchant. It speaks Base Sepolia (`eip155:84532`) by default; pass `{ network: "eip155:8453" }` to
- * match code written for Base mainnet. Either way nothing touches a chain: signatures are verified locally.
+ * match code written for Base mainnet. Either way nothing touches a chain: signatures are verified locally. `now`
+ * (ms, default Date.now) is the clock the validity window is checked against, for clients running on a fake clock.
  */
-export async function startMockServer(routes: Record<string, Route>, opts: { network?: string } = {}): Promise<MockServer> {
+export async function startMockServer(routes: Record<string, Route>, opts: { network?: string; now?: () => number } = {}): Promise<MockServer> {
   const NETWORK = opts.network ?? "eip155:84532";
+  const now = opts.now ?? Date.now;
+  // Nonces of settled authorizations, by payer: like EIP-3009, each executes at most once.
+  const usedNonces = new Set<string>();
   if (!PINNED_USDC[NETWORK]) throw new Error(`no pinned USDC for ${NETWORK}`);
   const received: PaymentPayload[] = [];
   const receivedV1: PaymentPayloadV1[] = [];
   const V1_NETWORK = caip2ToV1Network(NETWORK);
   const asset = PINNED_USDC[NETWORK]!;
 
-  const server: Server = createServer(async (req, res) => {
-    const route = routes[req.url ?? ""];
+  const server: Server = createServer((req, res) => {
+    handle(req.url ?? "", req.headers, res).catch(() => {
+      // Never an unhandled rejection: anything unexpected is a 500.
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    });
+  });
+
+  async function handle(url: string, reqHeaders: IncomingHttpHeaders, res: ServerResponse) {
+    const route = routes[url];
     if (!route) {
       res.writeHead(404).end();
       return;
@@ -76,36 +90,66 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
     });
 
     if (route.x402Version === 1) {
-      await serveV1(route, requirement, req.url ?? "/", req.headers["x-payment"], res);
+      await serveV1(route, requirement, url || "/", reqHeaders["x-payment"], res);
       return;
     }
 
-    const sig = req.headers["payment-signature"];
+    const sig = reqHeaders["payment-signature"];
     if (typeof sig !== "string") {
       const required: PaymentRequired = {
         x402Version: 2,
-        resource: { url: req.url ?? "/", description: "market data", mimeType: "application/json" },
+        resource: { url: url || "/", description: "market data", mimeType: "application/json" },
         accepts: [requirement],
       };
       res.writeHead(402, { "PAYMENT-REQUIRED": encodeHeader(required) }).end();
       return;
     }
 
-    const payload = decodeHeader(sig, PaymentPayload);
+    let payload: PaymentPayload;
+    try {
+      payload = decodeHeader(sig, PaymentPayload);
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "invalid_payload" }));
+      return;
+    }
     received.push(payload);
     const { authorization, signature } = payload.payload;
     const valid = await verifyAuthorization(authorization, signature);
-    const paidEnough = BigInt(authorization.value) >= route.price && (!route.cdpStyle || payload.resource !== undefined);
+    const problem = !valid
+      ? "invalid_signature"
+      : (verifyTerms(route, authorization) ?? (route.cdpStyle && payload.resource === undefined ? "invalid_payload" : undefined));
+    if (!problem) usedNonces.add(nonceKey(authorization));
     const settlement = {
-      success: valid && paidEnough,
+      success: !problem,
       payer: authorization.from,
-      transaction: valid ? `0x${"ab".repeat(32)}` : "",
+      transaction: !problem ? `0x${"ab".repeat(32)}` : "",
       network: NETWORK,
-      ...(valid && paidEnough ? (route.cdpStyle ? { errorReason: null } : {}) : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
+      ...(!problem ? (route.cdpStyle ? { errorReason: null } : {}) : { errorReason: problem }),
     };
-    res.writeHead(valid && paidEnough ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
+    res.writeHead(!problem ? 200 : 402, { [route.legacyReceipt ? "X-PAYMENT-RESPONSE" : "PAYMENT-RESPONSE"]: encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
     res.end(route.body ?? JSON.stringify({ ok: true }));
-  });
+  }
+
+  type Authorization = PaymentPayload["payload"]["authorization"];
+  const nonceKey = (a: Authorization) => `${a.from.toLowerCase()}:${a.nonce.toLowerCase()}`;
+
+  /** What a facilitator checks besides the signature: payee, exact amount, validity window, nonce never used. */
+  function verifyTerms(route: Route, a: Authorization): string | undefined {
+    let to: Address;
+    try {
+      to = getAddress(a.to);
+    } catch {
+      return "invalid_recipient";
+    }
+    if (to !== getAddress(route.payTo)) return "invalid_recipient";
+    if (BigInt(a.value) < route.price) return "insufficient_amount";
+    if (BigInt(a.value) !== route.price) return "invalid_amount";
+    const t = BigInt(Math.floor(now() / 1000));
+    if (BigInt(a.validAfter) > t) return "authorization_not_yet_valid";
+    if (BigInt(a.validBefore) <= t) return "authorization_expired";
+    if (usedNonces.has(nonceKey(a))) return "nonce_already_used";
+    return undefined;
+  }
 
   async function verifyAuthorization(authorization: PaymentPayload["payload"]["authorization"], signature: string): Promise<boolean> {
     return verifyTypedData({
@@ -144,18 +188,25 @@ export async function startMockServer(routes: Record<string, Route>, opts: { net
       res.writeHead(402, { "Content-Type": "application/json" }).end(JSON.stringify(route.tamperV1 ? route.tamperV1(body) : body));
       return;
     }
-    const payload = decodeHeader(sig, PaymentPayloadV1);
+    let payload: PaymentPayloadV1;
+    try {
+      payload = decodeHeader(sig, PaymentPayloadV1);
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" }).end(JSON.stringify({ error: "invalid_payload" }));
+      return;
+    }
     receivedV1.push(payload);
     const { authorization, signature } = payload.payload;
     const valid = payload.network === V1_NETWORK && (await verifyAuthorization(authorization, signature));
-    const paidEnough = BigInt(authorization.value) >= route.price;
-    const ok = valid && paidEnough;
+    const problem = valid ? verifyTerms(route, authorization) : "invalid_signature";
+    const ok = !problem;
+    if (ok) usedNonces.add(nonceKey(authorization));
     const settlement = {
       success: ok,
       payer: authorization.from,
-      transaction: valid ? `0x${"ab".repeat(32)}` : "",
+      transaction: ok ? `0x${"ab".repeat(32)}` : "",
       network: V1_NETWORK,
-      ...(ok ? {} : { errorReason: valid ? "insufficient_amount" : "invalid_signature" }),
+      ...(ok ? {} : { errorReason: problem }),
     };
     res.writeHead(ok ? 200 : 402, { "X-PAYMENT-RESPONSE": encodeHeader(route.rawReceipt ?? settlement), "Content-Type": "application/json" });
     res.end(route.body ?? JSON.stringify({ ok: true }));

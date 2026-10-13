@@ -315,8 +315,9 @@ describe("x402 client: refusals carry codes, in the error and in the audit log",
 
   it("the period budget and the plan, as reserved by concurrent payments, carry codes", async () => {
     // Two concurrent payments that each fit, but not together: the first reserves synchronously, so the second is refused.
+    // Two resources (GET and POST): for one resource, a payment in flight blocks the next with settlement_pending (M-1).
     const r = await mock({ price: 10_000n, payTo: MERCHANT_PAYTO }, {}, { policy: { ...policy, periodBudget: { amount: 15_000n, periodMs: 60_000 } } });
-    const results = await Promise.allSettled([r.pay.fetch(r.url, {}, { plan: r.plan }), r.pay.fetch(r.url, {}, { plan: r.plan })]);
+    const results = await Promise.allSettled([r.pay.fetch(r.url, {}, { plan: r.plan }), r.pay.fetch(r.url, { method: "POST" }, { plan: r.plan })]);
     const err = results.find((x) => x.status === "rejected") as PromiseRejectedResult;
     expect(err).toBeDefined();
     const e = await refusal(Promise.reject(err.reason));
@@ -325,7 +326,7 @@ describe("x402 client: refusals carry codes, in the error and in the audit log",
 
     const r2 = await mock({ price: 10_000n, payTo: MERCHANT_PAYTO });
     const small = r2.pay.commitPlan([{ origin: r2.origin, maxSpend: 15_000n }], 60_000);
-    const both = await Promise.allSettled([r2.pay.fetch(r2.url, {}, { plan: small }), r2.pay.fetch(r2.url, {}, { plan: small })]);
+    const both = await Promise.allSettled([r2.pay.fetch(r2.url, {}, { plan: small }), r2.pay.fetch(r2.url, { method: "POST" }, { plan: small })]);
     const err2 = both.find((x) => x.status === "rejected") as PromiseRejectedResult;
     const e2 = await refusal(Promise.reject(err2.reason));
     expect(e2.code).toBe("plan_exhausted");

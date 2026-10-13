@@ -60,6 +60,14 @@ export class MerchantRegistry {
 
   constructor(merchants: Merchant[]) {
     for (const m of merchants) {
+      // Amounts are atomic units: a number (or a fraction) here would only fail at payment time.
+      if (typeof m.maxPerTx !== "bigint" || m.maxPerTx <= 0n) throw new Error("maxPerTx must be a positive bigint (atomic units)");
+      if (m.pricePin !== undefined && (typeof m.pricePin !== "bigint" || m.pricePin <= 0n)) {
+        throw new Error("pricePin must be a positive bigint (atomic units)");
+      }
+      if (m.toleranceBps !== undefined && (!Number.isInteger(m.toleranceBps) || m.toleranceBps < 0 || m.toleranceBps > 10_000)) {
+        throw new Error("toleranceBps must be an integer between 0 and 10000");
+      }
       if (m.maxTimeoutSeconds !== undefined) {
         if (!Number.isInteger(m.maxTimeoutSeconds)) throw new Error("maxTimeoutSeconds must be an integer");
         if (m.maxTimeoutSeconds < 10 || m.maxTimeoutSeconds > 86400) {

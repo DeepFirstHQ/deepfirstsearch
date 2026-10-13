@@ -20,7 +20,7 @@ export class SealedPlan {
   constructor(items: PlanItem[], expiresAt: number) {
     const limits = new Map<string, bigint>();
     for (const item of items) {
-      if (item.maxSpend <= 0n) throw new Error("plan budgets must be positive");
+      if (typeof item.maxSpend !== "bigint" || item.maxSpend <= 0n) throw new Error("plan budgets must be positive bigints (atomic units)");
       const origin = canonicalOrigin(item.origin);
       if (limits.has(origin)) throw new Error(`duplicate plan origin: ${origin}`);
       limits.set(origin, item.maxSpend);

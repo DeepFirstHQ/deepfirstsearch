@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 
 export type AuditEvent = {
   type:
@@ -39,18 +39,53 @@ function entryHash(seq: number, ts: number, prev: string, event: AuditEvent): st
 /**
  * Tamper-evident, hash-chained log of every payment decision. Editing or deleting any entry breaks the chain.
  * It is the owner's record for audits and tax; nothing is sent anywhere. Pass `file` to append JSONL to disk.
+ * An existing file is verified and continued (a broken one is refused), so the file stays one chain across restarts.
  */
 export class AuditLog {
   readonly entries: AuditEntry[] = [];
+  /**
+   * Failed writes to `file`. A failed entry stays in `entries` and is written again, in order, with the next append.
+   * Set to the latest error message while some entries are still not on disk.
+   */
+  writeErrors = 0;
+  lastWriteError?: string | undefined;
+  #unwritten: string[] = [];
 
-  constructor(private readonly file?: string) {}
+  constructor(private readonly file?: string) {
+    if (!file || !existsSync(file)) return;
+    let existing: AuditEntry[];
+    try {
+      existing = parseJsonl(readFileSync(file, "utf8"));
+    } catch {
+      throw new Error(`audit log ${file} is not valid JSONL; refusing to append to it`);
+    }
+    const broken = verifyChain(existing);
+    if (broken !== -1) {
+      throw new Error(
+        `audit log ${file} fails verification at entry ${broken}; refusing to append to it. ` +
+          "Versions before 0.11 restarted the chain on every start: if that is why, keep the old file as a record and point the log at a new one",
+      );
+    }
+    for (const e of existing) this.entries.push(e);
+  }
 
   append(event: AuditEvent, ts = Date.now()): AuditEntry {
     const prev = this.entries.at(-1)?.hash ?? GENESIS;
     const seq = this.entries.length;
     const entry: AuditEntry = { seq, ts, prev, hash: entryHash(seq, ts, prev, event), event };
     this.entries.push(entry);
-    if (this.file) appendFileSync(this.file, canonical(entry) + "\n", { mode: 0o600 });
+    if (this.file) {
+      this.#unwritten.push(canonical(entry) + "\n");
+      try {
+        appendFileSync(this.file, this.#unwritten.join(""), { mode: 0o600 });
+        this.#unwritten = [];
+        this.lastWriteError = undefined;
+      } catch (e) {
+        this.writeErrors++;
+        this.lastWriteError = String((e as Error)?.message ?? e).slice(0, 200);
+        throw e;
+      }
+    }
     return entry;
   }
 }

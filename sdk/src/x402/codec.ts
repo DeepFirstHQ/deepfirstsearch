@@ -24,6 +24,17 @@ export function decodeHeader<S extends z.ZodType>(raw: string | null, schema: S)
     throw new X402DecodeError("header is not base64 JSON");
   }
   const parsed = schema.safeParse(json);
-  if (!parsed.success) throw new X402DecodeError(`invalid header: ${parsed.error.issues[0]?.message ?? "schema"}`);
+  if (!parsed.success) throw new X402DecodeError(`invalid header: ${describeIssue(parsed.error.issues[0])}`);
   return parsed.data;
+}
+
+/**
+ * A schema failure as `code at path`, every path segment reduced to a short plain token. zod's own message is never
+ * used: it can quote keys the server chose ("Unrecognized key: ...").
+ */
+export function describeIssue(issue: { code: string; path: readonly PropertyKey[] } | undefined): string {
+  if (!issue) return "schema";
+  const token = (v: unknown) => String(v).replace(/[^A-Za-z0-9:._-]/g, "").slice(0, 42) || "(invalid)";
+  const path = issue.path.slice(0, 6).map((p) => token(typeof p === "symbol" ? "symbol" : p)).join(".");
+  return `${token(issue.code)}${path ? ` at ${path}` : ""}`;
 }
