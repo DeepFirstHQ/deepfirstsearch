@@ -9,6 +9,7 @@ The model gets three tools and nothing else:
 | Tool | What the model can do |
 |---|---|
 | `paid_fetch(url, method?, body?, contentType?)` | Fetch a URL. If it answers `402 Payment Required`, the payment goes through only if the merchant, price and budget match **your** config |
+| `check_price(url, method?, body?, contentType?)` | Free: what paying this URL would do, without paying. The price and payee it would pay, or why it would refuse (`payee_mismatch`, `price_changed`, …). Nothing is signed. `no_challenge` means no terms were shown right now, not that the route is free |
 | `list_merchants()` | See which origins it may pay, their prices and what's left |
 | `budget_status()` | Remaining budget per merchant, window renewal, vault balance |
 

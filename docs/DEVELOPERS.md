@@ -154,6 +154,7 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 
 ## What's new
 
+- **agent-pay-mcp 0.4.0:** a free `check_price(url)` tool: the price and payee a call would pay, or why it would be refused, before calling `paid_fetch`. Nothing is signed.
 - **agent-pay 0.12.0:** already using the official x402 client (`@x402/fetch`)? `agentSafeGuard` adds payee pinning per origin, price pins, a sealed plan and budgets through its hooks, in two lines: `guard.install(client)` and `guard.fetch(wrapFetchWithPayment(fetch, client))`. [Example](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/sdk#already-using-the-x402-client-add-agent-safe-in-two-lines). Base Sepolia now runs the code under audit (v0.5).
 - **Security releases (2026-10-13), from our internal pre-audit ([findings](audit/PREAUDIT-2026-10.md)). Please upgrade:**
   - **agent-pay 0.11.0:** an unconfirmed payment is never followed by a second signature for the same resource; `agent-pay check` on the command line; `timeoutMs`; the owner's config is validated up front.

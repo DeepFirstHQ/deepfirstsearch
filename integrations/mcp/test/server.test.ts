@@ -59,12 +59,41 @@ async function connect(overrides: Record<string, unknown> | ((url: string) => Re
 }
 
 describe("agent-pay MCP server", () => {
-  it("exposes exactly three tools, none of which accepts a payee or an amount", async () => {
+  it("exposes exactly four tools, none of which accepts a payee or an amount", async () => {
     const { client } = await connect();
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["budget_status", "list_merchants", "paid_fetch"]);
-    const props = Object.keys((tools.find((t) => t.name === "paid_fetch")!.inputSchema as { properties: object }).properties);
-    expect(props.sort()).toEqual(["body", "contentType", "method", "url"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["budget_status", "check_price", "list_merchants", "paid_fetch"]);
+    for (const name of ["paid_fetch", "check_price"]) {
+      const props = Object.keys((tools.find((t) => t.name === name)!.inputSchema as { properties: object }).properties);
+      expect(props.sort()).toEqual(["body", "contentType", "method", "url"]);
+    }
+  });
+
+  it("check_price tells the price and payee it would pay, and pays nothing", async () => {
+    const { call, mock } = await connect();
+    const r = await call("check_price", { url: `${mock.url}/data` });
+    expect(r.isError).toBe(false);
+    expect(r.text).toMatch(/^Would pay 0\.01 USDC to 0x1111.*Left for this merchant in the current plan: 0\.03 USDC\./);
+    expect(mock.received).toHaveLength(0);
+  });
+
+  it("check_price says why a payment would be refused, with its code and action", async () => {
+    const { call, mock } = await connect();
+    const swap = await call("check_price", { url: `${mock.url}/swap` });
+    expect(swap.isError).toBe(true);
+    expect(swap.text).toMatch(/^Would be refused \[payee_mismatch → [^\]]+\]: .*Nothing was signed\./);
+    const pricey = await call("check_price", { url: `${mock.url}/pricey` });
+    expect(pricey.text).toMatch(/over_cap/);
+    expect(mock.received).toHaveLength(0);
+  });
+
+  it("check_price never calls a route without terms free, and refuses internal URLs like paid_fetch", async () => {
+    const { call, mock } = await connect();
+    const missing = await call("check_price", { url: `${mock.url}/nothing-here` });
+    expect(missing.text).toMatch(/^HTTP 404: no payment terms were shown to this caller right now\. That does not mean the route is free/);
+    const internal = await call("check_price", { url: "http://internal.example/x" });
+    expect(internal.isError).toBe(true);
+    expect(internal.text).toMatch(/^Request refused: /);
   });
 
   it("pays a registered merchant at the pinned price and fences the response", async () => {

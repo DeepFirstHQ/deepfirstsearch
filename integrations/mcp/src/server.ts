@@ -13,6 +13,8 @@ import {
   burnerAddress,
   burnerPayers,
   createAgentPay,
+  dryRun,
+  refusalAction,
   usdcAuthorizationCheck,
   vaultFunder,
   type AgentPayOptions,
@@ -21,7 +23,7 @@ import {
 import type { Config, Secrets } from "./config.js";
 import { urlRefusal } from "./urlguard.js";
 
-export const VERSION = "0.3.0"; // kept equal to package.json by test/version.test.ts
+export const VERSION = "0.4.0"; // kept equal to package.json by test/version.test.ts
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 /** Untrusted response text, fenced with a random tag the content cannot guess, so it cannot close the fence. */
@@ -104,15 +106,16 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
         })
       : undefined;
 
+  const policy = {
+    allowedNetworks: [config.network],
+    ...(config.approvalAbove ? { approvalThreshold: config.approvalAbove } : {}),
+    ...(config.periodBudget
+      ? { periodBudget: { amount: config.periodBudget.amount, periodMs: config.periodBudget.hours * 3_600_000 } }
+      : {}),
+  };
   const pay = createAgentPay({
     registry,
-    policy: {
-      allowedNetworks: [config.network],
-      ...(config.approvalAbove ? { approvalThreshold: config.approvalAbove } : {}),
-      ...(config.periodBudget
-        ? { periodBudget: { amount: config.periodBudget.amount, periodMs: config.periodBudget.hours * 3_600_000 } }
-        : {}),
-    },
+    policy,
     payer: burnerPayers(secrets.burnerSeed, config.vault ?? "0x0000000000000000000000000000000000000000"),
     session: { readsUntrustedInput: true, accessesSensitiveData: config.sessionHasSensitiveData, canPay: true },
     audit: new AuditLog(config.auditLog),
@@ -191,6 +194,53 @@ export function buildServer(config: Config, secrets: Secrets, overrides: Partial
         // Anything else may carry the RPC URL (often with an API key in it) or other local detail: keep it off the
         // model's context and in the server's log (stderr; stdout carries the MCP protocol).
         console.error(`agent-pay-mcp: paid_fetch ${origin} failed:`, e);
+        return { content: [{ type: "text" as const, text: "Request failed (network or RPC error); details are in the server log." }], isError: true };
+      }
+    },
+  );
+
+  server.registerTool(
+    "check_price",
+    {
+      title: "Check what paying a URL would do, without paying",
+      description:
+        "Asks the owner's policy what it would do with this URL's payment terms, without paying: the price and payee " +
+        "it would pay, or why it would refuse. Nothing is signed or sent. Free; use it before paid_fetch to decide " +
+        "whether a call is worth paying for.",
+      inputSchema: {
+        url: z.string().url().max(2048),
+        method: z.enum(METHODS).default("GET"),
+        body: z.string().max(100_000).optional(),
+        contentType: z.string().max(100).regex(/^[\w.+-]+\/[\w.+-]+(;\s*charset=[\w-]+)?$/).optional(),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async ({ url, method, body, contentType }) => {
+      const origin = new URL(url).origin;
+      try {
+        const refusal = await urlRefusal(url, { isMerchant: (o) => merchantOrigins.has(o), allowPrivateNetwork: config.allowPrivateNetwork });
+        if (refusal) return { content: [{ type: "text" as const, text: `Request refused: ${refusal}. Only the owner can allow it (allowPrivateNetwork in the config).` }], isError: true };
+        // A plain request: no payment header is ever attached here, and redirects are not followed.
+        const init: RequestInit = { method, redirect: "manual", signal: AbortSignal.timeout(30_000), ...(body !== undefined ? { body } : {}) };
+        if (contentType) init.headers = { "content-type": contentType };
+        const res = await (overrides.fetch ?? globalThis.fetch)(url, init);
+        const v = await dryRun(res, { url, policy, registry, plan: currentPlan() });
+        let text: string;
+        if (v.kind === "allow" || v.kind === "needsApproval") {
+          const who = v.merchant.label ? `${v.merchant.label} (${v.requirement.payTo})` : v.requirement.payTo;
+          text = `Would pay ${usd(v.amount)} to ${who}. Left for this merchant in the current plan: ${usd(currentPlan().remaining(v.merchant.origin))}.`;
+          if (v.kind === "needsApproval") text += ` It would need the owner's approval first: ${v.reasons.join("; ")}.`;
+          if (config.periodBudget) text += " The period budget is checked again at payment time.";
+        } else if (v.kind === "deny") {
+          text = `Would be refused${refusalTag({ code: v.codes[0], action: refusalAction(v.codes[0]!) })}: ${v.reasons.join("; ")}. Nothing was signed.`;
+        } else if (v.kind === "no_challenge") {
+          text = `HTTP ${v.status}: no payment terms were shown to this caller right now. That does not mean the route is free: a free route, a free trial or a missing route all look like this.`;
+        } else {
+          text = `The server's payment terms could not be read (${v.reason}). paid_fetch would refuse them.`;
+        }
+        return { content: [{ type: "text" as const, text }], isError: v.kind === "deny" || v.kind === "invalid_402" };
+      } catch (e) {
+        console.error(`agent-pay-mcp: check_price ${origin} failed:`, e);
         return { content: [{ type: "text" as const, text: "Request failed (network or RPC error); details are in the server log." }], isError: true };
       }
     },
