@@ -75,6 +75,7 @@ const RESEARCH_BUDGET = 100_000n; // per day, shared by the research team
 const RESEARCH_AGENT_CAP = 60_000n; // per day, per research agent
 const SUPPORT_CAP = 50_000n; // per 30 days, the support agent
 const MONTH = 30 * 86_400;
+const PREMIUM_PRICE = 50_000n; // 0.05 USDC: a premium report, above the 0.02 the agents may spend without a person
 // The test moves the chain clock up to a month ahead of the wall clock, which the SDK and the facilitator use, so the
 // authorizations are valid for longer than that here. Real deployments keep the usual few minutes.
 const TEST_WINDOW = 40 * 86_400;
@@ -121,7 +122,8 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
   // Three vendors (x402 sellers), and a hijacked endpoint that names an attacker as payee.
   const vendors = { dataApi: key().address, searchApi: key().address, helpdeskApi: key().address };
   type VendorName = keyof typeof vendors;
-  const url: Record<VendorName | "hijacked", string> = { dataApi: "", searchApi: "", helpdeskApi: "", hijacked: "" };
+  // Plus the data vendor's premium endpoint: same payee, a higher price.
+  const url: Record<VendorName | "hijacked" | "premium", string> = { dataApi: "", searchApi: "", helpdeskApi: "", hijacked: "", premium: "" };
   let safe: Address, roles: Address, startBlock: bigint;
   const payer = (a: AgentName, v: VendorName) =>
     burnerAddress({ ownerSeed: agents[a].seed, vault: safe, chainId: 8453, counterparty: vendors[v] });
@@ -153,12 +155,17 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
   const transferData = (to: Address, v: bigint) => encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to, v] });
 
   /** One paid call, the way the agent makes it: SDK policy first, then a Roles top-up only if the payer needs one. */
-  const pay = async (a: AgentName, v: VendorName | "hijacked") => {
-    const vendor: VendorName = v === "hijacked" ? "dataApi" : v;
+  type Approval = { approvalThreshold: bigint; approve: (r: { origin: string; payTo: string; amount: bigint; reasons: string[] }) => Promise<boolean> };
+  const pay = async (a: AgentName, v: VendorName | "hijacked" | "premium", approval?: Approval) => {
+    const vendor: VendorName = v === "hijacked" || v === "premium" ? "dataApi" : v;
     const sdk = createAgentPay({
       // The owner's registry: each vendor's origin, its payee and price, pinned.
-      registry: new MerchantRegistry([{ origin: url[v], payTo: vendors[vendor], network: NETWORK, maxPerTx: 50_000n, pricePin: PRICE }]),
-      policy: { allowedNetworks: [NETWORK], timeoutBounds: { min: 10, max: TEST_WINDOW } },
+      registry: new MerchantRegistry([{ origin: url[v], payTo: vendors[vendor], network: NETWORK, maxPerTx: 50_000n, pricePin: v === "premium" ? PREMIUM_PRICE : PRICE }]),
+      policy: {
+        allowedNetworks: [NETWORK], timeoutBounds: { min: 10, max: TEST_WINDOW },
+        ...(approval ? { approvalThreshold: approval.approvalThreshold } : {}),
+      },
+      ...(approval ? { approve: approval.approve } : {}),
       payer: burnerPayers(agents[a].seed, safe),
       session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
       ensureFunded: rolesFunder({
@@ -173,11 +180,11 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
     p.then(() => "PAID", (e) => (e instanceof PaymentDeniedError ? `${e.code}: ${e.reasons.join("; ")}` : `ERROR ${String(e).slice(0, 120)}`));
 
   /** A vendor endpoint built with the official x402 codecs and facilitator. */
-  const startVendor = async (payTo: Address) => {
+  const startVendor = async (payTo: Address, price = PRICE) => {
     const facilitatorClient = wallet(facilitatorAcct).extend(publicActions);
     const facilitator = new ExactEvmScheme(toFacilitatorEvmSigner({ ...facilitatorClient, address: facilitatorAcct.address } as never));
     const requirement = {
-      scheme: "exact", network: NETWORK, amount: String(PRICE), asset: USDC, payTo,
+      scheme: "exact", network: NETWORK, amount: String(price), asset: USDC, payTo,
       maxTimeoutSeconds: TEST_WINDOW, extra: { name: "USD Coin", version: "2", assetTransferMethod: "eip3009" },
     };
     let origin = "";
@@ -213,6 +220,7 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
     }
     for (const v of Object.keys(vendors) as VendorName[]) url[v] = await startVendor(vendors[v]);
     url.hijacked = await startVendor(attacker.address);
+    url.premium = await startVendor(vendors.dataApi, PREMIUM_PRICE);
     startBlock = (await pub.getBlockNumber()) + 1n; // the first local block: logs before it would come from the remote RPC
   }, 180_000);
 
@@ -399,5 +407,30 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
     for (const l of report.lines) expect(l.toppedUp - l.paid).toBe(await bal(l.payer));
     for (const l of report.lines) expect(l.toppedUp - l.paid).toBeLessThanOrEqual(TRANCHE);
     expect(await bal(attacker.address)).toBe(0n);
+  });
+
+  it("UC8. Large purchases ask a person first: below the threshold the agent pays alone, above it someone approves", async () => {
+    const asked: string[] = [];
+    const approvalBy = (decision: boolean): Approval => ({
+      approvalThreshold: 20_000n, // the agent pays up to 0.02 USDC alone
+      approve: async (r) => { asked.push(`${r.amount} to ${r.payTo}: ${r.reasons.join("; ")}`); return decision; },
+    });
+    // A routine call stays below the threshold: nobody is asked.
+    expect((await pay("research2", "dataApi", approvalBy(false))).status).toBe(200);
+    expect(asked).toHaveLength(0);
+
+    // The premium report costs 0.05: the agent asks, the person says no, and nothing is signed or moved.
+    const safeBefore = await bal(safe), vendorBefore = await bal(vendors.dataApi);
+    const refused = await refusal(pay("research2", "premium", approvalBy(false)));
+    expect(refused).toMatch(/^human_refused/);
+    expect(asked).toHaveLength(1);
+    expect(await bal(safe)).toBe(safeBefore);
+    expect(await bal(vendors.dataApi)).toBe(vendorBefore);
+    console.log("UC8: premium report, approver said no ->", refused, "| asked:", asked[0]);
+
+    // The person approves: the agent tops up through Roles (still within its own cap and the team budget) and pays.
+    expect((await pay("research2", "premium", approvalBy(true))).status).toBe(200);
+    expect(asked).toHaveLength(2);
+    expect(await bal(vendors.dataApi)).toBe(vendorBefore + PREMIUM_PRICE);
   });
 });

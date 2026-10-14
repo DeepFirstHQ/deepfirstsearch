@@ -1,6 +1,6 @@
 # AI agents that pay for APIs, from a company Safe
 
-Use cases for companies that run AI agents and keep their funds in a Safe. Every case below runs end to end in
+Scenarios and use cases for companies that run AI agents and keep their funds in a Safe. Every use case below runs end to end in
 [`test/company.fork.test.ts`](test/company.fork.test.ts) on a fork of Base mainnet. The fork uses the canonical
 Safe 1.4.1, MultiSendCallOnly and Zodiac Roles 2.1.1 deployments, Circle's real USDC, three vendors paid over x402
 through the official facilitator, and `@deepfirstsearch/agent-pay` in front of every payment.
@@ -9,6 +9,45 @@ through the official facilitator, and `@deepfirstsearch/agent-pay` in front of e
 cd integrations/zodiac-roles && npm ci
 BASE_FORK_RPC=https://mainnet.base.org npm test    # needs Foundry's anvil; nothing touches mainnet
 ```
+
+## Three scenarios
+
+Paying per call over x402 fits the data a company uses often but unevenly, across many vendors: no account, contract
+or API key per vendor, and every payment lands in the same treasury and the same books. (For one source a team uses
+all day, a subscription can still be cheaper.) Each scenario below uses live x402 endpoints from Agent Safe's verified
+list, whose payee and price were confirmed with a real payment and re-checked on 2026-10-14. Prices are what each
+verified endpoint charges per call; other endpoints of the same seller may differ. They are examples, not partners.
+
+### A research desk at a crypto fund
+
+The desk's agents prepare token and project memos for the investment committee.
+- **Sources:** on-chain metrics from Glassnode (0.01 USDC), token scores from Nansen (0.01), wallet positions
+  from Zerion (0.01), project profiles from Heurist Mesh (0.001), news from Newstex (0.01).
+- **Why it fits:** each source is used a few times per memo, so per-call pricing beats a seat licence per source.
+  Analysts add a source the day they need it, with no shared API keys to rotate.
+- **Controls:** a daily team budget, a cap per analyst's agent (use cases 2 and 3), and a person approves anything
+  above 1 USDC, such as a premium dataset (use case 8).
+
+### Treasury monitoring for a DAO or a protocol
+
+An agent checks the treasury's positions and yields every hour, flags anything unusual, and drafts the weekly report
+for the Safe's signers.
+- **Sources:** positions from Zerion (0.01), vault yields from vaults.fyi (0.002), token data from Blockscout (0.002),
+  on-chain prices from CoinGecko (0.01). That is roughly 100 calls a day, under 1 USDC.
+- **Why it fits:** the treasury already lives in a Safe, so the agent's budget does too, under the same signers.
+- **Controls:** a monthly budget (use case 6), a freeze in one transaction if the agent misbehaves (use case 5), and a
+  reconciliation the signers can check against the treasury (use case 7).
+
+### Counterparty checks before grants and payouts
+
+Before a grant or a payout goes out, an operations agent checks the recipient and writes a short note for the signers.
+- **Sources:** company matching from Interzoid (0.01) and Brazilian company status from Brazilayer (0.001), the ENS
+  name of the wallet from JustaName (0.005), the domain's DNS from Robtex (0.005), Bitcoin address history from
+  Blockchain.com (0.001).
+- **Why it fits:** a few lookups per payout, across vendors the team would never sign contracts with one by one.
+- **Controls:** the agent reads applications written by outsiders, which is where prompt injection comes from.
+  Payees pinned per site stop it from being talked into paying someone else (use case 4). The payout itself stays
+  with the signers, as today.
 
 ## Where an agent payment can go wrong
 
@@ -144,6 +183,18 @@ research / research1 / searchApi   topped up 30000  paid 10000 in 1 payments
 research / research2 / dataApi     topped up 60000  paid 40000 in 4 payments
 support / support1 / helpdeskApi   topped up 60000  paid 40000 in 4 payments
 ```
+
+### 8. Large purchases ask a person first
+
+**Situation.** Agents should buy routine data alone, but a premium report or an unusual purchase needs a person.
+
+**How it works.** Agent Safe's `approvalThreshold`: below it the agent pays alone; above it the SDK calls the
+company's `approve` hook (Slack, email, an internal tool) before anything is signed. The Roles caps still apply after
+approval.
+
+**What the test proves.** A routine 0.01 call goes through without asking anyone. A 0.05 premium report triggers the
+hook: when the person says no, the agent gets `human_refused`, nothing is signed, and neither the Safe nor the vendor
+balance moves. When the person approves, the agent tops up through Roles, within its caps, and pays.
 
 ---
 

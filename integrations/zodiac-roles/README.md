@@ -13,9 +13,10 @@ agent can top up its per-vendor payer addresses from the Safe, and nothing else:
 Agent Safe then checks each x402 payment before the agent signs it: payee and price pinned per site, a sealed plan,
 and refusal codes the agent can act on.
 
-**For companies:** [USE-CASES.md](USE-CASES.md) covers team budgets, per-agent caps inside a team, a 2-of-3 finance
-policy signed once, incident response, monthly budgets and month-end reconciliation. Each use case runs end to end on
-a Base mainnet fork.
+**For companies:** [USE-CASES.md](USE-CASES.md) has three scenarios (a fund's research desk, treasury monitoring for a
+DAO, counterparty checks before payouts) and eight use cases: team budgets, per-agent caps inside a team, a 2-of-3
+finance policy signed once, incident response, monthly budgets, month-end reconciliation and human approval for large
+purchases. Each use case runs end to end on a Base mainnet fork.
 
 ```ts
 import { agentPayRoleCalls, batchCalls, rolesFunder, teamBudgetCalls } from "./src/index.js";
@@ -59,7 +60,7 @@ BASE_FORK_RPC=https://mainnet.base.org npm test           # + both Base mainnet 
 The fork suites use the canonical Safe 1.4.1, MultiSendCallOnly and Roles 2.1.1 deployments and Circle's real USDC on a
 local fork, plus the official x402 facilitator settling on-chain. Nothing touches mainnet. CI runs them on every push.
 
-[`test/company.fork.test.ts`](test/company.fork.test.ts) covers the seven company use cases in [USE-CASES.md](USE-CASES.md).
+[`test/company.fork.test.ts`](test/company.fork.test.ts) covers the eight company use cases in [USE-CASES.md](USE-CASES.md).
 [`test/fork.test.ts`](test/fork.test.ts) covers the basics, one agent and one Safe owner:
 
 1. A 1-of-1 Safe is deployed and given its Roles modifier, and the agent is given the `agent-pay` role.
