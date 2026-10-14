@@ -41,6 +41,17 @@ console.log(res.status, res.payment?.settlement.transaction);
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.7.0 or later.
 
+## 3. Or through MCP (Claude, Cursor, OpenClaw)
+
+Add to the merchants of your [agent-pay-mcp](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) config, then ask the agent to POST `{"name":"base"}` to `https://mesh.heurist.xyz/x402/agents/AIXBTProjectInfoAgent/search_projects`:
+
+```json
+{ "origin": "https://mesh.heurist.xyz", "label": "Heurist Mesh", "payTo": "0xA112c9C8BF655c678c768B6fD42a1C6FbfeD7D60",
+  "price": "0.001", "maxPerTx": "0.005", "maxSpend": "1.00", "x402Versions": [1, 2] }
+```
+
+Heurist Mesh speaks x402 v1, which the MCP server accepts for this merchant only because `x402Versions` says so. Before paying, the agent can call `check_price` on the same URL to see the price and payee it would pay (agent-pay-mcp 0.4.0 or later).
+
 ## If Heurist Mesh changes its price or address
 
 The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when Heurist Mesh reprices or rotates its wallet, Agent Safe refuses and nothing is signed:

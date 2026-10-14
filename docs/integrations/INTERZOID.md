@@ -36,6 +36,17 @@ console.log(res.status, res.payment?.settlement.transaction);
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.6.3 or later.
 
+## 3. Or through MCP (Claude, Cursor, OpenClaw)
+
+Add to the merchants of your [agent-pay-mcp](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) config, then ask the agent to use `https://api.interzoid.com/getorgmatchscore?org1=General%20Electric&org2=GE%20Corp`:
+
+```json
+{ "origin": "https://api.interzoid.com", "label": "Interzoid", "payTo": "0xdCEca23FF8A7145e1b5B35427C9886CF21A67566",
+  "price": "0.01", "maxPerTx": "0.02", "maxSpend": "1.00" }
+```
+
+Before paying, the agent can call `check_price` on the same URL to see the price and payee it would pay (agent-pay-mcp 0.4.0 or later).
+
 ## If Interzoid changes its price or address
 
 The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when Interzoid reprices or rotates its wallet, Agent Safe refuses and nothing is signed:

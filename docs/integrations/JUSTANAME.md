@@ -42,6 +42,17 @@ console.log(res.status, res.payment?.confirmedOnChain ? "confirmed on-chain" : r
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.6.3 or later.
 
+## 3. Or through MCP (Claude, Cursor, OpenClaw)
+
+Add to the merchants of your [agent-pay-mcp](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) config, then ask the agent to use `https://api.justaname.id/ens/v2/reverse?address=0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045&coinType=60`:
+
+```json
+{ "origin": "https://api.justaname.id", "label": "JustaName", "payTo": "0xc529edd6d47c60923902514c7c0b3993ae42c2ec",
+  "price": "0.005", "maxPerTx": "0.01", "maxSpend": "1.00" }
+```
+
+JustaName's receipt is non-standard; `confirmOnChain` (on by default) checks the authorization on-chain, so the paid response is returned instead of being resent. Before paying, the agent can call `check_price` on the same URL to see the price and payee it would pay (agent-pay-mcp 0.4.0 or later).
+
 ## If JustaName changes its price or address
 
 The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when JustaName reprices or rotates its wallet, Agent Safe refuses and nothing is signed:

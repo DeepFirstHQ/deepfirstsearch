@@ -42,6 +42,17 @@ console.log(res.status, res.payment?.confirmedOnChain ? "confirmed on-chain" : r
 
 A 402 that asks for a different payee, a higher price or a different network is refused before anything is signed. Requires `@deepfirstsearch/agent-pay` 0.6.3 or later.
 
+## 3. Or through MCP (Claude, Cursor, OpenClaw)
+
+Add to the merchants of your [agent-pay-mcp](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/mcp) config, then ask the agent to use `https://pro-api.coinmarketcap.com/x402/v1/dex/search?q=weth`:
+
+```json
+{ "origin": "https://pro-api.coinmarketcap.com", "label": "CoinMarketCap", "payTo": "0x3C5f3a6cE224BB89D72f5EB4232ecC27F67B3eeA",
+  "price": "0.01", "maxPerTx": "0.02", "maxSpend": "1.00" }
+```
+
+CoinMarketCap's receipt is non-standard; `confirmOnChain` (on by default) checks the authorization on-chain, so the paid response is returned instead of being resent. Before paying, the agent can call `check_price` on the same URL to see the price and payee it would pay (agent-pay-mcp 0.4.0 or later).
+
 ## If CoinMarketCap changes its price or address
 
 The pins are deliberate. The 402 is written by the server, and a 402 that suddenly names another address or a higher price is exactly what a redirected or hijacked payment looks like. So when CoinMarketCap reprices or rotates its wallet, Agent Safe refuses and nothing is signed:
