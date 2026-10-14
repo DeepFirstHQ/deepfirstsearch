@@ -1,5 +1,10 @@
 import {
+  BaseError,
+  ContractFunctionRevertedError,
+  concat,
   encodeAbiParameters,
+  encodePacked,
+  size,
   encodeFunctionData,
   erc20Abi,
   stringToHex,
@@ -10,7 +15,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import type { Merchant } from "@deepfirstsearch/agent-pay";
+import { PaymentDeniedError, type Merchant, type RefusalCode } from "@deepfirstsearch/agent-pay";
 
 /**
  * Zodiac Roles v2 on Base mainnet, from @gnosis-guild/zodiac 5.0.1 (CanonicalAddresses), checked on-chain with
@@ -73,7 +78,7 @@ export const ROLES_ABI = [
 
 /** Roles v2 enums (zodiac-roles-sdk). */
 const ParameterType = { None: 0, Static: 1, Calldata: 5 } as const;
-const Operator = { Pass: 0, Or: 2, Matches: 5, EqualTo: 16, WithinAllowance: 28 } as const;
+const Operator = { Pass: 0, And: 1, Or: 2, Matches: 5, EqualTo: 16, WithinAllowance: 28 } as const;
 const ExecutionOptions = { None: 0 } as const;
 /** Roles v2 `Status` values reported by ConditionViolation(status, info). */
 export const ROLES_STATUS = [
@@ -84,6 +89,13 @@ export const ROLES_STATUS = [
 ] as const;
 
 export const roleKey = (name: string): Hex => stringToHex(name, { size: 32 });
+/** The allowance that caps one agent's role: `<role>:daily` (the name predates periods other than a day). */
+export const agentAllowanceKey = (role = "agent-pay"): Hex => roleKey(`${role}:daily`);
+/** The allowance shared by every role in a team budget (a cost center): `budget:<name>`. */
+export const budgetKey = (name: string): Hex => roleKey(`budget:${name}`);
+
+const MAX_U128 = 2n ** 128n;
+const DAY = 86_400;
 
 export type AgentPayRole = {
   roles: Address;
@@ -91,48 +103,197 @@ export type AgentPayRole = {
   agent: Address;
   /** The per-merchant payer addresses the agent may top up (the only `to` the transfer accepts). */
   payers: Address[];
-  /** Total the agent may move out of the Safe per period, in USDC atomic units. Enforced by a Roles allowance. */
-  dailyCap: bigint;
+  /** What the agent may move out of the Safe per period, in USDC atomic units. Enforced by a Roles allowance. */
+  cap?: bigint;
+  /** @deprecated Same as `cap`. */
+  dailyCap?: bigint;
+  /** Refill period in seconds (default one day), counted from when the Safe sets the allowance. */
   period?: number;
   role?: string;
+  /**
+   * A team budget this agent also draws from (see `teamBudgetCalls`). Every top-up must then fit both the agent's own
+   * cap and what is left in the team budget, so one agent can't use up the whole team's money.
+   */
+  budget?: string;
 };
 
 export type SafeCall = { to: Address; data: Hex };
 
+const rolesCall = (roles: Address, functionName: string, args: readonly unknown[]): SafeCall => ({
+  to: roles,
+  data: encodeFunctionData({ abi: ROLES_ABI, functionName: functionName as never, args: args as never }),
+});
+
+const checkCap = (cap: bigint | undefined, name: string): bigint => {
+  if (cap === undefined || cap <= 0n || cap >= MAX_U128) throw new Error(`${name} out of range`);
+  return cap;
+};
+
+const checkPeriod = (period: number | undefined): bigint => {
+  const p = period ?? DAY;
+  if (!Number.isInteger(p) || p <= 0) throw new Error("period must be a positive whole number of seconds");
+  return BigInt(p);
+};
+
 /**
  * The calls the Safe (the Roles owner) executes to give the agent an x402 budget:
- * the agent may call USDC.transfer(to, amount) only with `to` in `payers` and `amount` within a refilling allowance.
+ * the agent may call USDC.transfer(to, amount) only with `to` in `payers` and `amount` within a refilling allowance
+ * (and within its team budget, when it has one).
  * Nothing else: no other function, no other contract, no ETH, no delegatecall.
  */
 export function agentPayRoleCalls(r: AgentPayRole): SafeCall[] {
   if (!r.payers.length) throw new Error("at least one payer");
   if (r.payers.length > 50) throw new Error("too many payers for one condition");
-  if (r.dailyCap <= 0n || r.dailyCap >= 2n ** 128n) throw new Error("dailyCap out of range");
-  const key = roleKey(r.role ?? "agent-pay");
-  const allowanceKey = roleKey(`${r.role ?? "agent-pay"}:daily`);
-  const toNode = r.payers.length === 1
-    ? [] // a single payer: the `to` node itself is EqualTo
-    : r.payers.map((p) => ({ parent: 1, paramType: ParameterType.Static, operator: Operator.EqualTo, compValue: encodeAbiParameters([{ type: "address" }], [p]) }));
-  // Breadth-first: [0] calldata matches (to, amount); [1] to; [2] amount; [3..] the payers when `to` is an Or.
+  if (r.cap !== undefined && r.dailyCap !== undefined && r.cap !== r.dailyCap) throw new Error("cap and dailyCap disagree");
+  const cap = checkCap(r.cap ?? r.dailyCap, "cap");
+  const period = checkPeriod(r.period);
+  const role = r.role ?? "agent-pay";
+  const key = roleKey(role);
+  const own = agentAllowanceKey(role);
+  const address = (a: Address) => encodeAbiParameters([{ type: "address" }], [a]);
+  const within = (parent: number, k: Hex) => ({ parent, paramType: ParameterType.Static, operator: Operator.WithinAllowance, compValue: k });
+  // Breadth-first: [0] calldata matches (to, amount); [1] to; [2] amount; then the children of [1] (the payers, when
+  // `to` is an Or), then the children of [2] (both allowances, when there is a team budget).
   const conditions = [
     { parent: 0, paramType: ParameterType.Calldata, operator: Operator.Matches, compValue: "0x" as Hex },
     r.payers.length === 1
-      ? { parent: 0, paramType: ParameterType.Static, operator: Operator.EqualTo, compValue: encodeAbiParameters([{ type: "address" }], [r.payers[0]!]) }
+      ? { parent: 0, paramType: ParameterType.Static, operator: Operator.EqualTo, compValue: address(r.payers[0]!) }
       : { parent: 0, paramType: ParameterType.None, operator: Operator.Or, compValue: "0x" as Hex },
-    { parent: 0, paramType: ParameterType.Static, operator: Operator.WithinAllowance, compValue: allowanceKey },
-    ...toNode,
+    r.budget === undefined ? within(0, own) : { parent: 0, paramType: ParameterType.None, operator: Operator.And, compValue: "0x" as Hex },
+    ...(r.payers.length === 1 ? [] : r.payers.map((p) => ({ parent: 1, paramType: ParameterType.Static, operator: Operator.EqualTo, compValue: address(p) }))),
+    ...(r.budget === undefined ? [] : [within(2, own), within(2, budgetKey(r.budget))]),
   ];
-  const period = BigInt(r.period ?? 86_400);
-  const call = (functionName: string, args: readonly unknown[]): SafeCall => ({
-    to: r.roles,
-    data: encodeFunctionData({ abi: ROLES_ABI, functionName: functionName as never, args: args as never }),
-  });
   return [
-    call("scopeTarget", [key, r.usdc]),
-    call("scopeFunction", [key, r.usdc, toFunctionSelector("transfer(address,uint256)"), conditions, ExecutionOptions.None]),
-    call("setAllowance", [allowanceKey, r.dailyCap, r.dailyCap, r.dailyCap, period, 0n]),
-    call("assignRoles", [r.agent, [key], [true]]),
+    rolesCall(r.roles, "scopeTarget", [key, r.usdc]),
+    rolesCall(r.roles, "scopeFunction", [key, r.usdc, toFunctionSelector("transfer(address,uint256)"), conditions, ExecutionOptions.None]),
+    rolesCall(r.roles, "setAllowance", [own, cap, cap, cap, period, 0n]),
+    rolesCall(r.roles, "assignRoles", [r.agent, [key], [true]]),
   ];
+}
+
+/**
+ * Several Safe calls as one Safe transaction, so the owners sign the whole change once: a delegatecall to Safe's
+ * MultiSendCallOnly (1.4.1 on Base: 0x9641d764fc13c8B624c04430C7356C1C7C8102e2, from @safe-global/safe-deployments),
+ * which can only make plain calls. Execute the result with operation = 1 (DelegateCall).
+ */
+export function batchCalls(calls: SafeCall[], multiSendCallOnly: Address): SafeCall & { operation: 1 } {
+  if (!calls.length) throw new Error("no calls to batch");
+  const packed = calls.map((c) => encodePacked(["uint8", "address", "uint256", "uint256", "bytes"], [0, c.to, 0n, BigInt(size(c.data)), c.data]));
+  return {
+    to: multiSendCallOnly,
+    data: encodeFunctionData({
+      abi: [{ type: "function", name: "multiSend", stateMutability: "payable", inputs: [{ name: "transactions", type: "bytes" }], outputs: [] }],
+      functionName: "multiSend",
+      args: [concat(packed)],
+    }),
+    operation: 1,
+  };
+}
+
+/**
+ * A team budget (a cost center): one allowance that several agents' roles draw from (`budget` in `agentPayRoleCalls`).
+ * Calling it again changes the cap; it also lifts a freeze.
+ */
+export function teamBudgetCalls(b: { roles: Address; budget: string; cap: bigint; period?: number }): SafeCall[] {
+  const cap = checkCap(b.cap, "cap");
+  return [rolesCall(b.roles, "setAllowance", [budgetKey(b.budget), cap, cap, cap, checkPeriod(b.period), 0n])];
+}
+
+/**
+ * Incident response: stops every top-up that draws from this allowance, right away, without touching anything else.
+ * Pass `{ budget }` to freeze a whole team, or `{ role }` for one agent. Undo it with `teamBudgetCalls` or
+ * `agentPayRoleCalls` (which set the cap again). Money already in a payer stays there: at most one tranche per payer.
+ */
+export function freezeCalls(f: { roles: Address } & ({ budget: string } | { role: string })): SafeCall[] {
+  const k = "budget" in f ? budgetKey(f.budget) : agentAllowanceKey(f.role);
+  return [rolesCall(f.roles, "setAllowance", [k, 0n, 0n, 0n, BigInt(DAY), 0n])];
+}
+
+/** Takes the role away from an agent (for example, a leaked key). Its next top-up fails on-chain. */
+export function revokeAgentCalls(r: { roles: Address; agent: Address; role?: string }): SafeCall[] {
+  return [rolesCall(r.roles, "assignRoles", [r.agent, [roleKey(r.role ?? "agent-pay")], [false]])];
+}
+
+export type AllowanceStatus = {
+  /** What may be spent right now, after any refill due (atomic units). */
+  available: bigint;
+  /** The most the allowance holds (atomic units). 0 when frozen. */
+  cap: bigint;
+  /** Seconds per refill. */
+  period: number;
+  /** When the next refill lands (unix seconds), or null when it never refills. */
+  nextRefillAt: number | null;
+};
+
+/**
+ * Reads an allowance the way Roles v2 accrues it: the stored balance plus the refills due since its timestamp, capped.
+ * For finance dashboards: how much a team or an agent can still spend today, and when it refills.
+ */
+export async function readAllowance(opts: { publicClient: PublicClient; roles: Address; key: Hex; now?: number }): Promise<AllowanceStatus> {
+  const [refill, maxRefill, period, balance, timestamp] = await opts.publicClient.readContract({
+    address: opts.roles, abi: ROLES_ABI, functionName: "allowances", args: [opts.key],
+  });
+  const now = BigInt(opts.now ?? Number((await opts.publicClient.getBlock()).timestamp));
+  return accrue({ refill, maxRefill, period, balance, timestamp }, now);
+}
+
+/** Roles v2 AllowanceTracker._accruedAllowance, off-chain. */
+export function accrue(a: { refill: bigint; maxRefill: bigint; period: bigint; balance: bigint; timestamp: bigint }, now: bigint): AllowanceStatus {
+  let { balance, timestamp } = a;
+  if (a.period !== 0n && now >= a.timestamp + a.period) {
+    const intervals = (now - a.timestamp) / a.period;
+    if (balance < a.maxRefill) {
+      balance += a.refill * intervals;
+      if (balance > a.maxRefill) balance = a.maxRefill;
+    }
+    timestamp = a.timestamp + intervals * a.period;
+  }
+  return {
+    available: balance,
+    cap: a.maxRefill,
+    period: Number(a.period),
+    nextRefillAt: a.period === 0n || a.refill === 0n ? null : Number(timestamp + a.period),
+  };
+}
+
+export type SpendLine = { label: string; payer: Address; toppedUp: bigint; paid: bigint; payments: number; byPayee: Record<Address, bigint> };
+
+/**
+ * Monthly reconciliation from the chain alone: for each labeled payer (for example "research / Heurist"), what the Safe
+ * sent it through Roles and what it paid out over x402, by payee. Every number is a USDC Transfer log, so it matches
+ * the Safe's history and the payee's books. Large ranges are read in chunks of `chunk` blocks.
+ */
+export async function spendReport(opts: {
+  publicClient: PublicClient;
+  usdc: Address;
+  safe: Address;
+  payers: Record<string, Address>;
+  fromBlock: bigint;
+  toBlock?: bigint;
+  chunk?: bigint;
+}): Promise<{ lines: SpendLine[]; toppedUp: bigint; paid: bigint }> {
+  const transfer = erc20Abi.find((x) => x.type === "event" && x.name === "Transfer")!;
+  const to = opts.toBlock ?? (await opts.publicClient.getBlockNumber());
+  const step = opts.chunk ?? 10_000n;
+  const lines: SpendLine[] = [];
+  for (const [label, payer] of Object.entries(opts.payers)) {
+    const line: SpendLine = { label, payer, toppedUp: 0n, paid: 0n, payments: 0, byPayee: {} };
+    for (let from = opts.fromBlock; from <= to; from += step) {
+      const end = from + step - 1n < to ? from + step - 1n : to;
+      const [ins, outs] = await Promise.all([
+        opts.publicClient.getLogs({ address: opts.usdc, event: transfer, args: { from: opts.safe, to: payer }, fromBlock: from, toBlock: end }),
+        opts.publicClient.getLogs({ address: opts.usdc, event: transfer, args: { from: payer }, fromBlock: from, toBlock: end }),
+      ]);
+      for (const l of ins) line.toppedUp += l.args.value!;
+      for (const l of outs) {
+        line.paid += l.args.value!;
+        line.payments++;
+        line.byPayee[l.args.to!] = (line.byPayee[l.args.to!] ?? 0n) + l.args.value!;
+      }
+    }
+    lines.push(line);
+  }
+  return { lines, toppedUp: lines.reduce((s, l) => s + l.toppedUp, 0n), paid: lines.reduce((s, l) => s + l.paid, 0n) };
 }
 
 export type RolesFunderOptions = {
@@ -150,10 +311,28 @@ export type RolesFunderOptions = {
   confirmations?: number;
 };
 
+/** What Roles said, as the SDK's refusal codes, so the agent knows what to do (wait for the refill, or ask its owner). */
+function rolesRefusal(e: unknown): PaymentDeniedError | null {
+  const err = e instanceof BaseError ? e.walk((x) => x instanceof ContractFunctionRevertedError) : null;
+  if (!(err instanceof ContractFunctionRevertedError) || !err.data) return null;
+  const name = err.data.errorName;
+  if (name === "ConditionViolation") {
+    const status = ROLES_STATUS[Number(err.data.args?.[0])] ?? "Unknown";
+    const code: RefusalCode = status === "AllowanceExceeded" ? "budget_exhausted" : "policy_denied";
+    return new PaymentDeniedError([`Zodiac Roles refused the top-up: ${status}`], [code]);
+  }
+  if (name === "NoMembership" || name === "NotAuthorized") {
+    return new PaymentDeniedError([`Zodiac Roles refused the top-up: ${name} (the agent does not hold the role)`], ["policy_denied"]);
+  }
+  return null;
+}
+
 /**
  * `ensureFunded` hook for `createAgentPay`: before a payment, if the merchant's payer holds less than the amount, the
  * agent tops it up from the Safe through Roles. The funds stay in the Safe until then; the role decides on-chain
  * who may receive them and how much per period, so a compromised agent key can't exceed it.
+ * When Roles refuses (cap reached, budget frozen, role revoked), the payment fails with a PaymentDeniedError whose
+ * code is `budget_exhausted` (wait for the refill) or `policy_denied` (ask the owner), and nothing is signed.
  */
 export function rolesFunder(opts: RolesFunderOptions) {
   if (opts.tranche <= 0n) throw new Error("tranche must be positive");
@@ -163,21 +342,28 @@ export function rolesFunder(opts: RolesFunderOptions) {
   const locks = new Map<Address, Promise<unknown>>();
 
   const fund = async (payer: Address, topUp: bigint) => {
-    const hash = await opts.agent.writeContract({
-      address: opts.roles,
-      abi: ROLES_ABI,
-      functionName: "execTransactionWithRole",
-      args: [opts.usdc, 0n, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [payer, topUp] }), 0, key, true],
-      account: opts.agent.account!,
-      chain: opts.agent.chain,
-    });
+    let hash: Hex;
+    try {
+      hash = await opts.agent.writeContract({
+        address: opts.roles,
+        abi: ROLES_ABI,
+        functionName: "execTransactionWithRole",
+        args: [opts.usdc, 0n, encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [payer, topUp] }), 0, key, true],
+        account: opts.agent.account!,
+        chain: opts.agent.chain,
+      });
+    } catch (e) {
+      throw rolesRefusal(e) ?? e;
+    }
     const receipt = await opts.publicClient.waitForTransactionReceipt({ hash, confirmations: opts.confirmations ?? 2 });
     if (receipt.status !== "success") throw new Error(`Roles top-up reverted (${hash})`);
   };
 
   const ensure = async (payer: LocalAccount, _merchant: Merchant, amount: bigint): Promise<void> => {
     if (amount <= 0n) throw new Error("amount must be positive");
-    if (allowed && !allowed.includes(payer.address.toLowerCase())) throw new Error(`payer ${payer.address} is not in this role`);
+    if (allowed && !allowed.includes(payer.address.toLowerCase())) {
+      throw new PaymentDeniedError([`payer ${payer.address} is not in this role`], ["policy_denied"]);
+    }
     const balance = await opts.publicClient.readContract({ address: opts.usdc, abi: erc20Abi, functionName: "balanceOf", args: [payer.address] });
     if (balance >= amount) return;
     const target = opts.tranche > amount ? opts.tranche : amount;

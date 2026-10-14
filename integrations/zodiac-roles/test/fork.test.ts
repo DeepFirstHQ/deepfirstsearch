@@ -40,7 +40,7 @@ import { agentPayRoleCalls, rolesFunder, roleKey, ROLES_ABI, ROLES_STATUS, ZODIA
  * the canonical Safe 1.4.1 and Roles 2.1.1 deployments, the SDK, and the official x402 facilitator settling on-chain.
  * Requires anvil and BASE_FORK_RPC (e.g. https://base-rpc.publicnode.com); skipped otherwise. Nothing touches mainnet.
  */
-const ANVIL = [join(homedir(), ".foundry/bin/anvil"), "/usr/local/bin/anvil"].find(existsSync);
+const ANVIL = [join(homedir(), ".foundry/bin"), "/usr/local/bin", ...(process.env.PATH ?? "").split(":")].map((d) => join(d, "anvil")).find(existsSync);
 const FORK = process.env.BASE_FORK_RPC;
 const canRun = ANVIL !== undefined && !!FORK;
 

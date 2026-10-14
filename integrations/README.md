@@ -11,7 +11,7 @@ Available:
 - [`langchain/`](langchain/): `createPaidFetchTool` for LangChain.js and LangGraph (`ToolNode`, `createReactAgent`).
 - [`agentkit/`](agentkit/): `agentPayActionProvider({ pay, plan })` for Coinbase AgentKit: a `paid_fetch` action with no payee or amount arguments.
 - [`order-guard/`](order-guard/): `createOrderGuard`, owner-set limits for agents that place real orders (approved stores, pinned delivery address, order and tip caps, daily budget, single-use previews).
-- [`zodiac-roles/`](zodiac-roles/): a Safe gives an agent an x402 budget through Zodiac Roles v2 (`rolesFunder`). Proof of concept, tested on a Base mainnet fork; not on npm yet.
+- [`zodiac-roles/`](zodiac-roles/): a company Safe gives its agents x402 budgets through Zodiac Roles v2: team budgets, per-agent caps, freeze and revoke, reconciliation ([use cases](zodiac-roles/USE-CASES.md)). Preview, tested on a Base mainnet fork in CI; not on npm yet.
 
 The tool integrations take `@deepfirstsearch/agent-pay` as a peer dependency, so an app always runs a single copy of the SDK.
 

@@ -217,8 +217,11 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: integrations/zodiac-roles/package-lock.json
-      # The Base-fork suite needs anvil and BASE_FORK_RPC; without them it is skipped and the unit tests run.
+      # anvil + BASE_FORK_RPC run the Base mainnet fork suites (canonical Safe and Roles, real USDC, the official facilitator).
+      - uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
       - working-directory: integrations/zodiac-roles
+        env:
+          BASE_FORK_RPC: https://mainnet.base.org
         run: |
           npm ci
           npm run typecheck
