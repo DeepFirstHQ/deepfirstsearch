@@ -296,6 +296,91 @@ export async function spendReport(opts: {
   return { lines, toppedUp: lines.reduce((s, l) => s + l.toppedUp, 0n), paid: lines.reduce((s, l) => s + l.paid, 0n) };
 }
 
+export type LedgerRow = {
+  /** Block time, ISO 8601 (UTC). */
+  date: string;
+  block: bigint;
+  tx: Hex;
+  logIndex: number;
+  /** `top-up`: the Safe funded a payer through Roles. `payment`: the payer paid a payee over x402. */
+  type: "top-up" | "payment";
+  /** The label given to the payer (for example "research / research1 / dataApi"). */
+  label: string;
+  from: Address;
+  to: Address;
+  /** USDC atomic units. */
+  amount: bigint;
+  /** For payments: the site that was paid, from the SDK's audit log (matched by settlement transaction), when given. */
+  site?: string;
+};
+
+/**
+ * One row per USDC movement, for accounting: every top-up from the Safe to a labeled payer and every payment from that
+ * payer, with block time and transaction hash, in chain order. Pass the SDK's audit log entries (`AuditLog.entries`,
+ * or `parseJsonl` of its file) to add the site each payment went to. Export it with `ledgerCsv`.
+ */
+export async function spendLedger(opts: {
+  publicClient: PublicClient;
+  usdc: Address;
+  safe: Address;
+  payers: Record<string, Address>;
+  fromBlock: bigint;
+  toBlock?: bigint;
+  chunk?: bigint;
+  audit?: readonly { event: { type: string; [key: string]: unknown } }[];
+}): Promise<LedgerRow[]> {
+  const transfer = erc20Abi.find((x) => x.type === "event" && x.name === "Transfer")!;
+  const to = opts.toBlock ?? (await opts.publicClient.getBlockNumber());
+  const step = opts.chunk ?? 10_000n;
+  const sites = new Map<string, string>();
+  for (const e of opts.audit ?? []) {
+    if (e.event.type === "payment.settled" && typeof e.event.tx === "string" && e.event.tx && typeof e.event.origin === "string") {
+      sites.set(e.event.tx.toLowerCase(), e.event.origin);
+    }
+  }
+  const rows: Omit<LedgerRow, "date">[] = [];
+  for (const [label, payer] of Object.entries(opts.payers)) {
+    for (let from = opts.fromBlock; from <= to; from += step) {
+      const end = from + step - 1n < to ? from + step - 1n : to;
+      const [ins, outs] = await Promise.all([
+        opts.publicClient.getLogs({ address: opts.usdc, event: transfer, args: { from: opts.safe, to: payer }, fromBlock: from, toBlock: end }),
+        opts.publicClient.getLogs({ address: opts.usdc, event: transfer, args: { from: payer }, fromBlock: from, toBlock: end }),
+      ]);
+      for (const [type, logs] of [["top-up", ins], ["payment", outs]] as const) {
+        for (const l of logs) {
+          const site = type === "payment" ? sites.get(l.transactionHash!.toLowerCase()) : undefined;
+          rows.push({
+            block: l.blockNumber!, tx: l.transactionHash!, logIndex: l.logIndex!, type, label,
+            from: l.args.from!, to: l.args.to!, amount: l.args.value!, ...(site ? { site } : {}),
+          });
+        }
+      }
+    }
+  }
+  rows.sort((a, b) => (a.block === b.block ? a.logIndex - b.logIndex : a.block < b.block ? -1 : 1));
+  const times = new Map<bigint, string>();
+  for (const b of new Set(rows.map((r) => r.block))) {
+    const block = await opts.publicClient.getBlock({ blockNumber: b });
+    times.set(b, new Date(Number(block.timestamp) * 1000).toISOString());
+  }
+  return rows.map((r) => ({ date: times.get(r.block)!, ...r }));
+}
+
+/**
+ * The ledger as CSV (RFC 4180), amounts in USDC with 6 decimals. Text that a spreadsheet would read as a formula
+ * (starting with =, +, -, @) is prefixed with an apostrophe.
+ */
+export function ledgerCsv(rows: readonly LedgerRow[]): string {
+  const cell = (v: string) => {
+    const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+    return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+  };
+  const usdc = (a: bigint) => `${a / 1_000_000n}.${(a % 1_000_000n).toString().padStart(6, "0")}`;
+  const header = "date,block,tx_hash,type,label,from,to,amount_usdc,site";
+  const lines = rows.map((r) => [r.date, String(r.block), r.tx, r.type, cell(r.label), r.from, r.to, usdc(r.amount), cell(r.site ?? "")].join(","));
+  return [header, ...lines].join("\r\n") + "\r\n";
+}
+
 export type RolesFunderOptions = {
   /** Wallet client holding the agent's key (the address the role is assigned to). */
   agent: WalletClient;

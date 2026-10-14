@@ -5,7 +5,7 @@ import { BaseError, ContractFunctionRevertedError, encodeErrorResult, slice, hex
 import { PaymentDeniedError } from "@deepfirstsearch/agent-pay";
 import {
   accrue, agentAllowanceKey, agentPayRoleCalls, batchCalls, budgetKey, freezeCalls, revokeAgentCalls, rolesFunder, roleKey,
-  teamBudgetCalls, ROLES_ABI,
+  teamBudgetCalls, ledgerCsv, ROLES_ABI,
 } from "../src/index.js";
 
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address;
@@ -150,5 +150,24 @@ describe("company helpers", () => {
     expect(revoked.code).toBe("policy_denied");
     const network = new Error("socket hang up");
     expect(await run(network).catch((e) => e)).toBe(network); // anything else is passed through unchanged
+  });
+});
+
+describe("ledgerCsv", () => {
+  it("writes RFC 4180 rows with USDC amounts, quoting and formula protection", () => {
+    const row = {
+      date: "2026-10-14T16:00:00.000Z", block: 123n, tx: `0x${"ab".repeat(32)}` as `0x${string}`, logIndex: 0, type: "payment" as const,
+      from: "0x1111111111111111111111111111111111111111" as Address, to: "0x2222222222222222222222222222222222222222" as Address,
+    };
+    const csv = ledgerCsv([
+      { ...row, label: "research / r1, data", amount: 10_000n, site: "https://api.example" },
+      { ...row, type: "top-up", label: '=HYPERLINK("x")', amount: 1_234_567_890n },
+    ]);
+    expect(csv.split("\r\n")).toEqual([
+      "date,block,tx_hash,type,label,from,to,amount_usdc,site",
+      `2026-10-14T16:00:00.000Z,123,0x${"ab".repeat(32)},payment,"research / r1, data",${row.from},${row.to},0.010000,https://api.example`,
+      `2026-10-14T16:00:00.000Z,123,0x${"ab".repeat(32)},top-up,"'=HYPERLINK(""x"")",${row.from},${row.to},1234.567890,`,
+      "",
+    ]);
   });
 });

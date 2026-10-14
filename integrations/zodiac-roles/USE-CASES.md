@@ -172,7 +172,9 @@ the next refill. When the refill lands, the agent pays again.
 **Situation.** Finance needs spend per team and per vendor that matches the treasury and each vendor's invoices.
 
 **How it works.** `spendReport` reads the USDC transfers of each labeled payer: what the Safe sent it through Roles,
-and what it paid out over x402, by payee. It needs only an RPC.
+and what it paid out over x402, by payee. It needs only an RPC. For the accountants, `spendLedger` returns one row per
+movement (block time, transaction, team, payer, payee, amount), adds the site each payment went to from the SDK's
+audit log, and `ledgerCsv` exports it as CSV for a spreadsheet or the accounting system.
 
 **What the test proves.** The report's total top-ups equal what left the Safe, to the unit. Each vendor's total equals
 that vendor's balance. What is not yet spent sits in the payers, at most one tranche each. Output from the test run:
@@ -182,6 +184,15 @@ research / research1 / dataApi     topped up 30000  paid 30000 in 3 payments
 research / research1 / searchApi   topped up 30000  paid 10000 in 1 payments
 research / research2 / dataApi     topped up 60000  paid 40000 in 4 payments
 support / support1 / helpdeskApi   topped up 60000  paid 40000 in 4 payments
+```
+
+The ledger's top-ups and payments add up to the same totals, and every payment row carries the site the agent called.
+First rows of the CSV from the test run (the vendors are local test servers):
+
+```
+date,block,tx_hash,type,label,from,to,amount_usdc,site
+2026-10-14T23:31:53.000Z,52615682,0x1df9…c64a,top-up,research / research1 / dataApi,0x813d…fC22,0xcEEd…4f5a,0.030000,
+2026-10-14T23:31:54.000Z,52615683,0xcdea…6c6b,payment,research / research1 / dataApi,0xcEEd…4f5a,0xB779…287e,0.010000,http://127.0.0.1:55425
 ```
 
 ### 8. Large purchases ask a person first
@@ -208,6 +219,23 @@ agent's process:
 3. Two owners sign the policy batch (use case 1).
 4. Each agent runs `createAgentPay` with the company's vendor registry and `rolesFunder` as its funding hook.
 5. Each agent key needs a little ETH on Base for gas: the top-ups are its own transactions through Roles.
+
+**The agent's key can stay with the company's custodian.** `rolesFunder` takes any viem wallet, so the key that holds
+the Roles role can live in a custody service instead of a file. [`test/custody.live.test.ts`](test/custody.live.test.ts)
+runs this against the real services: a **Privy** server wallet and a **Coinbase CDP** server account each sign the
+agent's top-up through Roles; Roles still refuses a transfer to anyone else; after a revoke, the next top-up is refused
+before the custodian is asked to sign. (It runs on a Base fork under chain id 31337, so nothing signed there is valid on
+Base, and it needs credentials, so it is not part of CI.) **Turnkey** plugs in the same way through its official viem
+adapter (`@turnkey/viem`); it has not run live yet, because our free Turnkey organization is over its signing quota.
+
+```ts
+// Privy
+const agentAccount = createViemAccount(privy, { walletId, address });                       // @privy-io/node/viem
+// Coinbase CDP
+const agentAccount = toAccount(await cdp.evm.getOrCreateAccount({ name: "research-agent-1" })); // viem/accounts
+// Either way:
+const ensureFunded = rolesFunder({ agent: createWalletClient({ chain: base, transport, account: agentAccount }), publicClient, roles, usdc, role, tranche });
+```
 
 ## Limits, stated plainly
 

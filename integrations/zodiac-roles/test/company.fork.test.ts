@@ -35,7 +35,7 @@ import {
   getProxyFactoryDeployment,
   getSafeL2SingletonDeployment,
 } from "@safe-global/safe-deployments";
-import { createAgentPay, MerchantRegistry, PaymentDeniedError, PINNED_USDC, burnerAddress, burnerPayers } from "@deepfirstsearch/agent-pay";
+import { AuditLog, createAgentPay, MerchantRegistry, PaymentDeniedError, PINNED_USDC, burnerAddress, burnerPayers } from "@deepfirstsearch/agent-pay";
 import {
   agentAllowanceKey,
   agentPayRoleCalls,
@@ -46,6 +46,8 @@ import {
   revokeAgentCalls,
   rolesFunder,
   roleKey,
+  spendLedger,
+  ledgerCsv,
   spendReport,
   teamBudgetCalls,
   ROLES_ABI,
@@ -125,6 +127,7 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
   // Plus the data vendor's premium endpoint: same payee, a higher price.
   const url: Record<VendorName | "hijacked" | "premium", string> = { dataApi: "", searchApi: "", helpdeskApi: "", hijacked: "", premium: "" };
   let safe: Address, roles: Address, startBlock: bigint;
+  const audit = new AuditLog(); // the company's tamper-evident record of every payment decision, shared by its agents
   const payer = (a: AgentName, v: VendorName) =>
     burnerAddress({ ownerSeed: agents[a].seed, vault: safe, chainId: 8453, counterparty: vendors[v] });
 
@@ -167,6 +170,7 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
       },
       ...(approval ? { approve: approval.approve } : {}),
       payer: burnerPayers(agents[a].seed, safe),
+      audit,
       session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
       ensureFunded: rolesFunder({
         agent: wallet(agents[a].acct), publicClient: pub as never, roles, usdc: USDC, role: agents[a].role,
@@ -407,6 +411,24 @@ describe.skipIf(!canRun)("Company use cases on a Base mainnet fork", { timeout: 
     for (const l of report.lines) expect(l.toppedUp - l.paid).toBe(await bal(l.payer));
     for (const l of report.lines) expect(l.toppedUp - l.paid).toBeLessThanOrEqual(TRANCHE);
     expect(await bal(attacker.address)).toBe(0n);
+
+    // The same data, one row per movement, for the accountants: CSV with block time, transaction and the site paid.
+    const ledger = await spendLedger({ publicClient: pub as never, usdc: USDC, safe, fromBlock: startBlock, audit: audit.entries, payers: {
+      "research / research1 / dataApi": payer("research1", "dataApi"),
+      "research / research1 / searchApi": payer("research1", "searchApi"),
+      "research / research2 / dataApi": payer("research2", "dataApi"),
+      "support / support1 / helpdeskApi": payer("support1", "helpdeskApi"),
+    } });
+    const sum = (t: string) => ledger.filter((r) => r.type === t).reduce((s, r) => s + r.amount, 0n);
+    expect(sum("top-up")).toBe(report.toppedUp);
+    expect(sum("payment")).toBe(report.paid);
+    expect(ledger.filter((r) => r.type === "payment")).toHaveLength(report.lines.reduce((s, l) => s + l.payments, 0));
+    // Every payment is matched to the site the agent called, through the SDK's audit log.
+    const vendorOf = Object.fromEntries(Object.entries(vendors).map(([n, a]) => [a.toLowerCase(), url[n as VendorName]]));
+    for (const r of ledger.filter((x) => x.type === "payment")) expect(r.site).toBe(vendorOf[r.to.toLowerCase()]);
+    const csv = ledgerCsv(ledger);
+    expect(csv.split("\r\n")).toHaveLength(ledger.length + 2);
+    console.log("UC7: ledger CSV, first rows:\n" + csv.split("\r\n").slice(0, 4).join("\n"));
   });
 
   it("UC8. Large purchases ask a person first: below the threshold the agent pays alone, above it someone approves", async () => {

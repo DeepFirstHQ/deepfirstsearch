@@ -45,6 +45,10 @@ const pay = createAgentPay({ registry, policy, payer: burnerPayers(seed, safe), 
 | `rolesFunder({ agent, publicClient, roles, usdc, tranche, role?, payers? })` | Agent | `ensureFunded` hook for `createAgentPay`. Roles refusals come back as `PaymentDeniedError` with code `budget_exhausted` or `policy_denied` |
 | `readAllowance({ publicClient, roles, key })` | Finance | Available now, cap, period and next refill, accrued as Roles does. Keys: `budgetKey(name)`, `agentAllowanceKey(role)` |
 | `spendReport({ publicClient, usdc, safe, payers, fromBlock })` | Finance | Top-ups and payments per labeled payer, by payee, from USDC transfer logs |
+| `spendLedger({ publicClient, usdc, safe, payers, fromBlock, audit? })` / `ledgerCsv(rows)` | Finance | One row per movement (time, transaction, team, payee, amount, site paid), as CSV for accounting |
+
+The agent's key can be any viem account, including one held by a custodian: tested live with a Privy server wallet and a
+Coinbase CDP server account (`test/custody.live.test.ts`, needs credentials; see [USE-CASES.md](USE-CASES.md)).
 
 All the owner functions return plain `{ to, data }` calls, so they work with the Safe{Wallet} transaction builder,
 the Safe SDK or any other way the company already signs Safe transactions.
@@ -55,6 +59,7 @@ the Safe SDK or any other way the company already signs Safe transactions.
 npm ci
 npm test                                                  # unit tests; the fork suites are skipped
 BASE_FORK_RPC=https://mainnet.base.org npm test           # + both Base mainnet fork suites (needs Foundry's anvil)
+CUSTODY_CREDS_DIR=… BASE_FORK_RPC=https://mainnet.base.org npx vitest run test/custody.live.test.ts   # live: Privy / CDP keys
 ```
 
 The fork suites use the canonical Safe 1.4.1, MultiSendCallOnly and Roles 2.1.1 deployments and Circle's real USDC on a
