@@ -60,6 +60,26 @@ Full walkthrough: [OpenClaw guide](https://deepfirstsearch.com/guides/openclaw.h
 
 From source instead of npm: `cd integrations/mcp && npm ci && npm run build`, then use `node /path/to/integrations/mcp/dist/index.js` as the command.
 
+## Quick start with verified sellers (Base mainnet)
+
+The `verified` preset ships 35 x402 sellers whose payee and price were confirmed with a real payment, each with a guide. They are re-checked live, without paying, by `scripts/verify-preset.ts`, and the list is in [`src/presets.ts`](src/presets.ts). You pick the ones you use and set your total budget:
+
+```json
+{
+  "network": "eip155:8453",
+  "preset": "verified",
+  "presetOnly": ["https://netintel.dev"],
+  "periodBudget": { "amount": "1.00", "hours": 24 }
+}
+```
+
+Save it as `preset.json` and start the server with `AGENT_PAY_BURNER_SEED=0x$(openssl rand -hex 32) npx -y @deepfirstsearch/agent-pay-mcp ./preset.json`. On start it prints the payer address for each seller. Send that address a little USDC on Base (0.10 covers dozens of calls). Then ask your agent to `check_price` and `paid_fetch` a seller's URL, for example `https://netintel.dev/web/extract?url=https://www.sitemaps.org/protocol.html`. Keep the seed: the same seed gives the same payer addresses.
+
+- **Your own entries win:** if you list a merchant with the same origin under `merchants`, the preset's entry is ignored.
+- **Choosing sellers:** `presetOnly` limits the preset to those origins; `presetExclude` leaves some out; `presetMaxSpend` (default `"0.25"`) caps each seller per plan window.
+- **Budget:** `periodBudget` is required with a preset. It's your total across all of them.
+- **Vaults:** the preset works with payers you fund yourself for now. With a vault, list your merchants with their `intentId` instead.
+
 ## Try it offline (1 minute)
 
 No keys to fund, no chain: run a local mock merchant from the SDK and point the server at it.

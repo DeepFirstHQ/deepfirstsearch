@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { getAddress, parseUnits, type Address, type Hex } from "viem";
 import { z } from "zod";
+import { VERIFIED_PRESET } from "./presets.js";
 
 const usdc = z
   .string()
@@ -41,7 +42,18 @@ export const Config = z
     vault: address.optional(),
     /** Top-up size. Must be <= the intents' trancheCap and maxPerTx. */
     tranche: usdc.optional(),
-    merchants: z.array(Merchant).min(1),
+    merchants: z.array(Merchant).default([]),
+    /**
+     * Add the shipped `verified` preset (sellers on Base mainnet whose payee and price were confirmed with a real
+     * payment). Your own entry for the same origin always wins. Requires `periodBudget`, your total across all of them.
+     */
+    preset: z.literal("verified").optional(),
+    /** Only these preset origins (each funded payer is one per seller, so pick the ones you use). */
+    presetOnly: z.array(z.string().url()).min(1).max(200).optional(),
+    /** Origins to leave out of the preset. */
+    presetExclude: z.array(z.string().url()).max(200).optional(),
+    /** Spend cap per preset merchant within one plan window (default "0.25"). */
+    presetMaxSpend: z.string().regex(/^\d+(\.\d{1,6})?$/, 'USDC amounts are decimal strings, e.g. "0.25"').default("0.25"),
     /** The plan is sealed from this config at start and re-sealed (from this config only) every window. */
     planWindowHours: z.number().positive().max(24 * 30).default(24),
     periodBudget: z.object({ amount: usdc, hours: z.number().positive() }).strict().optional(),
@@ -67,7 +79,28 @@ export const Config = z
   // Unknown keys are errors: a typo such as "sessionHasSensitiveDta" or "approvalabove" would otherwise turn a
   // safety setting off silently.
   .strict()
+  .transform((c) => {
+    if (!c.preset) return c;
+    // Yours win: an origin you configured, or excluded, never gets the preset's entry.
+    const skip = new Set([...c.merchants.map((m) => new URL(m.origin).origin), ...(c.presetExclude ?? []).map((o) => new URL(o).origin)]);
+    const only = c.presetOnly ? new Set(c.presetOnly.map((o) => new URL(o).origin)) : undefined;
+    const added = VERIFIED_PRESET.entries
+      .filter((e) => !skip.has(new URL(e.origin).origin) && (!only || only.has(new URL(e.origin).origin)))
+      .map(({ example: _example, ...e }) =>
+        Merchant.parse({ ...e, ...("x402Versions" in e ? { x402Versions: [...e.x402Versions] } : {}), maxSpend: c.presetMaxSpend }),
+      );
+    return { ...c, merchants: [...c.merchants, ...added] };
+  })
   .superRefine((c, ctx) => {
+    if (c.preset) {
+      if (c.network !== VERIFIED_PRESET.network) ctx.addIssue({ code: "custom", message: `the verified preset is for ${VERIFIED_PRESET.network} (Base mainnet)` });
+      if (!c.periodBudget)
+        ctx.addIssue({ code: "custom", message: 'with a preset, set `periodBudget`, your total across all its sellers, e.g. { "amount": "1.00", "hours": 24 }' });
+      const known = new Set(VERIFIED_PRESET.entries.map((e) => new URL(e.origin).origin));
+      for (const o of c.presetOnly ?? []) if (!known.has(new URL(o).origin)) ctx.addIssue({ code: "custom", message: `presetOnly: ${new URL(o).origin} is not in the verified preset` });
+      if (c.vault) ctx.addIssue({ code: "custom", message: "the preset works with payers you fund yourself for now: its sellers have no owner-signed intentId for a vault" });
+    }
+    if (c.merchants.length === 0) ctx.addIssue({ code: "custom", message: "configure at least one merchant, or a preset" });
     if (c.vault && (!c.tranche || c.merchants.some((m) => !m.intentId)))
       ctx.addIssue({ code: "custom", message: "with a vault, set `tranche` and an `intentId` for every merchant" });
     for (const m of c.merchants) {
