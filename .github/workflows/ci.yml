@@ -138,6 +138,14 @@ jobs:
             (cd "$d" && npm ci && npm run build)
           done
       - run: node scripts/newcomer/run.mjs
+      # The complete agent workflow example (#40), installed from npm like a newcomer would: clone, npm i, npm test.
+      - name: Example agent workflow
+        working-directory: examples/agent-workflow
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm start
 
   privy:
     runs-on: ubuntu-latest
