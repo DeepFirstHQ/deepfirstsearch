@@ -33,6 +33,19 @@ export type AgentSafeGuardOptions = {
 type Reservation = { origin: string; amount: bigint };
 type PendingRequest = { url: string; reservations: Reservation[] };
 
+/** The slice of an axios instance `guard.axios` needs (no runtime dependency on axios). */
+export type AxiosLike = ((...args: never[]) => Promise<unknown>) & { defaults?: { baseURL?: string | undefined } };
+type AxiosConfigLike = { url?: string | undefined; baseURL?: string | undefined } | undefined;
+const AXIOS_WITH_DATA = new Set(["post", "put", "patch", "postForm", "putForm", "patchForm"]);
+const AXIOS_URL_FIRST = new Set(["get", "delete", "head", "options", ...AXIOS_WITH_DATA]);
+
+/** Axios's URL rule: an absolute URL wins; otherwise baseURL and url are joined with one slash (combineURLs). */
+export function axiosUrl(url: unknown, baseURL: string | undefined): string {
+  const u = typeof url === "string" ? url : url instanceof URL ? url.href : "";
+  if (/^([a-z][a-z\d+\-.]*:)?\/\//i.test(u) || !baseURL) return u;
+  return u ? `${baseURL.replace(/\/?\/$/, "")}/${u.replace(/^\/+/, "")}` : baseURL;
+}
+
 /**
  * Agent Safe's policy for the official x402 client: install its hooks on an `x402Client`, and wrap the paying fetch so
  * each payment is checked against the origin that was actually requested (the hooks alone only see the 402, whose
@@ -42,6 +55,8 @@ type PendingRequest = { url: string; reservations: Reservation[] };
  * const guard = agentSafeGuard({ registry, policy, plan });
  * const client = guard.install(x402Client.fromConfig({ schemes: [...] }));
  * const fetchWithPayment = guard.fetch(wrapFetchWithPayment(fetch, client));
+ * // or, with @x402/axios:
+ * const api = guard.axios(wrapAxiosWithPayment(axios.create(), client));
  * ```
  *
  * Before anything is signed, the 402's chosen option goes through the same `evaluate` as `createAgentPay`: the payee
@@ -95,12 +110,43 @@ export function agentSafeGuard(opts: AgentSafeGuardOptions) {
       }) as F;
     },
 
+    /**
+     * The axios counterpart of `guard.fetch`, for `@x402/axios`: returns the instance with every call (`instance(...)`,
+     * `request`, `get`, `post`, ...) run with the URL it is made to, resolved against `baseURL` the way axios does.
+     *
+     * ```ts
+     * const api = guard.axios(wrapAxiosWithPayment(axios.create({ baseURL }), guard.install(client)));
+     * ```
+     */
+    axios<A extends AxiosLike>(instance: A): A {
+      const run = (config: AxiosConfigLike | undefined, url: unknown, call: () => unknown) =>
+        requests.run({ url: axiosUrl(url ?? config?.url, config?.baseURL ?? instance.defaults?.baseURL), reservations: [] }, call);
+      return new Proxy(instance, {
+        apply(target, thisArg, args: unknown[]) {
+          const [a, b] = args as [unknown, AxiosConfigLike | undefined];
+          return typeof a === "string" ? run(b, a, () => Reflect.apply(target, thisArg, args)) : run(a as AxiosConfigLike, undefined, () => Reflect.apply(target, thisArg, args));
+        },
+        get(target, prop, receiver) {
+          const value = Reflect.get(target, prop, receiver);
+          if (typeof value !== "function" || typeof prop !== "string") return value;
+          if (prop === "request") return (config: AxiosConfigLike) => run(config, undefined, () => value.call(target, config));
+          if (AXIOS_URL_FIRST.has(prop)) {
+            return (url: string, ...rest: unknown[]) => {
+              const config = (AXIOS_WITH_DATA.has(prop) ? rest[1] : rest[0]) as AxiosConfigLike | undefined;
+              return run(config, url, () => value.call(target, url, ...rest));
+            };
+          }
+          return value;
+        },
+      }) as A;
+    },
+
     /** Registers the guard's hooks on an x402 client and returns the client. */
     install<C extends HookableX402Client>(client: C): C {
       client.onBeforePaymentCreation(async ({ paymentRequired, selectedRequirements }) => {
         const ctx = requests.getStore();
         const url = ctx?.url ?? opts.origin;
-        if (!url) return abort("(unknown)", ["unknown_merchant"], ["the paying fetch is not wrapped with guard.fetch, so the requested origin is unknown"]);
+        if (!url) return abort("(unknown)", ["unknown_merchant"], ["the paying client is not wrapped with guard.fetch or guard.axios, so the requested origin is unknown"]);
         try {
           opts.kill?.assertAlive();
         } catch (e) {

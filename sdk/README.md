@@ -67,9 +67,19 @@ await fetchWithPayment(`${shop.url}/hijacked`).catch((e) => console.log(e.messag
 await shop.close();
 ```
 
+With axios (`@x402/axios`), wrap the instance with `guard.axios` instead: every call (`api.get`, `api.post`, `api.request`, `api(...)`) is judged against the URL it is made to, resolved against `baseURL` the way axios does.
+
+```ts
+import axios from "axios";
+import { wrapAxiosWithPayment } from "@x402/axios";
+
+const api = guard.axios(wrapAxiosWithPayment(axios.create({ baseURL: shop.url }), client));
+await api.get("/data"); // paid to the pinned payee; a swapped payee is refused with payee_mismatch
+```
+
 For a client that wraps its own fetch around one base URL (an OpenAI-style client such as `@qntx/openai`), pass `origin: "https://llm.example.com"` and hand it the guarded client (`x402Client: guard.install(...)`): payments are then judged against that configured origin.
 
-`guard.fetch` matters: the hooks only see the 402, whose `resource` is the server's own claim, so the guard records the origin each request was actually made to and judges payments against it. A payment made outside it is refused. Budgets are reserved before the signature, so parallel requests can't overspend them, and are held in this process; for a budget shared across processes and enforced even if the agent's machine is compromised, add a [BudgetVault](#owner-cli-vault-and-budgets-in-three-commands). `createAgentPay` goes further on settlement: it never signs twice for one purchase and confirms unreadable receipts on-chain.
+`guard.fetch` (or `guard.axios`) matters: the hooks only see the 402, whose `resource` is the server's own claim, so the guard records the origin each request was actually made to and judges payments against it. A payment made outside it is refused. Budgets are reserved before the signature, so parallel requests can't overspend them, and are held in this process; for a budget shared across processes and enforced even if the agent's machine is compromised, add a [BudgetVault](#owner-cli-vault-and-budgets-in-three-commands). `createAgentPay` goes further on settlement: it never signs twice for one purchase and confirms unreadable receipts on-chain.
 
 ## What it refuses
 - A 402 whose `payTo`, asset, network, EIP-712 domain, scheme or timeout differ from owner configuration.

@@ -35,7 +35,7 @@ export { signExactAuthorization, usdcDomain, TRANSFER_WITH_AUTHORIZATION_TYPES }
 export { encodeHeader, decodeHeader, X402DecodeError } from "./x402/codec.js";
 export { usdcAuthorizationCheck, type AuthorizationCheck, type ReadClient } from "./x402/onchain.js";
 export { dryRun, type DryRunVerdict, type DryRunContext } from "./x402/dryRun.js";
-export { agentSafeGuard, type AgentSafeGuardOptions, type HookableX402Client } from "./x402/officialClient.js";
+export { agentSafeGuard, axiosUrl, type AgentSafeGuardOptions, type HookableX402Client, type AxiosLike } from "./x402/officialClient.js";
 export * as schemas from "./x402/schemas.js";
 export { AGENT_SAFE, type AgentSafeDeployment } from "./contracts/deployments.js";
 export { BUDGET_VAULT_FULL_ABI, BUDGET_VAULT_FACTORY_ABI, FEE_JAR_ABI } from "./contracts/abi.js";

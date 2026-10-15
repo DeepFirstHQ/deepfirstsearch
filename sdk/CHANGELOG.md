@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `guard.axios(instance)`: `agentSafeGuard` for axios users (`@x402/axios`). Every call (`instance(...)`, `request`, `get`, `post`...) is judged against the URL it is made to, resolved against `baseURL` the way axios does (#48).
+- Tests: a 402 that declares its own `extra.decimals` can't make a large USDC amount pass the pins (amounts are always compared in the pinned asset's atomic units).
+
 ## 0.12.0 (2026-10-13)
 
 - **Feature:** `agentSafeGuard({ registry, policy, plan })` plugs Agent Safe into the official x402 client (`@x402/fetch` / `@x402/core` `x402Client`) through its hooks: `guard.install(client)` and `guard.fetch(wrapFetchWithPayment(fetch, client))`. Before anything is signed, the chosen option goes through the same `evaluate` as `createAgentPay` (payee pinned per origin, price pin and caps, asset and network pins, sealed plan, period budget, approval threshold), against the origin actually requested, never the 402's own `resource`; a refusal aborts the payment with its codes in the reason. Budgets are reserved synchronously before signing and returned when nothing was signed or the facilitator rejected the payment. Tested against `@x402/fetch` 2.28.0 and the official `ExactEvmScheme`.
