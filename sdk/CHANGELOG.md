@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `agentSafeGuard` works with the `@x402/mcp` client: install the guard on the `x402Client` and set `origin` to the MCP server; every paid tool call is judged against it. Tested with a paid MCP server over the in-memory transport (#50).
+
 - `guard.axios(instance)`: `agentSafeGuard` for axios users (`@x402/axios`). Every call (`instance(...)`, `request`, `get`, `post`...) is judged against the URL it is made to, resolved against `baseURL` the way axios does (#48).
 - Tests: a 402 that declares its own `extra.decimals` can't make a large USDC amount pass the pins (amounts are always compared in the pinned asset's atomic units).
 

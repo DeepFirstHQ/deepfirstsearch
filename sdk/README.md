@@ -77,6 +77,17 @@ const api = guard.axios(wrapAxiosWithPayment(axios.create({ baseURL: shop.url })
 await api.get("/data"); // paid to the pinned payee; a swapped payee is refused with payee_mismatch
 ```
 
+Agents that pay per MCP tool call (`@x402/mcp`) plug in the same way: the `@x402/mcp` client takes an `x402Client`, so install the guard on it and set `origin` to the MCP server the owner configured. A tool-call payment is then judged against that origin.
+
+```ts
+import { wrapMCPClientWithPayment, x402Client } from "@x402/mcp";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+
+const guard = agentSafeGuard({ registry, plan, policy, origin: "https://quote.mcp.example" }); // the MCP server URL
+const paying = wrapMCPClientWithPayment(mcpClient, guard.install(new x402Client().register("eip155:8453", new ExactEvmScheme(payer))));
+await paying.callTool("quote", { symbol: "BTC" }); // paid to the pinned payee; a swapped 402 is refused with payee_mismatch
+```
+
 For a client that wraps its own fetch around one base URL (an OpenAI-style client such as `@qntx/openai`), pass `origin: "https://llm.example.com"` and hand it the guarded client (`x402Client: guard.install(...)`): payments are then judged against that configured origin.
 
 `guard.fetch` (or `guard.axios`) matters: the hooks only see the 402, whose `resource` is the server's own claim, so the guard records the origin each request was actually made to and judges payments against it. A payment made outside it is refused. Budgets are reserved before the signature, so parallel requests can't overspend them, and are held in this process; for a budget shared across processes and enforced even if the agent's machine is compromised, add a [BudgetVault](#owner-cli-vault-and-budgets-in-three-commands). `createAgentPay` goes further on settlement: it never signs twice for one purchase and confirms unreadable receipts on-chain.
