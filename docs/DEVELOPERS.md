@@ -122,6 +122,8 @@ Refusals carry stable codes (`PaymentDeniedError.code`, e.g. `payee_mismatch`, `
 
 ## Test without a chain
 
+**Is your x402 client safe?** [`tools/x402-scan`](../tools/x402-scan) (MIT, standalone) attacks a buyer client with the mistakes we keep seeing — pays any payee, trusts server-declared decimals, no price cap, year-long authorizations — and grades what it falls for. `npx @deepfirstsearch/x402-scan lint <url>` also lints any live 402 for traps. No keys, no chain.
+
 **A whole agent, start to finish:** [`examples/agent-workflow`](../examples/agent-workflow) is an AI SDK agent that pays an approved seller, refuses a hijacked one, stops at its budget, asks its owner when a price moves, and handles free sources, 404s and dead hosts, each as a value. `npm i && npm test`, no keys; the same agent also runs on Base Sepolia.
 
 The package ships the mock merchant used in the demo, so you can try everything offline: no keys to fund, no chain. This runs as is:
