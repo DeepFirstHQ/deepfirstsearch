@@ -47,14 +47,44 @@ function lintRequirement(a: Requirement, f: LintFinding[]): void {
   if (!extra.name || !extra.version) f.push({ level: "info", code: "missing_domain", message: "no EIP-712 name/version in extra; a buyer should pin the token's domain locally rather than trust the server." });
 }
 
-/** Fetches a URL and lints the 402 it returns (if any). Read-only. */
+/** The most we read from an endpoint or its header; past this a payment challenge isn't legitimate, and we refuse to buffer it. */
+const MAX_BODY_BYTES = 256 * 1024;
+const MAX_HEADER_CHARS = 128 * 1024;
+
+/** Reads at most `max` bytes of a response body, so a hostile endpoint can't make the tool buffer an unbounded response. */
+async function readCapped(res: Response, max: number): Promise<string> {
+  if (!res.body) return (await res.text().catch(() => "")).slice(0, max);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value);
+        size += value.length;
+        if (size >= max) {
+          await reader.cancel().catch(() => undefined);
+          break;
+        }
+      }
+    }
+  } catch {
+    /* network/stream error: lint what we have */
+  }
+  return Buffer.concat(chunks).toString("utf8").slice(0, max);
+}
+
+/** Fetches a URL and lints the 402 it returns (if any). Read-only; redirects are not followed; the body is size-capped. */
 export async function lint(url: string, opts: { method?: string; headers?: Record<string, string>; timeoutMs?: number } = {}): Promise<LintReport> {
   const res = await fetch(url, { method: opts.method ?? "GET", headers: opts.headers, redirect: "manual", signal: AbortSignal.timeout(opts.timeoutMs ?? 15_000) });
-  const body = await res.text().catch(() => "");
+  const body = await readCapped(res, MAX_BODY_BYTES);
   if (res.status !== 402) {
     return { url, status: res.status, findings: [{ level: "info", code: "no_402", message: `HTTP ${res.status}: no payment required (the endpoint showed no 402 to this request)` }] };
   }
-  const required = readRequired(res.status, res.headers.get("PAYMENT-REQUIRED") ?? res.headers.get("payment-required"), body);
+  const headerValue = (res.headers.get("PAYMENT-REQUIRED") ?? res.headers.get("payment-required"))?.slice(0, MAX_HEADER_CHARS) ?? null;
+  const required = readRequired(res.status, headerValue, body);
   if (!required) return { url, status: 402, findings: [{ level: "warn", code: "unreadable", message: "402 returned, but its payment terms could not be read (no PAYMENT-REQUIRED header or accepts body)" }] };
   return { url, status: 402, findings: lintRequired(required), required };
 }

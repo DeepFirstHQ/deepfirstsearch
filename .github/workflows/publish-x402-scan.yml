@@ -1,0 +1,53 @@
+# Publishes @deepfirstsearch/x402-scan to npm when a tag like `x402-scan-v0.1.0` is pushed. The tag must match tools/x402-scan/package.json.
+# Auth: npm trusted publishing (OIDC, no stored secret) configured on npmjs.com for this repository and this file.
+# Two jobs: `test` runs the package's tests without an OIDC token; only `publish` gets one, installs with scripts off, builds and publishes.
+name: Publish x402-scan
+
+on:
+  push:
+    tags: ["x402-scan-v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Tag matches package version
+        working-directory: tools/x402-scan
+        run: test "x402-scan-v$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME}"
+      - run: npm install -g npm@11.6.2
+      - working-directory: tools/x402-scan
+        run: |
+          npm ci
+          npm test
+          npm run typecheck
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # OIDC for npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@11.6.2
+      - working-directory: tools/x402-scan
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm publish --provenance --access public --ignore-scripts
