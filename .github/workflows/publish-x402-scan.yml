@@ -47,7 +47,8 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@11.6.2
       - working-directory: tools/x402-scan
+        # Same install as the `test` job (which passes on this runner); scripts are still skipped at publish time.
         run: |
-          npm ci --ignore-scripts
+          npm ci
           npm run build
           npm publish --provenance --access public --ignore-scripts
