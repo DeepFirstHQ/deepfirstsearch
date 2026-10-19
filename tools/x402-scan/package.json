@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/x402-scan",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A free safety scanner for x402 buyer clients: attacks your agent's payment layer and reports what it falls for. Zero runtime dependencies.",
   "license": "MIT",
   "type": "module",
@@ -26,6 +26,8 @@
     "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
     "directory": "tools/x402-scan"
   },
+  "homepage": "https://deepfirstsearch.com/x402-scan.html",
+  "bugs": "https://github.com/DeepFirstHQ/deepfirstsearch/issues",
   "keywords": [
     "x402",
     "ai-agents",
