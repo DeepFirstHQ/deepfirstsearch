@@ -48,3 +48,4 @@
 - AgentKit action provider: https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit
 - Deployments: https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/docs/DEPLOYMENTS.md
 - Repository: https://github.com/DeepFirstHQ/deepfirstsearch
+- x402-scan (free, MIT, zero-dependency safety scanner for x402 buyer clients — attacks a client for the mistakes that lose an agent its money and grades what it falls for, and lints any live 402): `npx @deepfirstsearch/x402-scan lint <url>` — https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/tools/x402-scan ; findings: https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/tools/x402-scan/FINDINGS.md
