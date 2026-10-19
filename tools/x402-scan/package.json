@@ -16,6 +16,7 @@
     }
   },
   "files": [
+    "FINDINGS.md",
     "LICENSE",
     "README.md",
     "dist"

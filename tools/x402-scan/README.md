@@ -7,6 +7,8 @@ npx @deepfirstsearch/x402-scan lint https://some-x402-endpoint.example/paid
 ```
 
 ## Why
+See **[FINDINGS.md](./FINDINGS.md)** for what we found reviewing a sample of published x402 buyer clients.
+
 
 An agent that pays over x402 signs a USDC authorization based on a `402` the server sends. If the client trusts that `402` blindly, a hijacked server, a poisoned DNS record or a prompt-injected page can take the agent's money. Scanning a sample of published x402 clients, the same few holes show up again and again:
 
