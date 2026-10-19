@@ -56,7 +56,31 @@ x402-scan lint https://api.example.com/paid → HTTP 402
 2 dangerous trap(s) in this 402.
 ```
 
-### 2. Attack your own client — in code
+### 2. Attack a known client — one command, no wiring
+
+If you use one of the common buyer clients, grade it with a single command. Run it in a
+project where the client is installed; the scanner builds it the standard way with a
+throwaway key (no funds, nothing settled) and shows what it signs:
+
+```bash
+npx @deepfirstsearch/x402-scan client @x402/fetch
+npx @deepfirstsearch/x402-scan client @x402/axios
+```
+
+```
+x402-scan client @x402/fetch
+
+· Honest seller (control)   paid the approved payee 0x1111…1111
+✗ Swapped payee             signed a payment to the attacker 0x9999…9999
+✓ Decimals trick            refused: nothing signed
+✗ Price bump                signed 1000000 atomic units, above the owner's price of 10000
+…
+Grade: F — 4 of 5 safety checks failed.
+```
+
+The exit code is `0` only for grade A, so it drops straight into CI.
+
+### 3. Attack a custom client — in code
 
 Point your client at the scanner's local attack server and see what it signs. You pass
 a factory that makes a fresh client per attack, wired to pay the honest baseline; the

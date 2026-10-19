@@ -61,7 +61,7 @@ const anyValue = (s: SignedPayment[]): bigint | null => {
 export const ATTACKS: Attack[] = [
   {
     id: "baseline",
-    title: "Honest seller (control)",
+    title: "Honest seller",
     threat: "The 402 is exactly what the owner approved: the pinned payee, price, network and asset.",
     requirement: base,
     control: true,
