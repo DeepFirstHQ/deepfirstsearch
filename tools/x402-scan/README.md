@@ -72,6 +72,22 @@ npx @deepfirstsearch/x402-scan client @x402/fetch --json   # { grade, failures, 
 npx @deepfirstsearch/x402-scan lint <url> --json           # { status, dangers, findings: [...] }
 ```
 
+### Keep the grade from regressing in CI (GitHub Action)
+
+Run the scan on every PR and fail the job if the grade drops below a threshold. Install your client in the
+job first (so it resolves from the workspace), then:
+
+```yaml
+- run: npm ci                       # your project, with its x402 client installed
+- uses: DeepFirstHQ/deepfirstsearch/tools/x402-scan@main
+  with:
+    client: '@x402/fetch'           # a built-in client
+    min-grade: A                    # fail below this grade (A, B, C, D, or F)
+```
+
+Or lint a live endpoint instead: `with: { url: 'https://api.example.com/paid' }` (fails on any dangerous
+trap). The grade is written to the job summary. Pin `@main` to a commit or release tag for reproducible runs.
+
 ### 3. Attack a custom client (library)
 
 Point your client at the scanner's attack server and see what it signs. Pass a **factory** that makes a fresh client per attack, wired to pay the honest baseline (payee `DEFAULTS.payTo`, `0.01` USDC, Base Sepolia) with your normal settings:

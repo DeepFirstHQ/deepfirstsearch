@@ -1,0 +1,57 @@
+name: "x402-scan"
+description: "Scan an x402 buyer client (or lint an endpoint) in CI and fail if its safety grade is too low."
+branding:
+  icon: "shield"
+  color: "blue"
+inputs:
+  client:
+    description: "A built-in buyer client to scan, e.g. '@x402/fetch'. Install it in the job before this step so it resolves from the workspace."
+    required: false
+    default: ""
+  url:
+    description: "An x402 endpoint to lint instead of scanning a client. The step fails if the 402 has dangerous traps."
+    required: false
+    default: ""
+  min-grade:
+    description: "Minimum acceptable grade for a client scan (A, B, C, D, or F). The step fails below it."
+    required: false
+    default: "A"
+  version:
+    description: "Version of @deepfirstsearch/x402-scan to run."
+    required: false
+    default: "latest"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      env:
+        CLIENT: ${{ inputs.client }}
+        SCAN_URL: ${{ inputs.url }}
+        MIN: ${{ inputs.min-grade }}
+        VER: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        PKG="@deepfirstsearch/x402-scan@${VER}"
+        if [ -n "$CLIENT" ]; then
+          echo "x402-scan: scanning client $CLIENT (minimum grade $MIN)"
+          REPORT="$(npx -y -p "$PKG" x402-scan client "$CLIENT" --json)"
+          echo "$REPORT"
+          export REPORT
+          node -e '
+            const r = JSON.parse(process.env.REPORT);
+            const order = { A: 4, B: 3, C: 2, D: 1, F: 0 };
+            const min = order[process.env.MIN] ?? 4;
+            const got = order[r.grade];
+            const line = "x402-scan: `" + process.env.CLIENT + "` graded **" + r.grade + "** (" + r.failures + " of " + r.tests + " safety checks failed)";
+            if (process.env.GITHUB_STEP_SUMMARY) require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + "\n");
+            if (r.grade === "n/a") { console.error("x402-scan: control failed — the client was not wired to pay the baseline; results are not meaningful."); process.exit(1); }
+            if (got === undefined || got < min) { console.error("x402-scan: grade " + r.grade + " is below the required " + process.env.MIN); process.exit(1); }
+            console.log("x402-scan: grade " + r.grade + " meets the required " + process.env.MIN);
+          '
+        elif [ -n "$SCAN_URL" ]; then
+          echo "x402-scan: linting $SCAN_URL"
+          npx -y -p "$PKG" x402-scan lint "$SCAN_URL"
+        else
+          echo "x402-scan: provide either 'client' or 'url'." >&2
+          exit 2
+        fi
