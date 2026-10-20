@@ -32,8 +32,8 @@ published x402 buyer clients, the same few holes show up again and again:
 - some even sign an **unlimited ERC-2612 Permit** from a `402` — an open-ended
   approval an attacker can drain later.
 
-See [FINDINGS.md](https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/tools/x402-scan/FINDINGS.md)
-for what we found across roughly two dozen published clients.
+See **[The state of x402 buyer-side safety](./findings.html)** for what we found across
+roughly two dozen published clients.
 
 ## Two ways to use it
 
@@ -137,7 +137,7 @@ there, is the policy layer.
 ## Links
 
 - Scanner source: <https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/tools/x402-scan>
-- Findings: <https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/tools/x402-scan/FINDINGS.md>
+- Findings: [The state of x402 buyer-side safety](./findings.html)
 - Agent Safe (the policy layer): [developer guide](./developers.html)
 
 > Reports are responsible: scanning a client or endpoint shows only your own result.
