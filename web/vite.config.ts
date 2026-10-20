@@ -55,7 +55,14 @@ function render(out: string): string {
   const sourceDir = page.src.includes("/") ? page.src.slice(0, page.src.lastIndexOf("/") + 1) : "";
   const pageFor = (md: string) => Object.entries(PAGES).find(([, p]) => p.src === md)?.[0];
 
-  const body = markdown().parse(readFileSync(resolve(DOCS, page.src), "utf8"), { async: false }) as string;
+  const raw = readFileSync(resolve(DOCS, page.src), "utf8");
+  const body = markdown().parse(raw, { async: false }) as string;
+  // Social-card description: the first real paragraph, markdown stripped, ~155 chars.
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const descRaw = raw.split("\n").map((l) => l.trim()).find((t) => t && !/^[#>\-|`]/.test(t)) ?? "Safe x402 payments for AI agents.";
+  const descFull = descRaw.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
+  const desc = descFull.length > 160 ? descFull.slice(0, 157).replace(/\s+\S*$/, "") + "…" : descFull;
+  const pageUrl = `https://deepfirstsearch.com/${out}`;
   // Links between docs point at their published page when there is one, otherwise at the repository.
   const html = body.replace(/href="(\.\/|\.\.\/)?([^"#:]+\.md)(#[^"]*)?"/g, (_m, rel = "", file, hash = "") => {
     const path = new URL(rel + file, "https://x/" + sourceDir).pathname.slice(1);
@@ -71,6 +78,18 @@ function render(out: string): string {
 <meta http-equiv="Content-Security-Policy" content="${CSP}" />
 <meta name="referrer" content="no-referrer" />
 <title>${page.title} · Deep First Search</title>
+<meta name="description" content="${esc(desc)}" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Deep First Search" />
+<meta property="og:title" content="${esc(page.title)}" />
+<meta property="og:description" content="${esc(desc)}" />
+<meta property="og:url" content="${pageUrl}" />
+<meta property="og:image" content="https://deepfirstsearch.com/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${esc(page.title)}" />
+<meta name="twitter:description" content="${esc(desc)}" />
+<meta name="twitter:image" content="https://deepfirstsearch.com/og.png" />
+<link rel="canonical" href="${pageUrl}" />
 <link rel="stylesheet" href="${up}doc.css" />
 <link rel="icon" href="${up}favicon.svg" type="image/svg+xml" />
 </head>
