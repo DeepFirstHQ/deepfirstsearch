@@ -65,6 +65,13 @@ Grade: F — 4 of 5 safety checks failed.
 Exit code is `0` only for grade A, so it drops straight into CI. More clients are easy to add — open an issue
 or a PR with the adapter.
 
+Add `--json` to either command (`client` or `lint`) for machine-readable output with the same exit codes:
+
+```bash
+npx @deepfirstsearch/x402-scan client @x402/fetch --json   # { grade, failures, tests, results: [...] }
+npx @deepfirstsearch/x402-scan lint <url> --json           # { status, dangers, findings: [...] }
+```
+
 ### 3. Attack a custom client (library)
 
 Point your client at the scanner's attack server and see what it signs. Pass a **factory** that makes a fresh client per attack, wired to pay the honest baseline (payee `DEFAULTS.payTo`, `0.01` USDC, Base Sepolia) with your normal settings:

@@ -77,3 +77,25 @@ describe("lint", () => {
     expect(f.some((x) => x.code === "multi_network")).toBe(true);
   });
 });
+
+// The `--json` CLI flag prints the raw report. Guard that the reports are JSON-serializable (no bigints leak)
+// and round-trip without loss, so the machine-readable schema stays stable for CI and the GitHub Action.
+describe("--json output contract", () => {
+  it("a scan report round-trips through JSON without loss", async () => {
+    const r = await scan(() => naive, { port: 0 });
+    const round = JSON.parse(JSON.stringify(r));
+    expect(round).toEqual(r);
+    expect(round.grade).toBe("F");
+    expect(round.results[0]).toHaveProperty("id");
+    expect(round.results[0]).toHaveProperty("pass");
+  });
+
+  it("lint findings are JSON-serializable with a stable shape", () => {
+    const f = lintRequired({ x402Version: 2, accepts: [{ scheme: "exact", network: "eip155:8453", asset: DEFAULTS.asset, payTo: SELLER, amount: "1000", extra: { primaryType: "Permit" } }] });
+    const round = JSON.parse(JSON.stringify(f));
+    expect(round).toEqual(f);
+    expect(round[0]).toHaveProperty("code");
+    expect(round[0]).toHaveProperty("level");
+    expect(round[0]).toHaveProperty("message");
+  });
+});

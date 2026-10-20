@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/x402-scan",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A free safety scanner for x402 buyer clients: attacks your agent's payment layer and reports what it falls for. Zero runtime dependencies.",
   "license": "MIT",
   "type": "module",
