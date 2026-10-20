@@ -59,7 +59,13 @@ function render(out: string): string {
   const body = markdown().parse(raw, { async: false }) as string;
   // Social-card description: the first real paragraph, markdown stripped, ~155 chars.
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const descRaw = raw.split("\n").map((l) => l.trim()).find((t) => t && !/^[#>\-|`]/.test(t)) ?? "Safe x402 payments for AI agents.";
+  const isBlock = (t: string) => /^(#|>|\||```|[-*] |\d+\. )/.test(t);
+  const descLines = raw.split("\n").map((l) => l.trim());
+  let di = 0;
+  while (di < descLines.length && (descLines[di] === "" || isBlock(descLines[di]!))) di++;
+  const para: string[] = [];
+  while (di < descLines.length && descLines[di] !== "" && !isBlock(descLines[di]!)) para.push(descLines[di++]!);
+  const descRaw = para.join(" ") || "Safe x402 payments for AI agents.";
   const descFull = descRaw.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
   const desc = descFull.length > 160 ? descFull.slice(0, 157).replace(/\s+\S*$/, "") + "…" : descFull;
   const pageUrl = `https://deepfirstsearch.com/${out}`;
