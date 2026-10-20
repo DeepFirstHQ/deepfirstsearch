@@ -68,7 +68,8 @@ function render(out: string): string {
   const descRaw = para.join(" ") || "Safe x402 payments for AI agents.";
   const descFull = descRaw.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
   const desc = descFull.length > 160 ? descFull.slice(0, 157).replace(/\s+\S*$/, "") + "…" : descFull;
-  const pageUrl = `https://deepfirstsearch.com/${out}`;
+  // Cloudflare Pages serves clean URLs and 308-redirects /x.html -> /x, so canonical/og:url use the clean form.
+  const pageUrl = `https://deepfirstsearch.com/${out.replace(/\.html$/, "")}`;
   // Links between docs point at their published page when there is one, otherwise at the repository.
   const html = body.replace(/href="(\.\/|\.\.\/)?([^"#:]+\.md)(#[^"]*)?"/g, (_m, rel = "", file, hash = "") => {
     const path = new URL(rel + file, "https://x/" + sourceDir).pathname.slice(1);
