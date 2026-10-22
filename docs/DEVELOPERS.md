@@ -70,6 +70,7 @@ npx @deepfirstsearch/x402-scan client @x402/fetch
 | A Coinbase CDP Server Wallet | `npm i @deepfirstsearch/agent-pay-cdp @deepfirstsearch/agent-pay @coinbase/cdp-sdk viem` | [CDP guide](integrations/CDP.md) |
 | An Openfort backend wallet | `npm i @deepfirstsearch/agent-pay-openfort @deepfirstsearch/agent-pay @openfort/openfort-node viem` | [Openfort](../integrations/openfort/README.md) |
 | Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [AgentKit](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/agentkit) |
+| Cloudflare Agents (paid MCP over x402) | `npm i @deepfirstsearch/agent-pay-cloudflare @deepfirstsearch/agent-pay agents viem` | [Cloudflare Agents](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/cloudflare) |
 | Agents that place real orders (food, shopping) | `npm i @deepfirstsearch/order-guard` | [order-guard](https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/integrations/order-guard) |
 
 The integrations take the SDK as a peer dependency, so your app always uses a single copy of it.

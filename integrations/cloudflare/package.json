@@ -1,0 +1,63 @@
+{
+  "name": "@deepfirstsearch/agent-pay-cloudflare",
+  "version": "0.1.0",
+  "description": "Agent Safe for the Cloudflare Agents SDK: an owner-signed policy for withX402Client so a Cloudflare agent can only pay the pinned payee, within a budget, even if prompt-injected",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DeepFirstHQ/deepfirstsearch.git",
+    "directory": "integrations/cloudflare"
+  },
+  "homepage": "https://deepfirstsearch.com/developers",
+  "bugs": "https://github.com/DeepFirstHQ/deepfirstsearch/issues",
+  "keywords": [
+    "cloudflare",
+    "cloudflare-agents",
+    "agents",
+    "x402",
+    "mcp",
+    "ai-agents",
+    "payments",
+    "usdc",
+    "base"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepfirstsearch/agent-pay": ">=0.5.3 <1",
+    "agents": ">=0.30.0 <1",
+    "viem": "^2"
+  },
+  "peerDependenciesMeta": {
+    "agents": { "optional": true }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@deepfirstsearch/agent-pay": "0.12.0",
+    "@types/node": "26.6.4",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "viem": "2.57.3",
+    "vitest": "4.1.11"
+  }
+}

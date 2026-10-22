@@ -10,6 +10,7 @@ Available:
 - [`turnkey/`](turnkey/): `turnkeyPayer`, a Turnkey-held key as the payer (signs the EIP-712 digest inside Turnkey).
 - [`langchain/`](langchain/): `createPaidFetchTool` for LangChain.js and LangGraph (`ToolNode`, `createReactAgent`).
 - [`agentkit/`](agentkit/): `agentPayActionProvider({ pay, plan })` for Coinbase AgentKit: a `paid_fetch` action with no payee or amount arguments.
+- [`cloudflare/`](cloudflare/): `agentSafeConfirmation({ merchant })` for the Cloudflare Agents SDK — the owner's policy for `withX402Client`, so a Cloudflare agent pays only the pinned payee, within a budget, over paid MCP tools.
 - [`order-guard/`](order-guard/): `createOrderGuard`, owner-set limits for agents that place real orders (approved stores, pinned delivery address, order and tip caps, daily budget, single-use previews).
 - [`zodiac-roles/`](zodiac-roles/): a company Safe gives its agents x402 budgets through Zodiac Roles v2: team budgets, per-agent caps, freeze and revoke, reconciliation, approvals for large purchases ([use cases](zodiac-roles/USE-CASES.md)). Preview, tested on a Base mainnet fork in CI; not on npm yet.
 

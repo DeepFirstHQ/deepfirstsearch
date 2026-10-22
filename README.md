@@ -30,6 +30,7 @@ npx @deepfirstsearch/x402-scan client @x402/fetch
 | Vercel AI SDK | `npm i @deepfirstsearch/agent-pay-ai-sdk @deepfirstsearch/agent-pay ai zod viem` | [integrations/ai-sdk](integrations/ai-sdk/README.md) |
 | LangChain.js / LangGraph | `npm i @deepfirstsearch/agent-pay-langchain @deepfirstsearch/agent-pay @langchain/core @langchain/langgraph viem` | [integrations/langchain](integrations/langchain/README.md) |
 | Coinbase AgentKit | `npm i @deepfirstsearch/agent-pay-agentkit @deepfirstsearch/agent-pay @coinbase/agentkit viem@2.38.3 zod@3` | [integrations/agentkit](integrations/agentkit/README.md) |
+| Cloudflare Agents (paid MCP over x402) | `npm i @deepfirstsearch/agent-pay-cloudflare @deepfirstsearch/agent-pay agents viem` | [integrations/cloudflare](integrations/cloudflare/README.md) |
 | Your own agent, any wallet | `npm i @deepfirstsearch/agent-pay viem` | [sdk](sdk/README.md) |
 | A Turnkey-held key | `npm i @deepfirstsearch/agent-pay-turnkey @deepfirstsearch/agent-pay @turnkey/sdk-server viem` | [Turnkey](integrations/turnkey/README.md) |
 | A Privy server wallet | `npm i @deepfirstsearch/agent-pay-privy @deepfirstsearch/agent-pay @privy-io/node viem` | [Privy](integrations/privy/README.md) |
