@@ -39,7 +39,7 @@ roughly two dozen published clients.
 
 ### 1. Lint a live endpoint — no client, no code
 
-Fetches a URL and flags the traps in its `402` terms, the ones that fool a naive buyer:
+Fetches a URL and flags the traps in its `402` terms, the ones that fool a naive buyer. **Prefer the browser?** Paste a URL at **[deepfirstsearch.com/scan](https://deepfirstsearch.com/scan)** — the same check, nothing to install:
 
 ```bash
 npx @deepfirstsearch/x402-scan lint https://api.example.com/paid
