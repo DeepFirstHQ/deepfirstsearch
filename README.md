@@ -14,6 +14,14 @@ No keys, no wallet, no chain: a local x402 merchant plays honest and hostile, an
 npx @deepfirstsearch/agent-pay demo
 ```
 
+**Already building an x402 client?** See what it signs when the server lies — a swapped payee, fake decimals, no price cap — in one command:
+
+```bash
+npx @deepfirstsearch/x402-scan client @x402/fetch
+```
+
+[`x402-scan`](tools/x402-scan/) is a free, zero-dependency scanner (MIT); the [findings](https://deepfirstsearch.com/findings) explain what we keep seeing across published clients. The fix for everything it flags is the policy layer below.
+
 ## Pick your path
 
 | You use | Install | Guide |
@@ -42,6 +50,7 @@ Full developer guide: **[deepfirstsearch.com/developers](https://deepfirstsearch
 | **Agent Safe** (`contracts/`) | On-chain vault: owner-signed, timelocked, per-merchant budgets; the agent key can spend but never widen | ✅ 98 tests (fuzzing, invariants, properties, regressions, Base mainnet fork with real USDC), two internal reviews · live on Base mainnet (beta) |
 | **agent-pay SDK** (`sdk/`) | x402 v2 client (v1 opt-in per merchant) with a policy engine outside the model, prompt-injection guards, stable refusal and block codes, never a second signature while the first might have paid, per-merchant payers, owner CLI | ✅ 293 tests (283 run offline; 10 need a Base mainnet fork or RPC) incl. on-chain loops and the official x402 facilitator · `npx @deepfirstsearch/agent-pay owner …` |
 | **Framework tools** (`integrations/`) | Vercel AI SDK `paidFetchTool`, LangChain/LangGraph `createPaidFetchTool`, Coinbase AgentKit `agentPayActionProvider`; wallet payers `turnkeyPayer`, `privyPayer`, `cdpPayer`, `openfortPayer`; `order-guard` for agents that place real orders | ✅ on npm |
+| **x402-scan** (`tools/x402-scan/`) | A free, zero-dependency scanner that attacks an x402 buyer client with the mistakes we keep finding (any payee, fake decimals, no cap, year-long windows) and grades what it signs; `--json` and a GitHub Action gate the grade in CI | ✅ `npx @deepfirstsearch/x402-scan client @x402/fetch` (0.2.2) · MIT |
 | **$DEPTH** (`contracts/`) | 1B fixed supply, no mint function, no owner; fees burned through a fee jar + firepit | ✅ Implemented · not launched |
 | **Website** (`web/`) | Site, whitepaper, tokenomics, partner kit, legal pages; strict CSP, no cookies; only third party is cookieless Cloudflare Web Analytics | ✅ |
 
