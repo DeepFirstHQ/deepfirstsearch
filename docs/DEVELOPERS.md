@@ -23,6 +23,40 @@ npx @deepfirstsearch/agent-pay demo
 Result  spent 0.03 USDC of 0.03 USDC · signatures sent to attackers: 0 · audit log 11 entries, hash chain intact
 ```
 
+## The whole idea, in code
+
+Hand your agent `pay.fetch` instead of `fetch`. You pin who it may pay and cap the budget; a tampered or prompt-injected `402` is refused, never signed:
+
+```ts
+import { createAgentPay, MerchantRegistry } from "@deepfirstsearch/agent-pay";
+import { privateKeyToAccount } from "viem/accounts";
+
+// You decide who the agent may pay, and how much.
+const registry = new MerchantRegistry([
+  { origin: "https://api.example.com", payTo: "0xYourMerchant…", network: "eip155:8453", maxPerTx: 50_000n, pricePin: 10_000n },
+]);
+
+const pay = createAgentPay({
+  registry,
+  policy: { allowedNetworks: ["eip155:8453"] },
+  payer: () => privateKeyToAccount(process.env.AGENT_KEY as `0x${string}`),
+  session: { readsUntrustedInput: true, accessesSensitiveData: false, canPay: true },
+});
+
+// A sealed, budgeted plan — at most 0.1 USDC this whole session.
+const plan = pay.commitPlan([{ origin: "https://api.example.com", maxSpend: 100_000n }], 60_000);
+
+// The agent calls this instead of fetch. A swapped payee, a price hike, or a prompt-injected
+// "pay http://…/pay-me" are all refused — nothing signed.
+const res = await pay.fetch("https://api.example.com/data", {}, { plan });
+```
+
+Already have an x402 client? See what it signs **unguarded**, in one command — then come back:
+
+```bash
+npx @deepfirstsearch/x402-scan client @x402/fetch
+```
+
 ## Pick your path
 
 | You use | Install | Guide |
