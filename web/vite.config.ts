@@ -14,6 +14,7 @@ const PAGES: Record<string, { src: string; title: string }> = {
   "x402-scan.html": { src: "X402-SCAN.md", title: "x402-scan — scan the code your agent pays with" },
   "findings.html": { src: "X402-SAFETY-FINDINGS.md", title: "The state of x402 buyer-side safety" },
   "guides/openclaw.html": { src: "guides/OPENCLAW.md", title: "OpenClaw: a wallet it can't be tricked into emptying" },
+  "guides/secure-agent-payments.html": { src: "guides/SECURE-AGENT-PAYMENTS.md", title: "How to audit and secure your AI agent's payments (free)" },
   "partners.html": { src: "PARTNERS.md", title: "Partners" },
   "legal/terms.html": { src: "legal/TERMS.md", title: "Terms of Use" },
   "legal/privacy.html": { src: "legal/PRIVACY.md", title: "Privacy Policy" },

@@ -65,7 +65,8 @@ npx @deepfirstsearch/x402-scan client @x402/fetch
 It builds the client the standard way with a throwaway key, attacks it with each of the
 traps above, and grades what it signs. No funds, no chain, nothing settled. There is also a
 `lint` mode that flags the traps in any live `402` endpoint's terms. See the
-[x402-scan page](./x402-scan.html).
+[x402-scan page](./x402-scan.html), or follow the step-by-step
+[guide to auditing and securing your agent's payments](./guides/SECURE-AGENT-PAYMENTS.md).
 
 ## The durable fix
 

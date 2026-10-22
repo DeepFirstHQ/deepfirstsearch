@@ -137,6 +137,7 @@ there, is the policy layer.
 ## Links
 
 - Scanner source: <https://github.com/DeepFirstHQ/deepfirstsearch/tree/main/tools/x402-scan>
+- Step-by-step: [How to audit and secure your agent's payments](./guides/SECURE-AGENT-PAYMENTS.md)
 - Findings: [The state of x402 buyer-side safety](./findings.html)
 - Agent Safe (the policy layer): [developer guide](./developers.html)
 
