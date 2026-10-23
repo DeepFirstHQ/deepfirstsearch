@@ -88,6 +88,18 @@ job first (so it resolves from the workspace), then:
 Or lint a live endpoint instead: `with: { url: 'https://api.example.com/paid' }` (fails on any dangerous
 trap). The grade is written to the job summary. Pin `@main` to a commit or release tag for reproducible runs.
 
+### Show your grade
+
+Scanned clean? Put the badge in your README. It links back to the scanner, so anyone who sees it can check their own client:
+
+[![x402-scan: Grade A](https://img.shields.io/badge/x402--scan-Grade%20A-2ea44f)](https://deepfirstsearch.com/x402-scan)
+
+```md
+[![x402-scan: Grade A](https://img.shields.io/badge/x402--scan-Grade%20A-2ea44f)](https://deepfirstsearch.com/x402-scan)
+```
+
+Claim only the grade the scanner actually gives you — `--json` prints it, and the labels are `Grade%20A` … `Grade%20F` (use a red colour such as `d73a49` for a failing grade). A grade is a point-in-time result, so run the scan in CI (above) and the badge stays honest as your code changes.
+
 ### 3. Attack a custom client (library)
 
 Point your client at the scanner's attack server and see what it signs. Pass a **factory** that makes a fresh client per attack, wired to pay the honest baseline (payee `DEFAULTS.payTo`, `0.01` USDC, Base Sepolia) with your normal settings:
