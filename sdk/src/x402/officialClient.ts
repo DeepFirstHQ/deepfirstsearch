@@ -30,7 +30,7 @@ export type AgentSafeGuardOptions = {
   origin?: string;
 };
 
-type Reservation = { origin: string; amount: bigint };
+type Reservation = { origin: string; amount: bigint; period: number };
 type PendingRequest = { url: string; reservations: Reservation[] };
 
 /** The slice of an axios instance `guard.axios` needs (no runtime dependency on axios). */
@@ -85,7 +85,10 @@ export function agentSafeGuard(opts: AgentSafeGuardOptions) {
   };
   const release = (r: Reservation) => {
     opts.plan.release(r.origin, r.amount);
-    ledger.spent = ledger.spent >= r.amount ? ledger.spent - r.amount : 0n;
+    // Only refund the period the reservation was made in (DFS-01). A rollover resets ledger.spent, so refunding
+    // a previous-period reservation into the current counter would under-account the new period's spend.
+    spentInPeriod();
+    if (r.period === ledger.start) ledger.spent = ledger.spent >= r.amount ? ledger.spent - r.amount : 0n;
   };
   const abort = (url: string, codes: string[], reasons: string[]) => {
     opts.audit?.append({ type: "payment.denied", url, codes, reasons, via: "x402Client" });
@@ -171,7 +174,7 @@ export function agentSafeGuard(opts: AgentSafeGuardOptions) {
           return abort(url, ["budget_exhausted"], ["amount exceeds the period budget"]);
         }
         ledger.spent += amount;
-        const reservation = { origin: merchant.origin, amount };
+        const reservation = { origin: merchant.origin, amount, period: ledger.start };
         if (decision.kind === "needsApproval") {
           const ok = opts.approve ? await opts.approve({ origin: merchant.origin, payTo: merchant.payTo, amount, network: merchant.network, reasons: decision.reasons }).catch(() => false) : false;
           if (!ok) {

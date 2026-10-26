@@ -63,26 +63,29 @@ export function createFundingService(opts: {
   function listen(port: number, token: string): Promise<Server> {
     const expected = Buffer.from(`Bearer ${token}`);
     const server = createServer(async (req, res) => {
-      const auth = Buffer.from(req.headers.authorization ?? "");
-      if (req.method !== "POST" || auth.length !== expected.length || !timingSafeEqual(auth, expected)) {
-        res.writeHead(401).end();
-        return;
-      }
-      let body = "";
-      for await (const chunk of req) {
-        body += chunk;
-        if (body.length > 1024) {
-          res.writeHead(413).end();
+      try {
+        const auth = Buffer.from(req.headers.authorization ?? "");
+        if (req.method !== "POST" || auth.length !== expected.length || !timingSafeEqual(auth, expected)) {
+          res.writeHead(401).end();
           return;
         }
-      }
-      try {
+        let body = "";
+        // The body read is inside the handler's try (DFS-08): a stream that aborts before the first chunk or after
+        // a partial body must be contained here — never a rejected promise that could terminate the owner's process,
+        // and never a path that initiates funding on an incomplete body.
+        for await (const chunk of req) {
+          body += chunk;
+          if (body.length > 1024) {
+            res.writeHead(413).end();
+            return;
+          }
+        }
         const { origin, amount } = JSON.parse(body) as { origin: string; amount: string };
         const result = await topUp(String(origin), BigInt(amount));
         res.writeHead(result.ok ? 200 : 403, { "Content-Type": "application/json" });
         res.end(JSON.stringify(result, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
       } catch {
-        res.writeHead(400).end();
+        if (!res.headersSent) { try { res.writeHead(400).end(); } catch { /* request already aborted */ } }
       }
     });
     return new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve(server)));

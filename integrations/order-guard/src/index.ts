@@ -64,7 +64,9 @@ export type AuditEvent =
   | { type: "order.submitted"; previewId: string; orderId: string; total: Cents; at: number }
   | { type: "order.unconfirmed"; previewId: string; total: Cents; at: number };
 
-const normalize = (a: string) => a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// Preserve meaningful letters and numbers in every script (DFS-05): collapsing non-ASCII letters away
+// made distinct addresses (e.g. Cyrillic or CJK streets) reduce to the same house number.
+const normalize = (a: string) => a.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 const isCents = (n: unknown): n is Cents => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
 const usd = (c: Cents) => `$${(c / 100).toFixed(2)}`;
 
@@ -73,6 +75,15 @@ export function createOrderGuard(policy: OrderPolicy, backend: OrderBackend, now
     if (!isCents(v)) throw new Error(`${k} must be a non-negative integer number of cents`);
   }
   if (!Object.keys(policy.stores).length) throw new Error("approve at least one store");
+  // Optional numeric settings get the same validation as the global caps (DFS-09): a NaN or non-finite value
+  // would otherwise make a comparison (Math.min, >, age check) silently pass and disable the control.
+  if (policy.previewMaxAgeMs !== undefined && !(Number.isFinite(policy.previewMaxAgeMs) && policy.previewMaxAgeMs > 0))
+    throw new Error("previewMaxAgeMs must be a positive, finite number of milliseconds");
+  if (policy.approvalAbove !== undefined && !isCents(policy.approvalAbove))
+    throw new Error("approvalAbove must be a non-negative integer number of cents");
+  for (const [storeId, store] of Object.entries(policy.stores))
+    if (store.maxOrderTotal !== undefined && !isCents(store.maxOrderTotal))
+      throw new Error(`store ${storeId}: maxOrderTotal must be a non-negative integer number of cents`);
   const maxAge = policy.previewMaxAgeMs ?? 10 * 60_000;
   const previews = new Map<string, CheckedPreview>();
   const used = new Set<string>();
@@ -87,9 +98,12 @@ export function createOrderGuard(policy: OrderPolicy, backend: OrderBackend, now
   /** What the policy says about a preview. Pure: also used to explain a refusal to the model before submit. */
   function check(p: Preview): string[] {
     const reasons: string[] = [];
-    const store = policy.stores[p.storeId];
+    // Own-property check (DFS-04): a plain object also "has" inherited keys like constructor/toString/__proto__,
+    // so a bare lookup would let those pass as a registered store. An explicitly registered such key still works.
+    const store = Object.hasOwn(policy.stores, p.storeId) ? policy.stores[p.storeId] : undefined;
     if (!store) reasons.push(`store ${p.storeId} is not on the owner's list`);
-    if (normalize(p.deliveryAddress) !== normalize(policy.deliveryAddress)) reasons.push("delivery address is not the owner's address");
+    const addr = normalize(p.deliveryAddress);
+    if (!addr || addr !== normalize(policy.deliveryAddress)) reasons.push("delivery address is not the owner's address");
     for (const k of ["subtotal", "fees", "tip", "tax", "total"] as const) if (!isCents(p[k])) reasons.push(`${k} is not a valid amount`);
     if (isCents(p.total) && p.total !== p.subtotal + p.fees + p.tip + p.tax) reasons.push("total does not add up");
     const cap = Math.min(policy.maxOrderTotal, store?.maxOrderTotal ?? Infinity);
@@ -104,10 +118,14 @@ export function createOrderGuard(policy: OrderPolicy, backend: OrderBackend, now
     async preview(input: { storeId: string; items: CartItem[]; tip: Cents }) {
       if (!isCents(input.tip)) refuse(["tip must be a non-negative integer number of cents"]);
       const p = await backend.preview(input);
-      const checked: CheckedPreview = { ...p, store: policy.stores[p.storeId]?.label ?? p.storeId, checkedAt: now() };
-      previews.set(p.previewId, checked);
+      const label = Object.hasOwn(policy.stores, p.storeId) ? policy.stores[p.storeId]?.label : undefined;
+      const checked: CheckedPreview = { ...p, store: label ?? p.storeId, checkedAt: now() };
+      // Keep a private, detached snapshot the guard trusts, and hand the caller an independent copy (DFS-07):
+      // otherwise a consumer or approval callback could mutate the returned object and change the guard's
+      // decision, accounting or expiry while the backend still holds the original order.
+      previews.set(p.previewId, structuredClone(checked));
       audit.push({ type: "preview.checked", previewId: p.previewId, storeId: p.storeId, total: p.total, at: now() });
-      return { preview: checked, wouldBeRefusedFor: check(p) };
+      return { preview: structuredClone(checked), wouldBeRefusedFor: check(p) };
     },
 
     /** Places the order for a preview this guard produced. The only thing the model chooses is which preview. */
@@ -140,6 +158,12 @@ export function createOrderGuard(policy: OrderPolicy, backend: OrderBackend, now
           release();
           return refuse([`orders above ${usd(policy.approvalAbove)} need the owner's approval`], previewId);
         }
+      }
+      // Re-validate expiry after the approval wait (DFS-03): approval can take arbitrary time, and a preview
+      // that expired while we waited must not be submitted. Release the held reservation and require a fresh one.
+      if (now() - p.checkedAt > maxAge) {
+        release();
+        return refuse(["preview expired: prices and fees may have changed, preview again"], previewId);
       }
       try {
         const { orderId } = await backend.submit(previewId);

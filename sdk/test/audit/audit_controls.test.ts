@@ -97,10 +97,13 @@ describe("regression: sequential controls hold", () => {
     expect(net.signed).toHaveLength(0);
   });
 
-  it("sanctions screen that throws fails closed", async () => {
+  it("sanctions screen that throws fails closed without leaking the screen's error", async () => {
     const net = fakeNet();
     const { pay, plan } = mkPay(net, { screen: async () => { throw new Error("oracle down"); } });
-    await expect(pay.fetch(`${ORIGIN}/a`, {}, { plan })).rejects.toThrow(/oracle down/);
+    const err = await pay.fetch(`${ORIGIN}/a`, {}, { plan }).then(() => null, (e: Error) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err!.message).toMatch(/failed sanctions screening/);
+    expect(err!.message).not.toContain("oracle down"); // DFS-06: the screen's diagnostic never reaches the refusal
     expect(net.signed).toHaveLength(0);
   });
 

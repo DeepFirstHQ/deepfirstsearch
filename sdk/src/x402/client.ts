@@ -405,15 +405,15 @@ export function createAgentPay(options: AgentPayOptions) {
     try {
       if (options.screen) {
         let flagged: boolean;
-        let screenError = "";
         try {
           flagged = await options.screen(merchant.payTo);
-        } catch (e) {
-          flagged = true; // screening fails closed
-          screenError = ` (screen unavailable: ${String((e as Error)?.message ?? e).slice(0, 120)})`;
+        } catch {
+          // Fail closed, but never copy the screen's own error (which may carry internal URLs or credentials) into
+          // the model-visible refusal (DFS-06). The owner's screen callback is the place to log its own diagnostics.
+          flagged = true;
         }
         if (flagged) {
-          refuse(input, [`payee ${merchant.payTo} failed sanctions screening${screenError}`], ["sanctioned_payee"]);
+          refuse(input, [`payee ${merchant.payTo} failed sanctions screening`], ["sanctioned_payee"]);
         }
       }
 
@@ -490,6 +490,10 @@ export function createAgentPay(options: AgentPayOptions) {
       unsettled.set(authorization.nonce, entry);
       sent = true; // from here on the money is possibly spent: the reservation stays
 
+      // A stop that arrived while the signer was pending (DFS-02) must still prevent this first send. The
+      // authorization already exists and is recorded in `unsettled` above, so nothing re-signs; we only refuse
+      // to transmit it.
+      kill.assertAlive();
       return await send(entry, payUrl, init);
     } finally {
       releaseReservation();
