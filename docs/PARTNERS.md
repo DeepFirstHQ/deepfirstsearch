@@ -59,4 +59,4 @@ Level 1 and the drop-in tools are free. On-chain budgets (level 2) carry a 0.1% 
 
 ## Status
 
-Live on Base mainnet as an **unaudited beta** (small amounts), and on Base Sepolia for testing. Addresses: [DEPLOYMENTS.md](DEPLOYMENTS.md). Security reviews: [SECURITY.md](assessments/SECURITY.md).
+Live on Base mainnet as a **capped beta** (small amounts), and on Base Sepolia for testing. The SDK has had an independent external review (findings fixed); the on-chain contracts are not yet audited. Addresses: [DEPLOYMENTS.md](DEPLOYMENTS.md). Security reviews: [SECURITY.md](assessments/SECURITY.md).

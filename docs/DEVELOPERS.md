@@ -229,7 +229,7 @@ Complete offline scripts with a framework, each run from npm before publishing: 
 | Security | [Assessments](assessments/SECURITY.md) · report vulnerabilities privately via [SECURITY.md](https://github.com/DeepFirstHQ/deepfirstsearch/blob/main/SECURITY.md) |
 | For AI coding assistants | [llms.txt](https://deepfirstsearch.com/llms.txt) |
 
-**Status:** live on Base mainnet as an unaudited beta (small amounts) and on Base Sepolia. Open source, MIT.
+**Status:** live on Base mainnet as a capped beta (small amounts) and on Base Sepolia. The SDK has had an independent external review (findings fixed); the on-chain contracts are not yet audited. Open source, MIT.
 
 ## Get involved
 

@@ -1,6 +1,6 @@
 # Deep First Search: Agent Safe
 
-> Safe x402 payments for AI agents. The owner decides payees, prices and caps (in code and in an owner-signed, timelocked budget enforced by a contract on Base); the model only chooses which URL to fetch. A prompt-injected agent cannot overspend, pay a different wallet or accept a price hike. Open source, MIT. Live on Base mainnet as an unaudited beta, and on Base Sepolia.
+> Safe x402 payments for AI agents. The owner decides payees, prices and caps (in code and in an owner-signed, timelocked budget enforced by a contract on Base); the model only chooses which URL to fetch. A prompt-injected agent cannot overspend, pay a different wallet or accept a price hike. Open source, MIT. The TypeScript SDK and integrations have had an independent external security review (findings fixed); the on-chain contracts are an unaudited beta — use small amounts. Live on Base mainnet and Base Sepolia.
 
 ## Packages (npm)
 
