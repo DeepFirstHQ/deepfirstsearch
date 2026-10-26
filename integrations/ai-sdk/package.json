@@ -48,7 +48,7 @@
     "vitest": "4.1.11",
     "@deepfirstsearch/agent-pay": "0.6.1",
     "ai": "7.0.128",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "@deepfirstsearch/agent-pay": ">=0.5.3 <1",

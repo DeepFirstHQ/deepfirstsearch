@@ -31,7 +31,7 @@
     "@deepfirstsearch/agent-pay": "0.11.0",
     "@modelcontextprotocol/sdk": "1.32.1",
     "viem": "2.57.3",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "26.6.4",
