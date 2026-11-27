@@ -1,6 +1,6 @@
 {
   "name": "@deepfirstsearch/order-guard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Owner-set limits for AI agents that place real orders (food delivery, shopping): approved stores, pinned delivery address, order and tip caps, daily budget",
   "license": "MIT",
   "type": "module",

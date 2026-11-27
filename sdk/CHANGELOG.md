@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 (2026-11-27)
+
+Fixes from an independent external review of the SDK (DFS-01..09; `order-guard` 0.1.2 carries the others), each with a regression test:
+
+- **Fix (security, DFS-02):** a kill-switch stop that arrives while the signer is still working now prevents the first send. The signed authorization is recorded as unsettled, so nothing re-signs; it is just never transmitted.
+- **Fix (security, DFS-06):** when the owner's `screen` callback throws, the payment is still refused (fails closed), but the callback's own error text, which could carry internal URLs or credentials, no longer reaches the model-visible refusal.
+- **Fix (DFS-01):** `agentSafeGuard` refunds a released reservation only against the accounting period it was taken from, so releasing an old reservation after a period rollover can't free budget in the new period.
+- **Fix (DFS-08):** the funding service reads the request body inside its error handling: a stream that aborts mid-body gets a 400 and can't crash the owner's process or start funding on an incomplete body.
+- **Dependencies:** `zod` 4.6.5 → 4.6.7 (GHSA-mrhx-c7xc-m3w5, high).
 
 - `agentSafeGuard` works with the `@x402/mcp` client: install the guard on the `x402Client` and set `origin` to the MCP server; every paid tool call is judged against it. Tested with a paid MCP server over the in-memory transport (#50).
 
