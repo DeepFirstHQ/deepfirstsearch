@@ -4,7 +4,7 @@
 
 AI agents now pay for things over x402. Every one of those payments is public, and any agent can be talked into paying the wrong party. Deep First Search makes the model **propose** payments while the owner's signed policy **decides**.
 
-[![npm](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay?label=agent-pay)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay) [![MCP](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay-mcp?label=agent-pay-mcp)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay-mcp) [![CI](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay?label=agent-pay)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay) [![MCP](https://img.shields.io/npm/v/@deepfirstsearch/agent-pay-mcp?label=agent-pay-mcp)](https://www.npmjs.com/package/@deepfirstsearch/agent-pay-mcp) [![CI](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml/badge.svg)](https://github.com/DeepFirstHQ/deepfirstsearch/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![DeepFirstHQ/deepfirstsearch MCP server](https://glama.ai/mcp/servers/DeepFirstHQ/deepfirstsearch/badges/score.svg)](https://glama.ai/mcp/servers/DeepFirstHQ/deepfirstsearch)
 
 ## Try it in 10 seconds
 
