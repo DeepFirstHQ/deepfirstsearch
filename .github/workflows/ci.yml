@@ -162,6 +162,14 @@ jobs:
           npm run typecheck
           npm test
           npm start
+      # The same workflow as a LangChain.js / LangGraph agent (#53).
+      - name: Example agent workflow (LangChain)
+        working-directory: examples/agent-workflow-langchain
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm start
 
   privy:
     runs-on: ubuntu-latest
